@@ -511,7 +511,7 @@ func TestWaitCycleAndCancellation(t *testing.T) {
 	}
 }
 func TestAllAgentCommandsAndPromptQuoting(t *testing.T) {
-	for agent := range agentNames {
+	for agent := range agentSpecs {
 		sess := &Session{ID: "id", Agent: agent, InitialPrompt: "literal ' $(touch /tmp/no)\nmessage"}
 		command, err := launchCommand(sess, "/tmp/extensions")
 		if err != nil {
@@ -538,7 +538,7 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		"vibe":        "",
 		"pi":          "",
 	}
-	for agent := range agentNames {
+	for agent := range agentSpecs {
 		mode, ok := modes[agent]
 		if !ok {
 			t.Fatalf("%s has no expected permission mode", agent)

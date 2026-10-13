@@ -78,7 +78,7 @@ func TestParseAgentModels(t *testing.T) {
 		"opencode":    {opencode, []AgentModel{{"opencode/big-pickle", "opencode/big-pickle", []string{}}, {"openrouter/~anthropic/claude-haiku-latest", "openrouter/~anthropic/claude-haiku-latest", []string{}}}},
 	}
 	for agent, tc := range cases {
-		got, err := parseModels(agent, tc.output)
+		got, err := agentSpecs[agent].ParseModels(tc.output)
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
 			t.Fatalf("%s: %v %#v", agent, err, got)
 		}

@@ -103,7 +103,7 @@ func TestAgentSkillStatus(t *testing.T) {
 			installed = append(installed, agent.ID)
 		}
 	}
-	if !slices.Equal(installed, []string{"claude", "antigravity"}) || len(status.Agents) != len(skillAgentKeys) {
+	if !slices.Equal(installed, []string{"claude", "antigravity"}) || len(status.Agents) != len(skillAgentOrder()) {
 		t.Fatalf("agents: %+v", status.Agents)
 	}
 }

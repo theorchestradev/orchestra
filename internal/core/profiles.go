@@ -66,7 +66,8 @@ func validProfile(p *Profile) error {
 	}
 	for agent, folder := range p.Folders {
 		if _, ok := agentConfigEnv[agent]; !ok {
-			return errors.New(agentNames[agent] + " has no config folder setting, so profiles cannot choose its account.")
+			name, _ := sessionKindName(agent)
+			return errors.New(name + " has no config folder setting, so profiles cannot choose its account.")
 		}
 		if _, err := expandFolder(folder); err != nil {
 			return err
@@ -290,7 +291,8 @@ func (s *Store) LogIn(projectID, profileID, agent string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if loginCommands[agent] == "" {
-		return State{}, errors.New(agentNames[agent] + " cannot sign in from Orchestra.")
+		name, _ := sessionKindName(agent)
+		return State{}, errors.New(name + " cannot sign in from Orchestra.")
 	}
 	profile, err := s.profileLocked(profileID)
 	if err != nil {
@@ -300,7 +302,7 @@ func (s *Store) LogIn(projectID, profileID, agent string) (State, error) {
 	if profile != nil {
 		name = profile.Name
 	}
-	return s.createSessionLocked(projectID, terminalAgent, "Log In · "+agentNames[agent]+" · "+name, "", false, nil, "", "", profileID, agent)
+	return s.createSessionLocked(projectID, terminalAgent, "Log In · "+agentSpecs[agent].Name+" · "+name, "", false, nil, "", "", profileID, agent)
 }
 
 // ProfileLogin reports whether an agent's CLI is signed in with a profile's config folder.
@@ -345,7 +347,7 @@ func ProfileLogins(ctx context.Context, p *Profile) []ProfileLogin {
 			case err != nil:
 				result.Message = "Could not check the sign-in."
 			case code == 127:
-				result.Message = "Install the " + agentExecutables[result.Agent] + " CLI to sign in."
+				result.Message = "Install the " + agentSpecs[result.Agent].Executable + " CLI to sign in."
 			default:
 				result.LoggedIn = code == 0
 			}
