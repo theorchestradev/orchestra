@@ -1,0 +1,35 @@
+name: Linux
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install system packages
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend run format:check
+      - run: npm --prefix frontend test
+      - run: node scripts/PiStatusSmoke.mjs
+      - run: node scripts/PiCollaborationSmoke.mjs
+      - run: node scripts/OpenCodeSessionSmoke.mjs
+      - run: npm --prefix frontend run build
+      - run: go vet -tags webkit2_41 ./...
+      - run: go test -race -tags webkit2_41 ./...
+      - name: Build the app
+        run: |
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+          make build

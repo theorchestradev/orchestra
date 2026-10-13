@@ -1,0 +1,16 @@
+// Run after GeoIP. Retain only approximate city/country for Orchestra desktop events.
+if (event.properties.$lib != 'orchestra') { return event }
+let result := event
+let properties := {}
+let names := keys(event.properties)
+let allowed := ['$geoip_city_name', '$geoip_country_name', '$geoip_country_code']
+let i := 1
+while (i <= length(names)) {
+    let name := names[i]
+    if (name != '$ip' and (not startsWith(name, '$geoip_') or has(allowed, name))) {
+        properties[name] := event.properties[name]
+    }
+    i := i + 1
+}
+result.properties := properties
+return result

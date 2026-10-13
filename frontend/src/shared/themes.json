@@ -1,0 +1,440 @@
+{
+  "system": {
+    "name": "System",
+    "dark": ["#1E1E1E", "#1E1E1E", "#1E1E1E", "#FFFFFF", "#FFFFFF", "#393B3F", "#007AFF", "#34363A"],
+    "light": ["#FFFFFF", "#FFFFFF", "#FFFFFF", "#000000", "#000000", "#DDE0E4", "#007AFF", "#E6E8EB"]
+  },
+  "absolutely": {
+    "name": "Absolutely",
+    "light": ["#F9F9F7", "#F4F4F2", "#FFFFFF", "#2D2D2B", "#6A6A65", "#DBDBD7", "#A95C3F", "#F3E3DC"],
+    "dark": ["#2D2D2B", "#373735", "#41413E", "#F9F9F7", "#BDBDB9", "#50504B", "#CC7D5E", "#543D34"]
+  },
+  "aubergine": {
+    "name": "Aubergine",
+    "light": ["#FFFFFF", "#F6EFF6", "#F8F8F8", "#1D1C1D", "#616061", "#DDDDDD", "#611F69", "#EBDDEC"],
+    "dark": ["#1A1D21", "#3F0E40", "#222529", "#D1D2D3", "#ABABAD", "#35373B", "#1D9BD1", "#5B2C5C"],
+    "ansi": [
+      "#1A1D21",
+      "#E01E5A",
+      "#2EB67D",
+      "#ECB22E",
+      "#1D9BD1",
+      "#C287C5",
+      "#36C5F0",
+      "#D1D2D3",
+      "#616061",
+      "#F0477A",
+      "#3FD08F",
+      "#F5C451",
+      "#4AB4E6",
+      "#D7A6D9",
+      "#6AD5F5",
+      "#FFFFFF"
+    ]
+  },
+  "ayu": {
+    "name": "Ayu",
+    "light": ["#FCFAF3", "#F2EEE3", "#FFFFFF", "#5C6166", "#6B7176", "#E0D8C7", "#956600", "#F7E7BA"],
+    "dark": ["#0F1419", "#141B22", "#1B2530", "#BFBDB6", "#98A2AE", "#2D3641", "#E6B450", "#36322A"],
+    "ansi": [
+      "#000000",
+      "#F07178",
+      "#B8CC52",
+      "#FFB454",
+      "#59C2FF",
+      "#D2A6FF",
+      "#95E6CB",
+      "#BFBDB6",
+      "#323A4C",
+      "#F07178",
+      "#B8CC52",
+      "#FFB454",
+      "#59C2FF",
+      "#D2A6FF",
+      "#95E6CB",
+      "#F3F4F5"
+    ]
+  },
+  "catppuccin": {
+    "name": "Catppuccin",
+    "light": ["#EFF1F5", "#E6E9EF", "#FFFFFF", "#4C4F69", "#62667C", "#CCD0DA", "#1E66F5", "#DCE8FD"],
+    "dark": ["#1E1E2E", "#181825", "#313244", "#CDD6F4", "#A6ADC8", "#45475A", "#89B4FA", "#313A57"],
+    "ansi": [
+      "#45475A",
+      "#F38BA8",
+      "#A6E3A1",
+      "#F9E2AF",
+      "#89B4FA",
+      "#F5C2E7",
+      "#94E2D5",
+      "#BAC2DE",
+      "#585B70",
+      "#F38BA8",
+      "#A6E3A1",
+      "#F9E2AF",
+      "#89B4FA",
+      "#F5C2E7",
+      "#94E2D5",
+      "#A6ADC8"
+    ]
+  },
+  "codex": {
+    "name": "Codex",
+    "light": ["#FAFAF8", "#F0F1F1", "#FFFFFF", "#24292F", "#636B73", "#DDE1E4", "#0969DA", "#DFEAF7"],
+    "dark": ["#111315", "#1B1D20", "#202327", "#ECECEC", "#A4A8AD", "#34383D", "#4C9AFF", "#2A3848"],
+    "ansi": [
+      "#22262B",
+      "#FF6B6B",
+      "#50C878",
+      "#F7C948",
+      "#5AA9FF",
+      "#C792EA",
+      "#56D4DD",
+      "#DADADA",
+      "#5F6670",
+      "#FF8585",
+      "#6FE39A",
+      "#FFD96A",
+      "#82BCFF",
+      "#D8A7FF",
+      "#73E0E8",
+      "#FFFFFF"
+    ]
+  },
+  "dracula": {
+    "name": "Dracula",
+    "light": ["#F8F8F2", "#EEEFF3", "#FFFFFF", "#282A36", "#626477", "#D7D8E0", "#7252B5", "#ECE3F6"],
+    "dark": ["#282A36", "#21222C", "#343746", "#F8F8F2", "#B8B7C9", "#44475A", "#BD93F9", "#493A62"],
+    "ansi": [
+      "#21222C",
+      "#FF5555",
+      "#50FA7B",
+      "#F1FA8C",
+      "#BD93F9",
+      "#FF79C6",
+      "#8BE9FD",
+      "#F8F8F2",
+      "#6272A4",
+      "#FF6E6E",
+      "#69FF94",
+      "#FFFFA5",
+      "#D6ACFF",
+      "#FF92DF",
+      "#A4FFFF",
+      "#FFFFFF"
+    ]
+  },
+  "everforest": {
+    "name": "Everforest",
+    "light": ["#FDF6E3", "#F3EAD2", "#FFF9EA", "#5C6A72", "#7B8A83", "#D9D4B9", "#617A20", "#E5ECD0"],
+    "dark": ["#2D353B", "#263036", "#374149", "#D3C6AA", "#859289", "#4F585E", "#A7C080", "#3D4F40"],
+    "ansi": [
+      "#343F44",
+      "#E67E80",
+      "#A7C080",
+      "#DBBC7F",
+      "#7FBBB3",
+      "#D699B6",
+      "#83C092",
+      "#D3C6AA",
+      "#475258",
+      "#F0908F",
+      "#B8D08F",
+      "#E8CA91",
+      "#91C9C1",
+      "#E3A9C8",
+      "#96D0A4",
+      "#FFF5DC"
+    ]
+  },
+  "github": {
+    "name": "GitHub",
+    "light": ["#FFFFFF", "#F6F8FA", "#FFFFFF", "#1F2328", "#59636E", "#D1D9E0", "#0969DA", "#DDF4FF"],
+    "dark": ["#0D1117", "#010409", "#161B22", "#E6EDF3", "#9DA7B3", "#30363D", "#58A6FF", "#1C3555"],
+    "ansi": [
+      "#484F58",
+      "#FF7B72",
+      "#3FB950",
+      "#D29922",
+      "#58A6FF",
+      "#BC8CFF",
+      "#39C5CF",
+      "#B1BAC4",
+      "#6E7681",
+      "#FFA198",
+      "#56D364",
+      "#E3B341",
+      "#79C0FF",
+      "#D2A8FF",
+      "#56D4DD",
+      "#F0F6FC"
+    ]
+  },
+  "gruvbox": {
+    "name": "Gruvbox",
+    "light": ["#FBF1C7", "#F2E5BC", "#FFF9DB", "#3C3836", "#665C54", "#D5C4A1", "#076678", "#DCE5D5"],
+    "dark": ["#282828", "#242424", "#3C3836", "#EBDBB2", "#BDAE93", "#504945", "#83A598", "#394C4E"],
+    "ansi": [
+      "#282828",
+      "#CC241D",
+      "#98971A",
+      "#D79921",
+      "#458588",
+      "#B16286",
+      "#689D6A",
+      "#A89984",
+      "#928374",
+      "#FB4934",
+      "#B8BB26",
+      "#FABD2F",
+      "#83A598",
+      "#D3869B",
+      "#8EC07C",
+      "#EBDBB2"
+    ]
+  },
+  "linear": {
+    "name": "Linear",
+    "light": ["#F7F8FA", "#F2F4F8", "#FFFFFF", "#2A3140", "#6F7888", "#DCE0E9", "#5E6AD2", "#E6E8FB"],
+    "dark": ["#17181D", "#080A0F", "#22242D", "#E6E9EF", "#A3A9B8", "#353946", "#8C97FF", "#303455"]
+  },
+  "lobster": {
+    "name": "Lobster",
+    "light": ["#FAF7F7", "#F1EAEA", "#FFFFFF", "#342D32", "#766C71", "#DED3D6", "#B73542", "#F9E3E5"],
+    "dark": ["#111827", "#0C1421", "#1D293A", "#E4E4E7", "#A6A9B4", "#384456", "#FF5C5C", "#493036"]
+  },
+  "material": {
+    "name": "Material",
+    "light": ["#FAFCFB", "#EDF4F2", "#FFFFFF", "#263238", "#627078", "#CDDAD7", "#00796F", "#D8F0EB"],
+    "dark": ["#212121", "#1B1B1B", "#2B2D2C", "#EEFFFF", "#A3C3C0", "#454B48", "#80CBC4", "#294744"],
+    "ansi": [
+      "#000000",
+      "#F07178",
+      "#C3E88D",
+      "#FFCB6B",
+      "#82AAFF",
+      "#C792EA",
+      "#89DDFF",
+      "#FFFFFF",
+      "#545454",
+      "#FF8B92",
+      "#D3F29E",
+      "#FFDA83",
+      "#9BC0FF",
+      "#D8A8FF",
+      "#A3EBFF",
+      "#FFFFFF"
+    ]
+  },
+  "matrix": {
+    "name": "Matrix",
+    "light": ["#F4FBF5", "#E5F2E8", "#FFFFFF", "#163B23", "#4C7157", "#BFD8C6", "#087A31", "#D7F0DE"],
+    "dark": ["#040805", "#020402", "#0C1C10", "#B8FFCA", "#79B78C", "#24472D", "#1EFF5A", "#123B20"]
+  },
+  "monokai": {
+    "name": "Monokai",
+    "light": ["#FAFAF4", "#F0F0E5", "#FFFFFF", "#3B3B34", "#6C6C61", "#D7D8C9", "#6E7C16", "#EDEFCB"],
+    "dark": ["#272822", "#1E1F1C", "#414339", "#F8F8F2", "#A7A89C", "#5A5B4E", "#A6E22E", "#404D26"],
+    "ansi": [
+      "#333333",
+      "#C4265E",
+      "#86B42B",
+      "#B3B42B",
+      "#6A7EC8",
+      "#8C6BC8",
+      "#56ADBC",
+      "#E3E3DD",
+      "#75715E",
+      "#F92672",
+      "#A6E22E",
+      "#E6DB74",
+      "#819AFF",
+      "#AE81FF",
+      "#66D9EF",
+      "#F8F8F2"
+    ]
+  },
+  "night-owl": {
+    "name": "Night Owl",
+    "light": ["#FBFBFB", "#F0F0F0", "#FFFFFF", "#403F53", "#6D7580", "#D9D9D9", "#17877F", "#DDF1EF"],
+    "dark": ["#011627", "#001122", "#0B2942", "#D6DEEB", "#7F9DB2", "#1C3A52", "#82AAFF", "#193D66"]
+  },
+  "nord": {
+    "name": "Nord",
+    "light": ["#ECEFF4", "#E5E9F0", "#FFFFFF", "#2E3440", "#5D6878", "#CBD3DE", "#3D7D91", "#D7EAF0"],
+    "dark": ["#2E3440", "#292F3A", "#3B4252", "#D8DEE9", "#AAB7C9", "#4C566A", "#88C0D0", "#354E58"],
+    "ansi": [
+      "#3B4252",
+      "#BF616A",
+      "#A3BE8C",
+      "#EBCB8B",
+      "#81A1C1",
+      "#B48EAD",
+      "#88C0D0",
+      "#E5E9F0",
+      "#4C566A",
+      "#D08770",
+      "#B8D4A0",
+      "#F5DDA9",
+      "#8FBCD6",
+      "#C7A4C1",
+      "#9BD3E0",
+      "#ECEFF4"
+    ]
+  },
+  "notion": {
+    "name": "Notion",
+    "light": ["#FFFFFF", "#F7F6F3", "#FFFFFF", "#37352F", "#6B6862", "#E1DFDA", "#3183D8", "#E5F0FB"],
+    "dark": ["#191919", "#151515", "#272727", "#D9D9D8", "#9A9A98", "#343434", "#3183D8", "#203C58"]
+  },
+  "og": {
+    "name": "OG",
+    "light": ["#F7F7F8", "#EDEDF0", "#FFFFFF", "#343541", "#6B6E78", "#D5D6DD", "#0E8E70", "#D8F0E9"],
+    "dark": ["#343541", "#202123", "#444654", "#ECECF1", "#B4B5C2", "#565866", "#10A37F", "#27584F"]
+  },
+  "one": {
+    "name": "One",
+    "light": ["#FAFAFA", "#EAEAEB", "#FFFFFF", "#383A42", "#6B6D75", "#DBDBDC", "#526FFF", "#E5EAFD"],
+    "dark": ["#282C34", "#21252B", "#303641", "#ABB2BF", "#828A98", "#3E4452", "#61AFEF", "#2F4059"],
+    "ansi": [
+      "#3F4451",
+      "#E05561",
+      "#8CC265",
+      "#D18F52",
+      "#4AA5F0",
+      "#C162DE",
+      "#42B3C2",
+      "#D7DAE0",
+      "#5C6370",
+      "#F2777F",
+      "#A7D887",
+      "#E5AA6C",
+      "#71BAF7",
+      "#D280EC",
+      "#67C8D4",
+      "#FFFFFF"
+    ]
+  },
+  "oscurange": {
+    "name": "Oscurange",
+    "light": ["#FFF8F2", "#F6EBE5", "#FFFFFF", "#2D2827", "#746460", "#E2D3C9", "#BD5E2D", "#FBE7D9"],
+    "dark": ["#0B0B0F", "#09090D", "#19191F", "#E6E6E6", "#9099A1", "#3A3B45", "#F9B98C", "#4A322B"]
+  },
+  "raycast": {
+    "name": "Raycast",
+    "light": ["#FFFFFF", "#FCFCFC", "#F7F7F7", "#151515", "#666666", "#E4E4E4", "#138AF2", "#E1F1FF"],
+    "dark": ["#141414", "#101010", "#202020", "#FFFFFF", "#999999", "#383838", "#4FA3F8", "#243B52"],
+    "ansi": [
+      "#000000",
+      "#FF6363",
+      "#59D499",
+      "#FFC531",
+      "#56C2FF",
+      "#CF2F98",
+      "#56C2FF",
+      "#FFFFFF",
+      "#666666",
+      "#FF8585",
+      "#79E5AE",
+      "#FFD55F",
+      "#7BD0FF",
+      "#E65BB3",
+      "#7BD0FF",
+      "#FFFFFF"
+    ]
+  },
+  "rose-pine": {
+    "name": "Rose Pine",
+    "light": ["#FAF4ED", "#F2E9E1", "#FFFAF3", "#575279", "#797593", "#DFD6DC", "#B4637A", "#EDE3F0"],
+    "dark": ["#232136", "#1F1D30", "#2A273F", "#E0DEF4", "#908CAA", "#393552", "#EA9A97", "#513848"],
+    "ansi": [
+      "#393552",
+      "#EB6F92",
+      "#3E8FB0",
+      "#F6C177",
+      "#9CCFD8",
+      "#C4A7E7",
+      "#EA9A97",
+      "#E0DEF4",
+      "#6E6A86",
+      "#F48EAC",
+      "#5EACC9",
+      "#FFD097",
+      "#B4E2E8",
+      "#D6BAF4",
+      "#F5B4AF",
+      "#FFFFFF"
+    ]
+  },
+  "sentry": {
+    "name": "Sentry",
+    "light": ["#F7F5FC", "#ECE8F5", "#FFFFFF", "#302B3A", "#6E6579", "#D7CEE6", "#6247D2", "#E7E0FF"],
+    "dark": ["#2D2935", "#26222D", "#393143", "#E6DFF9", "#A79DBA", "#51465C", "#8D77FF", "#473863"]
+  },
+  "solarized": {
+    "name": "Solarized",
+    "light": ["#FDF6E3", "#EEE8D5", "#FFF9EC", "#657B83", "#839496", "#D6CDB4", "#268BD2", "#E0EDF4"],
+    "dark": ["#002B36", "#00212B", "#073642", "#839496", "#6F858C", "#274642", "#2AA198", "#1B4F54"],
+    "ansi": [
+      "#073642",
+      "#DC322F",
+      "#859900",
+      "#B58900",
+      "#268BD2",
+      "#D33682",
+      "#2AA198",
+      "#EEE8D5",
+      "#586E75",
+      "#E35D59",
+      "#9DAF32",
+      "#C9A13A",
+      "#4EA4E4",
+      "#DF5DA2",
+      "#53B4AC",
+      "#FDF6E3"
+    ]
+  },
+  "temple": {
+    "name": "Temple",
+    "light": ["#F7FBEF", "#EDF3D9", "#FFFFFF", "#253D2D", "#59705C", "#D2DCC4", "#667800", "#EDF4CB"],
+    "dark": ["#02120C", "#1D2D0F", "#283E16", "#C7E6DA", "#88A794", "#3B562B", "#E4F222", "#3B4914"]
+  },
+  "tokyo-night": {
+    "name": "Tokyo Night",
+    "light": ["#F7F8FC", "#E8EBF5", "#FFFFFF", "#343B56", "#6C7894", "#CCD3E4", "#3D59A1", "#E3EAFE"],
+    "dark": ["#1A1B26", "#16161E", "#24283B", "#A9B1D6", "#787C99", "#3B3E52", "#7AA2F7", "#303D66"],
+    "ansi": [
+      "#363B54",
+      "#F7768E",
+      "#73DACA",
+      "#E0AF68",
+      "#7AA2F7",
+      "#BB9AF7",
+      "#7DCFFF",
+      "#C0CAF5",
+      "#565F89",
+      "#FF899D",
+      "#8FE9D9",
+      "#F2C786",
+      "#94B6FF",
+      "#D1B0FF",
+      "#99DEFF",
+      "#FFFFFF"
+    ]
+  },
+  "vercel": {
+    "name": "Vercel",
+    "light": ["#FFFFFF", "#F7F7F7", "#FAFAFA", "#171717", "#666666", "#E5E5E5", "#006AFF", "#E5F0FF"],
+    "dark": ["#000000", "#0A0A0A", "#171717", "#EDEDED", "#A1A1A1", "#303030", "#3291FF", "#17365C"]
+  },
+  "vs-code-plus": {
+    "name": "VS Code Plus",
+    "light": ["#FFFFFF", "#F3F3F3", "#F8F8F8", "#202020", "#616161", "#D4D4D4", "#007ACC", "#DCEEFF"],
+    "dark": ["#1E1E1E", "#252526", "#2D2D30", "#D4D4D4", "#9D9D9D", "#454545", "#007ACC", "#264F78"]
+  },
+  "xcode": {
+    "name": "Xcode",
+    "light": ["#FFFFFF", "#F2F2F4", "#FAFAFC", "#1F1F24", "#62626A", "#D8D8DE", "#0E0EFF", "#E4E6FF"],
+    "dark": ["#1F1F24", "#1B1B21", "#2A2A32", "#D9D9E0", "#A6A6B2", "#41414B", "#5482FF", "#33446F"]
+  }
+}

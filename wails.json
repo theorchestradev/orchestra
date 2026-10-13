@@ -1,0 +1,11 @@
+{
+ "$schema": "https://wails.io/schemas/config.v2.json",
+ "name": "Orchestra",
+ "outputfilename": "orchestra",
+ "frontend:dir": "frontend",
+ "frontend:install": "npm ci",
+ "frontend:build": "npm run build",
+ "frontend:dev:watcher": "npm run dev",
+ "frontend:dev:serverUrl": "auto",
+ "info": {"productName": "Orchestra", "productVersion": "0.0.0"}
+}

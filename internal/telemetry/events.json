@@ -1,0 +1,35 @@
+{
+  "app_opened": {
+    "version": { "type": "version" },
+    "os": { "values": ["darwin", "linux"] },
+    "arch": { "values": ["amd64", "arm64", "other"] },
+    "theme_kind": { "values": ["built-in", "custom"] },
+    "arc_mode": { "type": "boolean" }
+  },
+  "project_added": {
+    "has_github_repository": { "type": "boolean" }
+  },
+  "session_started": {
+    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "terminal"] },
+    "worktree": { "type": "boolean" },
+    "from_github_item": { "type": "boolean" }
+  },
+  "session_ended": {
+    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "terminal"] },
+    "exit_kind": { "values": ["normal", "error", "killed"] },
+    "duration_bucket": { "values": ["under_1m", "1-5m", "5-30m", "30m+"] }
+  },
+  "feature_used": {
+    "feature": { "values": ["scratchpad_read", "scratchpad_cli", "inbox_execute", "inbox_auto_delivery", "diff_view", "command_bar", "emoji_picker"] }
+  },
+  "github_action": {
+    "action": { "values": ["work_on", "review", "edit_metadata"] }
+  },
+  "update_installed": {
+    "from_version": { "type": "version" },
+    "to_version": { "type": "version" }
+  },
+  "error_shown": {
+    "code": { "values": ["operation_failed", "session_start_failed", "session_exit_error"] }
+  }
+}

@@ -1,0 +1,8 @@
+<!-- Lucide circle-x (ISC), filled; see LICENSE-lucide -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <mask id="x">
+    <rect width="24" height="24" fill="white" />
+    <path d="m15 9-6 6M9 9l6 6" stroke="black" stroke-width="2" stroke-linecap="round" />
+  </mask>
+  <circle cx="12" cy="12" r="10" fill="black" mask="url(#x)" />
+</svg>
