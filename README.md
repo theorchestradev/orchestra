@@ -70,7 +70,8 @@ wails dev                # on Linux: wails dev -tags webkit2_41
 make build               # build/bin/Orchestra.app, or build/bin/orchestra on Linux
 ```
 
-See [RELEASING.md](RELEASING.md) for versioned, signed builds.
+Pushing a SemVer tag such as `v0.2.0` runs
+[the release workflow](.github/workflows/release.yml), which publishes signed builds.
 
 ## Contributing
 
