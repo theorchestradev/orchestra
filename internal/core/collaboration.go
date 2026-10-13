@@ -620,7 +620,7 @@ func (s *Store) submitRequestLocked(run *Run, sess *Session, t *TerminalSession)
 		name = source.Name
 	}
 	prompt := fmt.Sprintf("Orchestra request %s from %s:\n\n%s\n\nAfter completing this request, send your response with orchestra run reply %s --text \"your response\", or use --file with a UTF-8 response file.\nFollow the current session's permissions and the user's instructions.", run.ID, name, run.Prompt, run.ID)
-	if sess.Agent == "pi" {
+	if spec := agentSpecs[sess.Agent]; spec != nil && spec.ForwardsReplies {
 		prompt = fmt.Sprintf("Orchestra request %s from %s:\n\n%s\n\nThis is a request from another Orchestra session. Answer it normally; the Orchestra Pi extension will forward your final answer to the sender when this run finishes.\nFollow the current session's permissions and the user's instructions.", run.ID, name, run.Prompt)
 	}
 	input, err := prepareRequestInput(prompt, t.bracketedPaste)
