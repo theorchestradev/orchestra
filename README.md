@@ -1,10 +1,3 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/app-icons/white.png">
-    <img src="frontend/public/app-icons/black.png" alt="Orchestra logo" width="160">
-  </picture>
-</p>
-
 <h1 align="center">Orchestra</h1>
 
 <p align="center">
