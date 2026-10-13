@@ -23,6 +23,9 @@
 - **GitHub and diffs:** browse issues and pull requests, start a session from one, and
   review each session's changes.
 
+  <img width="1624" height="1061" alt="file-21b6f91d6892d81e16aa4fd210f9f691" src="https://github.com/user-attachments/assets/05a7f32e-a07a-445a-9b35-09bbe49bc167" />
+
+
 ## Install
 
 Download the latest release:
