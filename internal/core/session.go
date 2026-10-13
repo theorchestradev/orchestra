@@ -3,7 +3,6 @@ package core
 import (
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -32,17 +31,18 @@ var resources = func() map[string][]byte {
 	}
 	return m
 }()
-var agentNames = map[string]string{"codex": "Codex", "claude": "Claude Code", "pi": "Pi", "vibe": "Mistral Vibe", "opencode": "OpenCode", "antigravity": "Antigravity CLI", "grok": "Grok Build"}
 
-// terminalAgent marks a plain login shell session; it is not an agent and stays out of agentNames.
+// terminalAgent marks a plain login shell session; it is not an agent and stays out of agentSpecs.
 const terminalAgent = "terminal"
 
 func sessionKindName(agent string) (string, bool) {
 	if agent == terminalAgent {
 		return "Terminal", true
 	}
-	name, ok := agentNames[agent]
-	return name, ok
+	if spec, ok := agentSpecs[agent]; ok {
+		return spec.Name, true
+	}
+	return "", false
 }
 func loginShell() string {
 	if shell := os.Getenv("SHELL"); shell != "" {
@@ -71,102 +71,18 @@ func launchCommand(sess *Session, dir string) (string, error) {
 	if sess.Agent == terminalAgent {
 		return shellQuote(loginShell()) + " -l", nil
 	}
-	resume := ""
+	spec, ok := agentSpecs[sess.Agent]
+	if !ok {
+		return "", errors.New("Unknown agent.")
+	}
+	l := launch{Session: sess, Flags: launchFlags(sess), Dir: dir}
 	if sess.HasLaunched {
-		resume = sess.AgentSessionID
+		l.Resume = sess.AgentSessionID
 	}
-	flags := launchFlags(sess)
-	prompt := ""
-	if resume == "" && sess.InitialPrompt != "" {
-		prompt = shellQuote(sess.InitialPrompt)
+	if l.Resume == "" && sess.InitialPrompt != "" {
+		l.Prompt = shellQuote(sess.InitialPrompt)
 	}
-	events := []string{"SessionStart", "UserPromptSubmit", "PreToolUse", "Stop"}
-	state := func(event string) string {
-		if event == "UserPromptSubmit" || event == "PreToolUse" {
-			return "working"
-		}
-		return "waiting"
-	}
-	// Agents start in their auto mode: routine approvals are skipped while a
-	// safety layer still reviews risky actions. Full bypass flags are never used.
-	// Vibe and OpenCode only offer approve-all modes, so they keep their default
-	// prompts; Pi has no tool approval prompts. Antigravity has no reviewed auto
-	// mode, so it only auto-approves edits.
-	switch sess.Agent {
-	case "codex":
-		command := "codex"
-		if resume != "" {
-			command += " resume " + shellQuote(resume)
-		}
-		command += " --approve-for-me"
-		for _, event := range append(events, "Interrupt") {
-			hook := fmt.Sprintf("[{hooks=[{type=\"command\",command=%s}]}]", tomlString(statusCommand(state(event))))
-			command += " -c " + shellQuote("hooks."+event+"="+hook)
-		}
-		command += flags
-		if prompt != "" {
-			command += " " + prompt
-		}
-		return command, nil
-	case "claude":
-		hooks := map[string]any{}
-		for _, event := range append(events, "PermissionRequest") {
-			group := map[string]any{"hooks": []any{map[string]string{"type": "command", "command": statusCommand(state(event))}}}
-			if event == "PreToolUse" || event == "PermissionRequest" {
-				group["matcher"] = "*"
-			}
-			hooks[event] = []any{group}
-		}
-		data, _ := json.Marshal(map[string]any{"hooks": hooks})
-		command := "claude"
-		if resume != "" {
-			command += " --resume " + shellQuote(resume)
-		} else {
-			command += " --session-id " + shellQuote(sess.ID)
-		}
-		command += " --permission-mode auto --settings " + shellQuote(string(data)) + flags
-		if prompt != "" {
-			command += " " + prompt
-		}
-		return command, nil
-	case "pi":
-		id := resume
-		if id == "" {
-			id = sess.ID
-		}
-		command := "pi --session-id " + shellQuote(id) + " --extension " + shellQuote(filepath.Join(dir, "PiStatusExtension.js")) + flags
-		if prompt != "" {
-			command += " -- " + prompt
-		}
-		return command, nil
-	case "grok":
-		if resume != "" {
-			return "grok --resume " + shellQuote(resume) + " --permission-mode auto" + flags, nil
-		}
-		return "grok --session-id " + shellQuote(sess.ID) + " --permission-mode auto" + flags, nil
-	case "opencode", "vibe", "antigravity":
-		command := sess.Agent
-		resumeFlag := "--resume"
-		promptFlag := "--"
-		if sess.Agent == "opencode" {
-			resumeFlag = "--session"
-			promptFlag = "--prompt"
-		}
-		if sess.Agent == "antigravity" {
-			command = "agy --mode accept-edits"
-			resumeFlag = "--conversation"
-			promptFlag = "--prompt-interactive"
-		}
-		if resume != "" {
-			command += " " + resumeFlag + " " + shellQuote(resume)
-		}
-		command += flags
-		if prompt != "" {
-			command += " " + promptFlag + " " + prompt
-		}
-		return command, nil
-	}
-	return "", errors.New("Unknown agent.")
+	return spec.Command(l), nil
 }
 func tomlString(v string) string {
 	return "\"" + strings.ReplaceAll(strings.ReplaceAll(v, "\\", "\\\\"), "\"", "\\\"") + "\""
@@ -190,16 +106,18 @@ func environmentList(m map[string]string) []string {
 }
 
 type TerminalSession struct {
-	cmd                               *exec.Cmd
-	pty                               *os.File
-	done                              chan struct{}
-	statusFile, idFile, vibeDirectory string
-	launched                          time.Time
-	buffer                            []byte
-	offset                            int64
-	bracketedPaste                    bool
-	stopped                           bool
-	telemetryEnded                    bool
+	cmd                *exec.Cmd
+	pty                *os.File
+	done               chan struct{}
+	statusFile, idFile string
+	// agentDirectory is a folder the agent's Prepare reserved for its own files.
+	agentDirectory string
+	launched       time.Time
+	buffer         []byte
+	offset         int64
+	bracketedPaste bool
+	stopped        bool
+	telemetryEnded bool
 	// draft approximates how many characters the user has typed without submitting them.
 	draft int
 	log   *slog.Logger
@@ -258,7 +176,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	if newConversation {
 		sess.HasLaunched = false
 		sess.AgentSessionID = ""
-		if sess.Agent == "claude" || sess.Agent == "pi" || sess.Agent == "grok" {
+		if presetsID(sess.Agent) {
 			sess.AgentSessionID = sess.ID
 		}
 	}
@@ -293,34 +211,10 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	for k, v := range collab {
 		env[k] = v
 	}
-	if sess.Agent == "opencode" {
-		config := map[string]any{}
-		if env["OPENCODE_CONFIG_CONTENT"] != "" {
-			if err = json.Unmarshal([]byte(env["OPENCODE_CONFIG_CONTENT"]), &config); err != nil {
-				return TerminalOutput{}, err
-			}
-		}
-		plugins, _ := config["plugin"].([]any)
-		config["plugin"] = append(plugins, "file://"+filepath.Join(s.runtimeDir, "OpenCodeSessionPlugin.js"))
-		data, _ := json.Marshal(config)
-		env["OPENCODE_CONFIG_CONTENT"] = string(data)
-		env["ORCHESTRA_RESUME_ID"] = sess.AgentSessionID
-	}
-	if sess.Agent == "vibe" {
-		t.vibeDirectory = filepath.Join(filepath.Dir(s.path), "AgentSessions", "Vibe", sess.ID)
-		if err = os.MkdirAll(t.vibeDirectory, 0700); err != nil {
+	if spec, ok := agentSpecs[sess.Agent]; ok && spec.Prepare != nil {
+		if err = spec.Prepare(s, sess, t, env); err != nil {
 			return TerminalOutput{}, err
 		}
-		config := map[string]any{}
-		if env["VIBE_SESSION_LOGGING"] != "" {
-			if err = json.Unmarshal([]byte(env["VIBE_SESSION_LOGGING"]), &config); err != nil {
-				return TerminalOutput{}, err
-			}
-		}
-		config["enabled"] = true
-		config["save_dir"] = t.vibeDirectory
-		data, _ := json.Marshal(config)
-		env["VIBE_SESSION_LOGGING"] = string(data)
 	}
 	setup := "export PATH=" + shellQuote(s.runtimeDir) + ":$PATH; cd -- " + shellQuote(directory) + " && exec " + command
 	t.cmd = exec.Command(shell, "-l", "-i", "-c", setup)
@@ -357,8 +251,6 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 }
 
 var ansiRE = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
-var codexIDRE = regexp.MustCompile(`Session ID:\s*([0-9a-fA-F-]{36})`)
-var agyIDRE = regexp.MustCompile(`Resume:\s*agy\s+--conversation(?:=|\s+)([0-9a-fA-F-]{36})`)
 
 func (s *Store) readTerminal(id string, t *TerminalSession) {
 	buf := make([]byte, 32768)
@@ -413,12 +305,9 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 	}
 	s.trackSessionEndLocked(sess, t, kind)
 	text := ansiRE.ReplaceAllString(string(t.buffer), "")
-	re := codexIDRE
-	if sess.Agent == "antigravity" {
-		re = agyIDRE
-	}
-	if sess.AgentSessionID == "" && (sess.Agent == "codex" || sess.Agent == "antigravity") {
-		matches := re.FindAllStringSubmatch(text, -1)
+	spec := agentSpecs[sess.Agent]
+	if spec != nil && spec.RecoverID != nil && sess.AgentSessionID == "" {
+		matches := spec.RecoverID.FindAllStringSubmatch(text, -1)
 		if len(matches) > 0 {
 			sess.AgentSessionID = matches[len(matches)-1][1]
 		}
@@ -430,12 +319,8 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 	code := t.cmd.ProcessState.ExitCode()
 	name, _ := sessionKindName(sess.Agent)
 	sess.ExitMessage = fmt.Sprintf("%s exited (code %d).", name, code)
-	if code == 127 && sess.Agent != terminalAgent {
-		command := sess.Agent
-		if command == "antigravity" {
-			command = "agy"
-		}
-		sess.ExitMessage = fmt.Sprintf("Could not start %s. Check that the %s CLI is in your shell’s PATH.", agentNames[sess.Agent], command)
+	if code == 127 && spec != nil {
+		sess.ExitMessage = fmt.Sprintf("Could not start %s. Check that the %s CLI is in your shell’s PATH.", spec.Name, spec.Executable)
 	} else if err != nil && code < 0 {
 		sess.ExitMessage = "The terminal connection was closed."
 	}
@@ -483,37 +368,10 @@ func (s *Store) captureLocked(sess *Session, t *TerminalSession) bool {
 			changed = true
 		}
 	}
-	if t.vibeDirectory != "" {
-		entries, _ := os.ReadDir(t.vibeDirectory)
-		latest := t.launched
-		for _, entry := range entries {
-			path := filepath.Join(t.vibeDirectory, entry.Name())
-			if entry.IsDir() {
-				path = filepath.Join(path, "meta.json")
-			}
-			info, err := os.Stat(path)
-			if err != nil || info.ModTime().Before(latest) || info.Size() > 1024*1024 {
-				continue
-			}
-			data, err := os.ReadFile(path)
-			if err != nil {
-				continue
-			}
-			var meta map[string]any
-			if json.Unmarshal(data, &meta) != nil {
-				continue
-			}
-			if nested, ok := meta["metadata"].(map[string]any); ok {
-				meta = nested
-			}
-			value, _ := meta["session_id"].(string)
-			if value != "" {
-				latest = info.ModTime()
-				if value != sess.AgentSessionID {
-					sess.AgentSessionID = value
-					changed = true
-				}
-			}
+	if spec := agentSpecs[sess.Agent]; spec != nil && spec.CaptureID != nil {
+		if value := spec.CaptureID(t); value != "" && value != sess.AgentSessionID {
+			sess.AgentSessionID = value
+			changed = true
 		}
 	}
 	return changed
@@ -558,7 +416,7 @@ func (s *Store) monitorTerminal(id string, t *TerminalSession) {
 				}
 			} else {
 				checks++
-				if sess.Agent == "codex" && checks >= 40 && !sess.StatusNeedsSetup {
+				if spec := agentSpecs[sess.Agent]; spec != nil && spec.StatusSetup && checks >= 40 && !sess.StatusNeedsSetup {
 					sess.StatusNeedsSetup = true
 					changed = true
 				}

@@ -764,7 +764,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	if p.TerminalFontSize < 10 || p.TerminalFontSize > 24 || p.TerminalPaddingX < 0 || p.TerminalPaddingX > 24 || p.TerminalPaddingY < 0 || p.TerminalPaddingY > 24 || p.SidebarWidth < 220 || p.SidebarWidth > 400 || p.DiffPaneWidth < minDiffPaneWidth || p.DiffPaneWidth > maxDiffPaneWidth {
 		return State{}, errors.New("Invalid preference value.")
 	}
-	if _, ok := agentNames[p.DefaultAgent]; !ok {
+	if _, ok := agentSpecs[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")
 	}
 	if p.StartupView != "last" && p.StartupView != "scratchpad" && p.StartupView != "github" {
@@ -841,7 +841,7 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
 	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem}
-	if agent == "claude" || agent == "pi" || agent == "grok" {
+	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID
 	}
 	worktreeRoot := ""
