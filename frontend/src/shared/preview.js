@@ -9,6 +9,8 @@ const projectID = id(),
   sideID = id()
 // Illustrative sign-ins by profile ID ("" is Default); the preview never runs a CLI.
 const signedIn = { '': ['codex', 'claude'], [workID]: ['claude'] }
+// Profiles with the Orchestra Skill installed for Claude Code in this preview.
+const skilled = new Set(['', workID])
 const previewUpdate = {
   current: '0.1.0',
   supported: true,
@@ -488,7 +490,14 @@ export const backend = {
       agent,
       folder: profile?.folders?.[agent] || '',
       loggedIn: !!signedIn[profileID]?.includes(agent),
+      // Codex skills are shared; Claude Code needs the skill in each profile.
+      skill: agent === 'codex' || skilled.has(profileID),
     }))
+  },
+  InstallProfileSkill: async (profileID) => {
+    await new Promise((r) => setTimeout(r, 800))
+    skilled.add(profileID)
+    return { exitCode: 0, output: 'Preview: the skills CLI is not run.' }
   },
   LogIn: (pid, profileID, agent) => {
     ;(signedIn[profileID] ||= []).push(agent)

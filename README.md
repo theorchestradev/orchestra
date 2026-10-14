@@ -47,11 +47,13 @@ For the GitHub views, install the [GitHub CLI](https://cli.github.com/) and run
 To use more than one Claude Code or Codex account, add a profile in Settings → Profiles
 and choose **Log In** for each agent. Orchestra keeps a separate config folder for each
 profile under `~/.orchestra/profiles/` (through `CLAUDE_CONFIG_DIR` and `CODEX_HOME`), so
-a profile starts without your usual CLI settings, MCP servers and skills. A project chooses the profile its new sessions use, and
-the New Session dialog can choose another.
+a profile starts without your usual CLI settings, MCP servers and skills; Settings →
+Profiles offers to install the Orchestra Skill when a profile is missing it. A project
+chooses the profile its new sessions use, and the New Session dialog can choose another.
 
-To let agents discover the `orchestra` CLI, install the skill from
-Settings → Agents → Agent Skill, or run:
+The Orchestra Skill lets agents in different sessions talk to each other: they send
+requests and share the project Scratchpad through the `orchestra` CLI. Install it from
+Settings → Agents → Orchestra Skill, or run:
 
 ```sh
 npx skills add https://github.com/theorchestradev/orchestra --skill orchestra -g

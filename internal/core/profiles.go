@@ -309,7 +309,9 @@ type ProfileLogin struct {
 	// Folder is the expanded config folder; empty means the CLI's default folder.
 	Folder   string `json:"folder"`
 	LoggedIn bool   `json:"loggedIn"`
-	Message  string `json:"message,omitempty"`
+	// Skill reports whether the agent finds the Orchestra skill with this profile.
+	Skill   bool   `json:"skill"`
+	Message string `json:"message,omitempty"`
 }
 
 // ProfileLogins asks each configurable agent's CLI whether it is signed in for the profile. A
@@ -329,6 +331,7 @@ func ProfileLogins(ctx context.Context, p *Profile) []ProfileLogin {
 		result := &results[i]
 		variable := agentConfigEnv[result.Agent]
 		result.Folder = env[variable]
+		result.Skill = profileSkillInstalled(p, result.Agent)
 		script := "exec " + loginStatusCommands[result.Agent]
 		if result.Folder != "" {
 			if info, err := os.Stat(result.Folder); err != nil || !info.IsDir() {

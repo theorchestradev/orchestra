@@ -3589,7 +3589,7 @@ h2 {
   gap: 8px;
   padding-top: 10px;
 }
-/* Settings → Agents → Agent Skill */
+/* Settings → Agents → Orchestra Skill */
 .agent-skill {
   display: flex;
   flex-direction: column;
@@ -4236,6 +4236,32 @@ h2 {
   border-color: var(--status-open);
   background: var(--status-open);
 }
+.profile-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.profile-skill > .symbol {
+  color: var(--muted);
+}
+.profile-skill p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  max-width: none;
+  line-height: 1.45;
+}
+.profile-skill strong {
+  font-weight: 500;
+}
+.profile-row .skill-output {
+  margin-left: 40px;
+}
 .profile-list .theme-actions {
   padding-top: 0;
 }
@@ -4250,6 +4276,10 @@ h2 {
 @media (max-width: 700px) {
   .profile-agents {
     padding-left: 0;
+  }
+  .profile-skill,
+  .profile-row .skill-output {
+    margin-left: 0;
   }
   .profile-agent-name {
     width: auto;

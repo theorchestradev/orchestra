@@ -440,6 +440,19 @@ func (a *App) InstallAgentSkill(agents []string) (core.SkillInstall, error) {
 	return core.InstallAgentSkill(a.ctx, agents, a.store.Profiles())
 }
 
+// InstallProfileSkill installs the Orchestra skill where a profile is missing it; "" is Default.
+// It runs only when the user clicks Install in Settings → Profiles.
+func (a *App) InstallProfileSkill(profileID string) (core.SkillInstall, error) {
+	if err := a.ready(); err != nil {
+		return core.SkillInstall{}, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
+		return core.SkillInstall{}, err
+	}
+	return core.InstallProfileSkill(a.ctx, profile)
+}
+
 // CreateProfile, EditProfile and RemoveProfile back Settings → Profiles.
 func (a *App) CreateProfile(name, emoji string) (core.State, error) {
 	if err := a.ready(); err != nil {

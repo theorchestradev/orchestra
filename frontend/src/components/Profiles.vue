@@ -42,6 +42,22 @@ function summary(p) {
   return count === profileAgents.length ? 'All accounts logged in' : `${count} of ${profileAgents.length} logged in`
 }
 const loggedIn = (p, agent) => !!logins[p.id]?.[agent]?.loggedIn
+// The Orchestra Skill is installed only when the user clicks Install.
+const skills = reactive({})
+const missingSkill = (p) => !!logins[p.id] && profileAgents.some((a) => logins[p.id][a] && !logins[p.id][a].skill)
+async function installSkill(p) {
+  skills[p.id] = { busy: true }
+  try {
+    const result = await call('InstallProfileSkill', p.id)
+    skills[p.id] =
+      result.exitCode === 0
+        ? {}
+        : { error: 'The skills CLI exited with code ' + result.exitCode + '.', output: result.output }
+    if (result.exitCode === 0) check(p.id)
+  } catch (e) {
+    skills[p.id] = { error: String(e) }
+  }
+}
 async function logIn(p, agent) {
   errors[p.id] = ''
   try {
@@ -158,6 +174,26 @@ async function remove() {
               </button>
             </li>
           </ul>
+          <div v-if="missingSkill(p)" class="profile-skill">
+            <Icon name="exclamationmark.triangle" :size="13" />
+            <p class="caption">
+              <strong>Orchestra Skill not installed.</strong>
+              <span class="muted"> It lets agents in different sessions talk to each other.</span>
+            </p>
+            <button
+              type="button"
+              class="standard-button"
+              :disabled="skills[p.id]?.busy"
+              :aria-label="'Install the Orchestra Skill in ' + p.name"
+              @click="installSkill(p)"
+            >
+              {{ skills[p.id]?.busy ? 'Installing…' : 'Install' }}
+            </button>
+          </div>
+          <p v-if="skills[p.id]?.error" class="error caption" role="alert">{{ skills[p.id].error }}</p>
+          <pre v-if="skills[p.id]?.output" class="skill-output" tabindex="0" aria-label="Skills CLI output">{{
+            skills[p.id].output
+          }}</pre>
           <p v-if="errors[p.id]" class="error caption" role="alert">{{ errors[p.id] }}</p>
         </section></template
       >
@@ -169,8 +205,8 @@ async function remove() {
     </div>
     <p class="muted caption profile-notes">
       Log In opens a terminal in {{ project ? projectTitle(project) : 'the selected project' }} where you complete the
-      CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default, so install the
-      Agent Skill again from Agents. {{ otherAgents }} cannot choose an account yet, so they always use Default’s.
+      CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default.
+      {{ otherAgents }} cannot choose an account yet, so they always use Default’s.
     </p>
     <Teleport to=".app-shell">
       <Modal v-if="editing" :label="editing.id ? 'Edit Profile' : 'New Profile'" @close="!busy && (editing = null)"

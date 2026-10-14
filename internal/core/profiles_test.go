@@ -274,3 +274,43 @@ func TestSavedProfilesAreValidated(t *testing.T) {
 		t.Fatal("invalid saved profile accepted")
 	}
 }
+
+func TestProfileSkillInstall(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	installed := func(folder string) {
+		t.Helper()
+		if err := os.MkdirAll(filepath.Join(folder, "skills", "orchestra"), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(folder, "skills", "orchestra", "SKILL.md"), []byte("fixture"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	work := &Profile{ID: "p", Name: "Work", Folders: map[string]string{"claude": "~/.orchestra/profiles/work/claude", "codex": "~/.orchestra/profiles/work/codex"}}
+	installed(filepath.Join(home, ".claude"))
+	installed(filepath.Join(home, ".agents")) // Codex skills are shared by every profile.
+	if !profileSkillInstalled(nil, "claude") || !profileSkillInstalled(nil, "codex") || profileSkillInstalled(work, "claude") || !profileSkillInstalled(work, "codex") {
+		t.Fatal("skill detection")
+	}
+	scripts := fakeSkillShell(t, func(string) ([]byte, int, error) { return []byte("installed"), 0, nil })
+	if _, err := InstallProfileSkill(context.Background(), work); err != nil {
+		t.Fatal(err)
+	}
+	folder := filepath.Join(home, ".orchestra", "profiles", "work", "claude")
+	if len(*scripts) != 1 || !strings.Contains((*scripts)[0], "export CLAUDE_CONFIG_DIR="+shellQuote(folder)+"; exec ") || !strings.HasSuffix((*scripts)[0], "--agent claude-code") {
+		t.Fatalf("scripts = %q", *scripts)
+	}
+	// Nothing runs when every agent already has the skill.
+	*scripts = nil
+	if _, err := InstallProfileSkill(context.Background(), nil); err != nil || len(*scripts) != 0 {
+		t.Fatalf("Default install ran %q, %v", *scripts, err)
+	}
+	if err := os.RemoveAll(filepath.Join(home, ".agents")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := InstallProfileSkill(context.Background(), work); err != nil || len(*scripts) != 2 || strings.Contains((*scripts)[0], "export") || !strings.HasSuffix((*scripts)[0], "--agent codex") {
+		t.Fatalf("shared Codex install = %q, %v", *scripts, err)
+	}
+}
