@@ -64,6 +64,20 @@ async function reveal(id) {
     else console.warn('Could not reveal the custom theme: ' + e)
   }
 }
+// Terminal fonts are listed when Settings opens. A saved font that is no longer installed stays
+// selected and is labeled, while terminals fall back to System Monospace.
+const terminalFonts = ref(null)
+call('TerminalFonts')
+  .then((list) => (terminalFonts.value = list || []))
+  .catch(() => (terminalFonts.value = []))
+const savedFont = computed(() => props.preferences.terminalFontFamily || '')
+const fontMissing = computed(
+  () => !!savedFont.value && !!terminalFonts.value && !terminalFonts.value.includes(savedFont.value),
+)
+const fontOptions = computed(() => {
+  const list = terminalFonts.value || []
+  return savedFont.value && !list.includes(savedFont.value) ? [savedFont.value, ...list] : list
+})
 // macOS shows build details in its About panel; elsewhere General lists them.
 const about = ref('')
 if (!mac)
@@ -415,6 +429,28 @@ if (!mac)
           </div>
         </div>
         <div v-else-if="section === 'Terminal'" class="settings-card terminal-settings">
+          <div class="setting-row font-family-setting">
+            <div>
+              <label for="font-family">Font</label>
+              <p v-if="fontMissing" id="font-family-note" class="muted caption">
+                Not installed. Terminals use System Monospace.
+              </p>
+            </div>
+            <div class="theme-select general-select">
+              <select
+                id="font-family"
+                :value="savedFont"
+                :aria-describedby="fontMissing ? 'font-family-note' : undefined"
+                @change="choose('terminalFontFamily', $event.target.value)"
+              >
+                <option value="">System Monospace</option>
+                <option v-for="font in fontOptions" :key="font" :value="font">
+                  {{ fontMissing && font === savedFont ? font + ' (Not installed)' : font }}
+                </option></select
+              ><Icon name="chevron.up.chevron.down" :size="10" />
+            </div>
+          </div>
+          <hr />
           <div class="setting-row">
             <label for="font-size">Font Size</label><span class="muted">{{ preferences.terminalFontSize }} pt</span>
           </div>

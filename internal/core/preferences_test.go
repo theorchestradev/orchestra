@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -128,6 +129,33 @@ func TestTerminalPaddingPreferences(t *testing.T) {
 		prefs.TerminalPaddingX, prefs.TerminalPaddingY = invalid[0], invalid[1]
 		if _, err := s.SetPreferences(prefs); err == nil {
 			t.Fatalf("accepted out-of-range terminal padding %v", invalid)
+		}
+	}
+}
+func TestTerminalFontFamilyPreference(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	if prefs.TerminalFontFamily != "" {
+		t.Fatalf("new installs should use System Monospace: %q", prefs.TerminalFontFamily)
+	}
+	// A font that is not installed is kept, so Settings can label it.
+	prefs.TerminalFontFamily = "JetBrainsMono Nerd Font Mono"
+	if _, err := s.SetPreferences(prefs); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	if got := reopened.Snapshot().Preferences.TerminalFontFamily; got != prefs.TerminalFontFamily {
+		t.Fatalf("terminal font was not restored: %q", got)
+	}
+	for _, invalid := range []string{`Evil", serif`, `Back\slash`, "Line\nBreak", strings.Repeat("a", 201)} {
+		changed := prefs
+		changed.TerminalFontFamily = invalid
+		if _, err := s.SetPreferences(changed); err == nil {
+			t.Fatalf("accepted terminal font %q", invalid)
 		}
 	}
 }

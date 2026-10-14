@@ -35,6 +35,9 @@ export function palette(preferences) {
     tokens.map((key, i) => [key, theme[preferences.appearance === 'light' ? 'light' : 'dark'][i]]),
   )
 }
+// Terminals put the chosen family first, so a missing font falls back to System Monospace.
+export const systemMonospace = 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace'
+export const terminalFontFamily = (family) => (family ? `"${family}", ${systemMonospace}` : systemMonospace)
 // A translucent window lets the vibrancy show through the terminal; the block cursor keeps the
 // opaque canvas behind its character.
 export function terminalTheme(preferences, translucent = false) {

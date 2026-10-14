@@ -488,6 +488,9 @@ func (a *App) ExecuteRequest(id string) (core.State, error) {
 
 func (a *App) SystemPalettes() map[string][]string { return appearance.SystemPalettes() }
 
+// TerminalFonts lists the installed monospaced font families by name; it is empty when listing fails.
+func (a *App) TerminalFonts() []string { return appearance.MonospaceFonts() }
+
 // AboutInfo returns the build details that macOS shows in its About panel. Platforms
 // without that panel show them in Settings.
 func (a *App) AboutInfo() string { return aboutMessage() }

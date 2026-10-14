@@ -5,7 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { call, copy, on, paste } from '../shared/api'
 import { mac } from '../shared/platform'
-import { terminalTheme, customThemes } from '../shared/appearance'
+import { terminalTheme, terminalFontFamily, customThemes } from '../shared/appearance'
 const props = defineProps({ session: Object, preferences: Object, translucent: Boolean, visible: Boolean })
 const emit = defineEmits(['error'])
 const host = ref(null)
@@ -42,6 +42,15 @@ async function resize() {
       emit('error', String(e))
     }
 }
+// xterm.js measures the cell size when the font is set, so a font that loads later would leave the
+// grid misaligned. A missing font resolves with no faces and the fallback stack is used.
+async function loadFont() {
+  const family = terminalFontFamily(props.preferences.terminalFontFamily)
+  try {
+    await document.fonts.load(`${props.preferences.terminalFontSize}px ${family}`)
+  } catch {}
+  return family
+}
 async function attach() {
   attaching = true
   pending = []
@@ -61,8 +70,10 @@ async function attach() {
   }
 }
 onMounted(async () => {
+  const fontFamily = await loadFont()
+  if (!alive) return
   terminal = new Terminal({
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace',
+    fontFamily,
     fontSize: props.preferences.terminalFontSize,
     theme: terminalTheme(props.preferences, props.translucent),
     allowTransparency: true,
@@ -121,7 +132,10 @@ watch(
   [() => props.preferences, () => props.translucent, customThemes],
   async () => {
     if (!terminal) return
+    const fontFamily = await loadFont()
+    if (!alive) return
     terminal.options.theme = terminalTheme(props.preferences, props.translucent)
+    terminal.options.fontFamily = fontFamily
     terminal.options.fontSize = props.preferences.terminalFontSize
     pad()
     await resize()
