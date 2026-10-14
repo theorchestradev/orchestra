@@ -1,0 +1,62 @@
+# Changelog
+
+What's new in each Orchestra release. Download the latest from
+[GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
+let Orchestra update itself when you ask it to.
+
+## Unreleased
+
+### New
+
+- **Use more than one agent account.** Profiles let sessions in the same project sign
+  in to different Claude Code or Codex accounts, so you can keep work and personal
+  usage apart. Add a profile in Settings → Profiles and choose **Log In**. Each
+  project picks the profile its new sessions use, and the New Session dialog can pick
+  another. Settings → Usage shows usage for each profile.
+  ([#14](https://github.com/theorchestradev/orchestra/pull/14))
+- **Open a session's folder in the app you use.** The **Open in** button at the top
+  right of a session opens its worktree in your editor, terminal, Git tool or Finder,
+  or copies its path. It remembers the last app you chose. The same actions are in the
+  session menu and the command bar, and Settings → Terminal can hide the button.
+  ([#13](https://github.com/theorchestradev/orchestra/pull/13))
+
+## 0.2.0 — 2026-10-14
+
+### New
+
+- **Hear when an agent needs you.** Orchestra can play a chime when a session stops
+  working and waits for your input, so you can leave agents running and do something
+  else. It stays quiet for the session you're looking at, and agents that finish
+  together share one sound. Turn it on in Settings → Agents.
+  ([#8](https://github.com/theorchestradev/orchestra/pull/8))
+- **Follow your system's light or dark mode.** Settings → Appearance → Mode now offers
+  System, Light and Dark. System switches with macOS as it changes and is the default
+  for new installs. ([#9](https://github.com/theorchestradev/orchestra/pull/9))
+- **Choose your terminal font.** Settings → Terminal → Font lists the monospaced fonts
+  installed on your computer, and open terminals switch right away.
+  ([#10](https://github.com/theorchestradev/orchestra/pull/10))
+- **See every keyboard shortcut.** Settings → Shortcuts lists them all, grouped by
+  area, with the right keys for your platform.
+  ([#11](https://github.com/theorchestradev/orchestra/pull/11))
+
+### Fixed
+
+- On Linux, Ctrl+Enter now saves descriptions and sends requests, as the labels in the
+  app already said. ([#11](https://github.com/theorchestradev/orchestra/pull/11))
+
+## 0.1.0 — 2026-10-13
+
+The first public release.
+
+- **Run any agent.** Claude Code, Codex, OpenCode, Pi, Mistral Vibe, Antigravity CLI,
+  Grok Build or a plain shell, each in its own session and grouped by project.
+- **Keep agents out of each other's way.** Each session can run in its own Git worktree
+  and branch.
+- **Let sessions work together.** Agents send requests to other sessions and share a
+  project Scratchpad through the `orchestra` CLI. Nothing is typed into a terminal
+  unless you choose to.
+- **Review work without leaving the app.** Browse GitHub issues and pull requests,
+  start a session from one, and review the changes each session made.
+- **Make it yours.** Built-in and custom themes, in light and dark.
+- **Available for macOS and Linux.** A signed and notarized app for macOS 13 or later
+  (Apple silicon and Intel), and a build for Linux x86_64.
