@@ -7,3 +7,5 @@ func SystemPalettes() map[string][]string {
 }
 
 func SetWindowTranslucent(bool) bool { return false }
+
+func SetWindowAppearance(string) {}

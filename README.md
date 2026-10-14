@@ -28,6 +28,7 @@ Download the latest release:
   (Apple silicon and Intel).
 - **Linux x86_64:** `Orchestra-…-linux-x86_64.tar.gz`. Needs GTK 3 and WebKitGTK 4.1
   (`libgtk-3-0 libwebkit2gtk-4.1-0` on Ubuntu 22.04 or later).
+  The optional attention sound also needs GStreamer's good plugins (`gstreamer1.0-plugins-good`).
 
 Orchestra updates itself from GitHub Releases when you ask it to.
 

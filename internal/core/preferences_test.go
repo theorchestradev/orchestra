@@ -132,6 +132,7 @@ func TestTerminalPaddingPreferences(t *testing.T) {
 		}
 	}
 }
+
 func TestTerminalFontFamilyPreference(t *testing.T) {
 	s := fixtureStore(t)
 	prefs := s.Snapshot().Preferences
@@ -157,6 +158,25 @@ func TestTerminalFontFamilyPreference(t *testing.T) {
 		if _, err := s.SetPreferences(changed); err == nil {
 			t.Fatalf("accepted terminal font %q", invalid)
 		}
+	}
+}
+
+func TestAppearancePreference(t *testing.T) {
+	if defaultPreferences().Appearance != "system" {
+		t.Fatal("new installs should follow the system appearance")
+	}
+	s := fixtureStore(t)
+	for _, mode := range []string{"system", "light", "dark"} {
+		prefs := s.Snapshot().Preferences
+		prefs.Appearance = mode
+		if state, err := s.SetPreferences(prefs); err != nil || state.Preferences.Appearance != mode {
+			t.Fatalf("appearance %q: %v", mode, err)
+		}
+	}
+	prefs := s.Snapshot().Preferences
+	prefs.Appearance = "auto"
+	if _, err := s.SetPreferences(prefs); err == nil {
+		t.Fatal("accepted an unknown appearance")
 	}
 }
 func TestLegacyPreferencesAndUnavailableStartupView(t *testing.T) {

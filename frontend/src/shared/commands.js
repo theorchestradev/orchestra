@@ -59,6 +59,7 @@ export function commandItems({ projects = [], project, preferences = {}, sidebar
     {
       id: 'appearance',
       group: 'App',
+      // `preferences.appearance` is the appearance shown, never "system".
       name: preferences.appearance === 'light' ? 'Switch to Dark Appearance' : 'Switch to Light Appearance',
       icon: preferences.appearance === 'light' ? 'moon' : 'sun.max',
     },

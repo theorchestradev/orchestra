@@ -89,6 +89,8 @@ type Preferences struct {
 	GitHubRefreshInterval int     `json:"gitHubRefreshInterval"`
 	// DeliverRequests lets Store submit queued inbox requests once the recipient agent is free.
 	DeliverRequests bool `json:"deliverRequests"`
+	// AttentionSound plays a sound when an agent finishes its turn or asks for permission.
+	AttentionSound bool `json:"attentionSound"`
 	// Translucent shows the desktop through the window with native vibrancy.
 	Translucent bool `json:"translucent"`
 	// WindowOpacity is the content area's opacity in percent while Translucent is on; the sidebar,
@@ -730,7 +732,7 @@ const minDiffPaneWidth, maxDiffPaneWidth = 280, 900
 const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 40, 95, 78
 
 func defaultPreferences() Preferences {
-	return Preferences{Appearance: "dark", AppIcon: "white", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
+	return Preferences{Appearance: "system", AppIcon: "white", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
 }
 func normalizeGeneralPreferences(p Preferences) Preferences {
 	// Older workspaces and bridge callers have no general preferences.
@@ -758,7 +760,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p = normalizeGeneralPreferences(p)
-	if p.Appearance != "dark" && p.Appearance != "light" {
+	if p.Appearance != "system" && p.Appearance != "dark" && p.Appearance != "light" {
 		return State{}, errors.New("Invalid appearance.")
 	}
 	if p.AppIcon != "white" && p.AppIcon != "black" {

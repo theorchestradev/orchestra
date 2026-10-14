@@ -6,6 +6,7 @@ import { gitHubItem } from './shared/github'
 import { projectTitle } from './shared/project'
 import {
   palette,
+  effectiveAppearance,
   agents,
   agentIcon,
   destination,
@@ -41,11 +42,12 @@ import ArcProjectPager from './components/ArcProjectPager.vue'
 import SessionDiff from './components/SessionDiff.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
+import { sessionsNeedingYou, attentionSound } from './shared/attention'
 const workspace = ref({
   projects: [],
   runs: [],
   preferences: {
-    appearance: 'dark',
+    appearance: 'system',
     appIcon: 'white',
     theme: 'system',
     terminalFontFamily: '',
@@ -63,6 +65,7 @@ const workspace = ref({
     confirmSessionClose: true,
     gitHubRefreshInterval: 0,
     deliverRequests: false,
+    attentionSound: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
@@ -113,6 +116,11 @@ const modalProject = computed(
   () => workspace.value.projects.find((p) => p.id === sessionProjectID.value) || project.value,
 )
 const preferences = computed(() => workspace.value.preferences)
+// Views get the appearance shown, so System mode needs no handling outside Settings.
+const shownPreferences = computed(() => ({
+  ...preferences.value,
+  appearance: effectiveAppearance(preferences.value.appearance),
+}))
 const telemetryStatus = ref({ available: false, reason: '', debug: false }),
   telemetryBusy = ref(false)
 let telemetryRequest = Promise.resolve()
@@ -174,16 +182,17 @@ async function applyTranslucency() {
 }
 watch(() => preferences.value.translucent, applyTranslucency)
 const appearance = computed(() => {
-  const colors = palette(preferences.value)
+  const colors = palette(shownPreferences.value),
+    dark = shownPreferences.value.appearance === 'dark'
   return {
     ...Object.fromEntries(Object.entries(colors).map(([key, value]) => ['--' + key, value])),
-    ...diffTokens(preferences.value),
+    ...diffTokens(shownPreferences.value),
     ...translucencyTokens(preferences.value.windowOpacity),
     '--on-accent': accentForeground(colors.accent),
     '--control-thumb': palette({ theme: 'system', appearance: 'light' }).canvas,
-    '--status-open': preferences.value.appearance === 'dark' ? '#4ade80' : '#15803d',
-    '--status-merged': preferences.value.appearance === 'dark' ? '#c4a0ff' : '#8250df',
-    '--status-deleted': preferences.value.appearance === 'dark' ? '#f87171' : '#cf222e',
+    '--status-open': dark ? '#4ade80' : '#15803d',
+    '--status-merged': dark ? '#c4a0ff' : '#8250df',
+    '--status-deleted': dark ? '#f87171' : '#cf222e',
   }
 })
 const sidebarProjects = computed(() =>
@@ -191,9 +200,18 @@ const sidebarProjects = computed(() =>
 )
 const sidebarWidth = computed(() => preferences.value.sidebarWidth || 280)
 const showsDiff = computed(() => Boolean(preferences.value.diffPaneOpen && session.value))
+// Codex reports a user interrupt as waiting, so a session the user just typed in stays quiet.
+const lastKey = {}
+const chime = attentionSound(() => new Audio('/sounds/attention.wav').play().catch(() => {}))
+function announce(previous, next) {
+  if (!preferences.value.attentionSound) return
+  const watching = (s) => s.id === session.value?.id && !modal.value && document.hasFocus()
+  if (sessionsNeedingYou(previous, next, (s) => watching(s) || Date.now() - (lastKey[s.id] || 0) < 2000).length) chime()
+}
 function apply(state) {
   if (state?.projects) {
     const localPrefs = workspace.value.preferences
+    announce(workspace.value.projects, state.projects)
     workspace.value = { ...state, runs: state.runs || [] }
     if (preferencePending)
       workspace.value.preferences = {
@@ -228,6 +246,13 @@ function openModal(kind, p = project.value) {
     if (p) sessionProjectID.value = p.id
   }
 }
+// The status bar toggle and the command switch to the opposite of what is shown, leaving System.
+function toggleAppearance() {
+  changePreferences({
+    ...preferences.value,
+    appearance: shownPreferences.value.appearance === 'light' ? 'dark' : 'light',
+  })
+}
 function command(kind) {
   if (kind === 'previous' || kind === 'next') {
     navigate(kind === 'next' ? 1 : -1)
@@ -257,11 +282,7 @@ async function runCommand({ command: kind, item }) {
   if (kind === 'goto') return select(item.project, item.destination)
   if (kind === 'github' || kind === 'scratchpad') return select(project.value, kind)
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
-  if (kind === 'appearance')
-    return changePreferences({
-      ...preferences.value,
-      appearance: preferences.value.appearance === 'light' ? 'dark' : 'light',
-    })
+  if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(project.value)
   if (kind === 'session' || kind === 'worktreeSession') {
     sessionProjectID.value = project.value.id
@@ -790,8 +811,8 @@ onBeforeUnmount(() => {
       'native-titlebar': !mac,
       'has-usage-consent': !loading && !preferences.telemetryChoiceMade,
     }"
-    :style="{ ...appearance, colorScheme: preferences.appearance, '--sidebar-width': sidebarWidth + 'px' }"
-    :data-appearance="preferences.appearance"
+    :style="{ ...appearance, colorScheme: shownPreferences.appearance, '--sidebar-width': sidebarWidth + 'px' }"
+    :data-appearance="shownPreferences.appearance"
     :data-theme="preferences.theme"
     @pointerdown="menu = null"
   >
@@ -906,7 +927,7 @@ onBeforeUnmount(() => {
                       >
                         <Icon v-if="isTerminal(sess)" name="terminal" :size="12" /><img
                           v-else
-                          :src="agentIcon(sess.agent, preferences.appearance)"
+                          :src="agentIcon(sess.agent, shownPreferences.appearance)"
                           alt=""
                         /><span class="session-name"
                           ><span>{{ sess.name }}</span
@@ -1067,10 +1088,11 @@ onBeforeUnmount(() => {
               <TerminalView
                 :key="sess.id + '-' + (terminalVersions[sess.id] || 0)"
                 :session="sess"
-                :preferences="preferences"
+                :preferences="shownPreferences"
                 :translucent="translucent"
                 :visible="project?.id === p.id && currentDestination === sess.id"
                 @error="error = $event"
+                @key="lastKey[sess.id] = Date.now()"
               /></section></template
         ></template>
       </div>
@@ -1095,16 +1117,14 @@ onBeforeUnmount(() => {
       :project="project"
       :session="session"
       :destination="currentDestination"
-      :preferences="preferences"
+      :preferences="shownPreferences"
       :diff-open="showsDiff"
       :update="update"
       :update-ready="Boolean(updateStatus?.staged)"
       @update="openModal('update')"
       @inbox="openInbox"
       @diff="toggleDiff"
-      @appearance="
-        changePreferences({ ...preferences, appearance: preferences.appearance === 'light' ? 'dark' : 'light' })
-      "
+      @appearance="toggleAppearance"
     />
     <div
       v-if="menu"
@@ -1239,7 +1259,7 @@ onBeforeUnmount(() => {
     /></Modal>
     <Modal v-else-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
       ><CommandBar
-        :preferences="preferences"
+        :preferences="shownPreferences"
         :projects="workspace.projects"
         :project="project"
         :sidebar-hidden="sidebarHidden"
@@ -1307,7 +1327,7 @@ onBeforeUnmount(() => {
             :aria-label="'Start a ' + agent.name + ' session'"
             @click="createSession(agent.id, '', newWorktree)"
           >
-            <img :src="agentIcon(agent.id, preferences.appearance)" alt="" /><span>{{ agent.name }}</span
+            <img :src="agentIcon(agent.id, shownPreferences.appearance)" alt="" /><span>{{ agent.name }}</span
             ><small v-if="agent.id === preferences.defaultAgent" class="muted caption">Default</small>
           </button>
         </div>
@@ -1469,7 +1489,7 @@ onBeforeUnmount(() => {
         :session="modalSession"
         :project="modalProject"
         :runs="workspace.runs"
-        :preferences="preferences"
+        :preferences="shownPreferences"
         @state="apply"
         @execute="visitedTerminals.add($event.projects.find(p=>p.id===$event.selectedProjectID).selectedSessionID);closeModal()"
         @close="closeModal"
