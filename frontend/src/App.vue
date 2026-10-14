@@ -2,6 +2,7 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, on, copy, preview } from './shared/api'
 import { mac } from './shared/platform'
+import { appCommand } from './shared/shortcuts'
 import { gitHubItem } from './shared/github'
 import { projectTitle } from './shared/project'
 import {
@@ -725,32 +726,15 @@ function keys(event) {
     return
   }
   if (!event.metaKey && !event.ctrlKey) return
-  if (event.shiftKey && ['BracketLeft', 'BracketRight'].includes(event.code)) {
-    event.preventDefault()
-    command(event.code === 'BracketRight' ? 'next' : 'previous')
-    return
-  }
-  const key = event.key.toLowerCase()
-  if (preview && key === 'q') {
+  if (preview && event.key.toLowerCase() === 'q') {
     event.preventDefault()
     requestQuit()
     return
   }
-  if (event.shiftKey && event.code === 'KeyB') {
+  const id = appCommand(event)
+  if (id) {
     event.preventDefault()
-    command('diff')
-    return
-  }
-  if (key === 'b' && !event.shiftKey) {
-    event.preventDefault()
-    command('sidebar')
-    return
-  }
-  if (key === 'k' || key === ',' || key === 'n') {
-    event.preventDefault()
-    if (key === 'k') command('command')
-    else if (key === ',') command('settings')
-    else command(event.shiftKey ? 'project' : 'session')
+    command(id)
   }
 }
 async function detectAll() {

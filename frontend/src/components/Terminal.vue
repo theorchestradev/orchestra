@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { call, copy, on, paste } from '../shared/api'
 import { mac } from '../shared/platform'
+import { terminalKeeps } from '../shared/shortcuts'
 import { terminalTheme, terminalFontFamily, customThemes } from '../shared/appearance'
 const props = defineProps({ session: Object, preferences: Object, translucent: Boolean, visible: Boolean })
 const emit = defineEmits(['error', 'key'])
@@ -88,16 +89,7 @@ onMounted(async () => {
   // App shortcuts are left to App.vue. Off macOS, Ctrl+B, Ctrl+K and Ctrl+N belong to the
   // terminal, so app shortcuts and copy/paste use Ctrl+Shift there.
   terminal.attachCustomKeyEventHandler((e) => {
-    if (mac)
-      return !(
-        e.metaKey &&
-        (['n', 'k', ',', 'b'].includes(e.key.toLowerCase()) ||
-          (e.shiftKey && e.code === 'KeyB') ||
-          (e.shiftKey && ['BracketLeft', 'BracketRight'].includes(e.code)))
-      )
-    if (!e.ctrlKey) return true
-    if (!e.shiftKey) return e.key !== ','
-    if (e.code === 'KeyC' || e.code === 'KeyV') {
+    if (!mac && e.ctrlKey && e.shiftKey && (e.code === 'KeyC' || e.code === 'KeyV')) {
       e.preventDefault()
       if (e.type === 'keydown' && e.code === 'KeyC' && terminal.hasSelection()) copy(terminal.getSelection())
       if (e.type === 'keydown' && e.code === 'KeyV')
@@ -106,7 +98,7 @@ onMounted(async () => {
           .catch((err) => emit('error', String(err)))
       return false
     }
-    return !['KeyN', 'KeyK', 'KeyB', 'BracketLeft', 'BracketRight'].includes(e.code)
+    return terminalKeeps(e)
   })
   terminal.onKey(() => emit('key'))
   terminal.onData((data) => call('WriteTerminal', props.session.id, data).catch((e) => emit('error', String(e))))

@@ -528,6 +528,7 @@ onMounted(() => load())
                 :aria-invalid="Boolean(draft.error)"
                 :aria-errormessage="draft.error ? `description-error-${project.id}` : undefined"
                 @keydown.meta.enter.prevent="saveDescription"
+                @keydown.ctrl.enter.prevent="saveDescription"
                 @keydown.esc.stop.prevent="cancelDescription"
               />
               <p v-if="draft.error" :id="`description-error-${project.id}`" class="status-error" role="alert">
