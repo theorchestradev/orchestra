@@ -197,7 +197,7 @@ const lastKey = {}
 const chime = attentionSound(() => new Audio('/sounds/attention.wav').play().catch(() => {}))
 function announce(previous, next) {
   if (!preferences.value.attentionSound) return
-  const watching = (s) => s.id === session.value?.id && document.hasFocus()
+  const watching = (s) => s.id === session.value?.id && !modal.value && document.hasFocus()
   if (sessionsNeedingYou(previous, next, (s) => watching(s) || Date.now() - (lastKey[s.id] || 0) < 2000).length) chime()
 }
 function apply(state) {
