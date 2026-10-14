@@ -35,6 +35,10 @@ type Session struct {
 	StatusNeedsSetup  bool   `json:"statusNeedsSetup,omitempty"`
 	// GitHubItem links a session started from Work on or Review to its issue or pull request.
 	GitHubItem *GitHubItem `json:"gitHubItem,omitempty"`
+	// ProfileID chooses the agent accounts for the session's whole life; empty is Default.
+	ProfileID string `json:"profileID,omitempty"`
+	// LoginAgent makes a terminal session run that agent's login command when it first starts.
+	LoginAgent string `json:"loginAgent,omitempty"`
 }
 
 // GitHubItem identifies an issue or pull request in the project's repository.
@@ -61,9 +65,11 @@ type Project struct {
 	// edits made since they last read it.
 	ScratchpadRevision int `json:"scratchpadRevision"`
 	// ScratchpadMode is "read" when the Scratchpad renders its Markdown; empty means Edit.
-	ScratchpadMode string     `json:"scratchpadMode,omitempty"`
-	Repository     string     `json:"repository,omitempty"`
-	Sessions       []*Session `json:"sessions"`
+	ScratchpadMode string `json:"scratchpadMode,omitempty"`
+	Repository     string `json:"repository,omitempty"`
+	// ProfileID is the profile new sessions use; empty is Default.
+	ProfileID string     `json:"profileID,omitempty"`
+	Sessions  []*Session `json:"sessions"`
 }
 type Preferences struct {
 	TelemetryEnabled    bool   `json:"telemetryEnabled"`
@@ -107,6 +113,7 @@ type State struct {
 	Version           int         `json:"version"`
 	SelectedProjectID string      `json:"selectedProjectID,omitempty"`
 	Projects          []*Project  `json:"projects"`
+	Profiles          []*Profile  `json:"profiles,omitempty"`
 	Preferences       Preferences `json:"preferences"`
 	Error             string      `json:"error,omitempty"`
 	Runs              []*Run      `json:"runs,omitempty"`
@@ -277,6 +284,9 @@ func (s *Store) restoreLocked() {
 	for _, p := range s.state.Projects {
 		if p.Sessions == nil {
 			p.Sessions = []*Session{}
+		}
+		if _, err := s.profileLocked(p.ProfileID); err != nil {
+			p.ProfileID = ""
 		}
 		p.ScratchpadIndex = max(0, min(p.ScratchpadIndex, len(p.Sessions)))
 		if p.ScratchpadMode != "read" {
@@ -819,10 +829,14 @@ func clampSessionName(name string) string {
 
 // CreateSession names the session sessionName when given, otherwise "<Agent name> <n>".
 // gitHubItem records the issue or pull request a Work on or Review session came from.
-func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort string) (State, error) {
+// profileID chooses the session's agent accounts; empty is Default.
+func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID string) (State, error) {
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "")
+}
+func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent string) (State, error) {
 	p, err := s.projectLocked(projectID)
 	if err != nil {
 		return State{}, err
@@ -840,6 +854,9 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 	if err = validateLaunch(agent, model, effort); err != nil {
 		return State{}, err
 	}
+	if _, err = s.profileLocked(profileID); err != nil {
+		return State{}, err
+	}
 	n := 1
 	for _, sess := range p.Sessions {
 		if sess.Agent == agent {
@@ -849,7 +866,7 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 	if sessionName = clampSessionName(sessionName); sessionName == "" {
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
-	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem}
+	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent}
 	if agent == "claude" || agent == "pi" || agent == "grok" {
 		sess.AgentSessionID = sess.ID
 	}

@@ -44,6 +44,12 @@ For the GitHub views, install the [GitHub CLI](https://cli.github.com/) and run
 3. When you close the session, **Remove the worktree** deletes a clean checkout and
    keeps any branch with unmerged commits.
 
+To use more than one Claude Code or Codex account, add a profile in Settings → Profiles
+and choose **Log In** for each agent. Orchestra keeps a separate config folder for each
+profile under `~/.orchestra/profiles/` (through `CLAUDE_CONFIG_DIR` and `CODEX_HOME`), so
+a profile starts without your usual CLI settings, MCP servers and skills. A project chooses the profile its new sessions use, and
+the New Session dialog can choose another.
+
 To let agents discover the `orchestra` CLI, install the skill from
 Settings → Agents → Agent Skill, or run:
 

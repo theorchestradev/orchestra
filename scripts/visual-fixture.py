@@ -12,6 +12,13 @@ bin_dir.mkdir(exist_ok=True)
 python = shutil.which('python3')
 agent = root / 'agent.py'
 agent.write_text('''import os, sys, tty, uuid
+# Sign-in commands only touch a marker in the profile's config folder; no account is contacted.
+command, args = sys.argv[1], sys.argv[2:]
+home = os.environ.get({'claude':'CLAUDE_CONFIG_DIR','codex':'CODEX_HOME'}.get(command,'')) or os.path.dirname(os.path.abspath(__file__))
+marker = os.path.join(home, command + '-signed-in')
+if args[:2] in (['auth','status'], ['login','status']): sys.exit(0 if os.path.exists(marker) else 1)
+if args[:2] == ['auth','login'] or args[:1] == ['login']:
+ open(marker,'w').write('fixture'); print('Fixture: signed in. No account was contacted.'); sys.exit(0)
 identifier = next((sys.argv[i+1] for i,x in enumerate(sys.argv[:-1]) if x in ('--resume','--session-id','--session','--conversation')), str(uuid.uuid4()))
 open(os.environ['ORCHESTRA_AGENT_ID_FILE'],'w').write(identifier)
 open(os.environ['ORCHESTRA_STATUS_FILE'],'w').write('waiting')
@@ -26,7 +33,7 @@ while True:
 ''')
 for command in ['codex','claude','pi','vibe','opencode','agy','grok']:
  path=bin_dir/command
- path.write_text(f'#!/bin/sh\nexec "{python}" "{agent}" "$@"\n')
+ path.write_text(f'#!/bin/sh\nexec "{python}" "{agent}" {command} "$@"\n')
  path.chmod(0o700)
 shell = bin_dir/'fixture-shell'
 shell.write_text('#!/bin/sh\nexec /bin/sh -c "$4"\n'); shell.chmod(0o700)
@@ -44,7 +51,13 @@ else:
 print(json.dumps(result))
 ''')
 gh.chmod(0o700)
-pid, sid, peer = (str(uuid.uuid4()) for _ in range(3))
+pid, sid, peer, work, side = (str(uuid.uuid4()) for _ in range(5))
+# Default and the Work profile's Claude account are signed in; the long-named profile is not.
+profiles = [{'id':work,'name':'Work','emoji':'💼','folders':{a:str(root/'profiles'/'work'/a) for a in ('claude','codex')}},{'id':side,'name':'Side Projects and Open Source Contributions Account','folders':{a:str(root/'profiles'/'side-projects-and-open-source-contribut'/a) for a in ('claude','codex')}}]
+for profile in profiles:
+ for folder_path in profile['folders'].values(): pathlib.Path(folder_path).mkdir(parents=True, exist_ok=True, mode=0o700)
+(root/'claude-signed-in').write_text('fixture'); (root/'codex-signed-in').write_text('fixture')
+(root/'profiles'/'work'/'claude'/'claude-signed-in').write_text('fixture')
 # A dirty worktree for the Changes pane: a commit, edits, a deletion, a rename and untracked files.
 git = lambda *args, cwd=folder: subprocess.run(['/usr/bin/git', '-C', str(cwd), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', *args], check=True, capture_output=True)
 if not (folder / 'README.md').exists():
@@ -66,6 +79,6 @@ long = worktree / 'frontend' / 'src' / 'components' / 'a-very-long-folder-name-f
 long.mkdir(parents=True)
 (long / 'SessionDiff.vue').write_text('<template><aside /></template>\n')
 (worktree / 'preview.png').write_bytes(b'\x89PNG\r\n\x1a\n\x00\x00')
-state = {'version':1,'selectedProjectID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'projects':[{'id':pid,'name':'Orchestra','directory':str(folder),'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False}]}]}
+state = {'version':1,'selectedProjectID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'projects':[{'id':pid,'name':'Orchestra','directory':str(folder),'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'profileID':work,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base,'profileID':work},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False,'profileID':side}]}],'profiles':profiles}
 (root/'state.json').write_text(json.dumps(state,indent=2))
 print(f'Fixture created at {root}. Launch with ORCHESTRA_STATE_FILE={root}/state.json, SHELL={shell}, and PATH={bin_dir}:$PATH.')

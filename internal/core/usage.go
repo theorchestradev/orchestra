@@ -33,19 +33,28 @@ type AgentUsage struct {
 
 // These are account-control queries, never agent turns. No credentials cross
 // the Wails bridge; authentication and token refresh stay with the installed CLI.
-func ReadAgentUsage(ctx context.Context) []AgentUsage {
+// The profile's config folders choose the accounts; nil is Default.
+func ReadAgentUsage(ctx context.Context, profile *Profile) []AgentUsage {
 	results := make([]AgentUsage, 2)
+	folders := profileFolders(profile)
 	var wg sync.WaitGroup
 	for i, agent := range []string{"codex", "claude"} {
-		wg.Go(func() { results[i] = readAgentUsage(ctx, agent) })
+		wg.Go(func() { results[i] = readAgentUsage(ctx, agent, folders) })
 	}
 	wg.Wait()
 	return results
 }
 
-func readAgentUsage(parent context.Context, agent string) AgentUsage {
+func readAgentUsage(parent context.Context, agent string, folders map[string]string) AgentUsage {
 	result := AgentUsage{Agent: agent, Windows: []UsageWindow{}, CheckedAt: time.Now().Unix()}
 	env := environmentMap()
+	if folder := folders[agentConfigEnv[agent]]; folder != "" {
+		if info, err := os.Stat(folder); err != nil || !info.IsDir() {
+			result.Message = "Log in to this profile to see subscription limits."
+			return result
+		}
+		env[agentConfigEnv[agent]] = folder
+	}
 	home, _ := os.UserHomeDir()
 	searchPath := env["PATH"] + ":" + filepath.Join(home, ".local", "bin") + ":/opt/homebrew/bin:/usr/local/bin"
 	var executable string

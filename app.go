@@ -20,21 +20,19 @@ import (
 )
 
 type App struct {
-	ctx               context.Context
-	log               *slog.Logger
-	store             *core.Store
-	updater           *core.Updater
-	telemetry         *telemetry.Client
-	telemetryMu       sync.Mutex
-	startupError      error
-	frontendReady     atomic.Bool
-	quitConfirmed     atomic.Bool
-	usageMu           sync.Mutex
-	usageCache        []core.AgentUsage
-	usageChecked      time.Time
-	openRouterMu      sync.Mutex
-	openRouterCache   core.OpenRouterAccount
-	openRouterChecked time.Time
+	ctx             context.Context
+	log             *slog.Logger
+	store           *core.Store
+	updater         *core.Updater
+	telemetry       *telemetry.Client
+	telemetryMu     sync.Mutex
+	startupError    error
+	frontendReady   atomic.Bool
+	quitConfirmed   atomic.Bool
+	usageMu         sync.Mutex
+	usageCache      map[string]usageReading // By profile ID; "" is Default.
+	openRouterMu    sync.Mutex
+	openRouterCache map[string]openRouterReading // By profile ID; "" is Default.
 }
 
 // statePath returns the workspace file, which ORCHESTRA_STATE_FILE overrides for QA.
@@ -187,37 +185,72 @@ func (a *App) ChooseFolder() (string, error) {
 
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Project Folder", CanCreateDirectories: false})
 }
-func (a *App) AgentUsage(refresh bool) ([]core.AgentUsage, error) {
+
+type usageReading struct {
+	usage   []core.AgentUsage
+	checked time.Time
+}
+
+// AgentUsage reads the Codex and Claude limits of a profile's accounts; "" is Default.
+func (a *App) AgentUsage(refresh bool, profileID string) ([]core.AgentUsage, error) {
 	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
 		return nil, err
 	}
 	a.usageMu.Lock()
 	defer a.usageMu.Unlock()
-	if a.usageCache == nil || time.Since(a.usageChecked) >= 5*time.Minute || (refresh && time.Since(a.usageChecked) >= 15*time.Second) {
-		a.usageCache = core.ReadAgentUsage(a.ctx)
-		a.usageChecked = time.Now()
+	if a.usageCache == nil {
+		a.usageCache = map[string]usageReading{}
 	}
-	return a.usageCache, nil
+	cached, ok := a.usageCache[profileID]
+	if !ok || time.Since(cached.checked) >= 5*time.Minute || (refresh && time.Since(cached.checked) >= 15*time.Second) {
+		cached = usageReading{core.ReadAgentUsage(a.ctx, profile), time.Now()}
+		a.usageCache[profileID] = cached
+	}
+	return cached.usage, nil
 }
 
-// QA workspaces use a separate Keychain service instead of the user's key.
-func openRouterKeyService() string {
+// QA workspaces use a separate Keychain service instead of the user's key. Each profile
+// keeps its own management key; "" is Default, which keeps the original service.
+func openRouterKeyService(profileID string) string {
 	service := "com.orchestra.openrouter"
 	if path := os.Getenv("ORCHESTRA_STATE_FILE"); path != "" {
 		service += fmt.Sprintf(".workspace-%x", sha256.Sum256([]byte(path)))
 	}
+	if profileID != "" {
+		service += ".profile-" + profileID
+	}
 	return service
 }
-func (a *App) OpenRouterUsage(refresh bool) (core.OpenRouterAccount, error) {
+
+type openRouterReading struct {
+	account core.OpenRouterAccount
+	checked time.Time
+}
+
+// openRouterProfile rejects an unknown profile, so no Keychain item is made for it.
+func (a *App) openRouterProfile(profileID string) error {
 	if err := a.ready(); err != nil {
+		return err
+	}
+	_, err := a.store.Profile(profileID)
+	return err
+}
+
+// OpenRouterUsage reads the account of a profile's management key; "" is Default.
+func (a *App) OpenRouterUsage(refresh bool, profileID string) (core.OpenRouterAccount, error) {
+	if err := a.openRouterProfile(profileID); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
 	a.openRouterMu.Lock()
 	defer a.openRouterMu.Unlock()
-	if !a.openRouterChecked.IsZero() && time.Since(a.openRouterChecked) < 5*time.Minute && (!refresh || time.Since(a.openRouterChecked) < 15*time.Second) {
-		return a.openRouterCache, nil
+	if cached, ok := a.openRouterCache[profileID]; ok && time.Since(cached.checked) < 5*time.Minute && (!refresh || time.Since(cached.checked) < 15*time.Second) {
+		return cached.account, nil
 	}
-	key, err := core.OpenRouterKey(openRouterKeyService())
+	key, err := core.OpenRouterKey(openRouterKeyService(profileID))
 	if err != nil {
 		return core.OpenRouterAccount{}, err
 	}
@@ -228,11 +261,17 @@ func (a *App) OpenRouterUsage(refresh bool) (core.OpenRouterAccount, error) {
 			result.Message = err.Error()
 		}
 	}
-	a.openRouterCache, a.openRouterChecked = result, time.Now()
+	a.cacheOpenRouter(profileID, result)
 	return result, nil
 }
-func (a *App) SetOpenRouterKey(key string) (core.OpenRouterAccount, error) {
-	if err := a.ready(); err != nil {
+func (a *App) cacheOpenRouter(profileID string, account core.OpenRouterAccount) {
+	if a.openRouterCache == nil {
+		a.openRouterCache = map[string]openRouterReading{}
+	}
+	a.openRouterCache[profileID] = openRouterReading{account, time.Now()}
+}
+func (a *App) SetOpenRouterKey(key, profileID string) (core.OpenRouterAccount, error) {
+	if err := a.openRouterProfile(profileID); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
 	a.openRouterMu.Lock()
@@ -242,22 +281,25 @@ func (a *App) SetOpenRouterKey(key string) (core.OpenRouterAccount, error) {
 	if err != nil {
 		return core.OpenRouterAccount{}, err
 	}
-	if err := core.SaveOpenRouterKey(openRouterKeyService(), key); err != nil {
+	if err := core.SaveOpenRouterKey(openRouterKeyService(profileID), key); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
-	a.openRouterCache, a.openRouterChecked = result, time.Now()
+	a.cacheOpenRouter(profileID, result)
 	return result, nil
 }
-func (a *App) RemoveOpenRouterKey() error {
-	if err := a.ready(); err != nil {
+func (a *App) RemoveOpenRouterKey(profileID string) error {
+	if err := a.openRouterProfile(profileID); err != nil {
 		return err
 	}
+	return a.removeOpenRouterKey(profileID)
+}
+func (a *App) removeOpenRouterKey(profileID string) error {
 	a.openRouterMu.Lock()
 	defer a.openRouterMu.Unlock()
-	if err := core.RemoveOpenRouterKey(openRouterKeyService()); err != nil {
+	if err := core.RemoveOpenRouterKey(openRouterKeyService(profileID)); err != nil {
 		return err
 	}
-	a.openRouterCache, a.openRouterChecked = core.OpenRouterAccount{}, time.Time{}
+	delete(a.openRouterCache, profileID)
 	return nil
 }
 func (a *App) CreateProject(name, directory, description string) (core.State, error) {
@@ -364,12 +406,12 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort string) (core.State, error) {
+func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort)
+	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID)
 	if err == nil && gitHubItem != nil {
 		action := "work_on"
 		if gitHubItem.PullRequest {
@@ -392,8 +434,73 @@ func (a *App) AgentSkillCommand(agents []string) (string, error) {
 	return core.SkillCommand(agents)
 }
 func (a *App) InstallAgentSkill(agents []string) (core.SkillInstall, error) {
-	return core.InstallAgentSkill(a.ctx, agents)
+	if err := a.ready(); err != nil {
+		return core.SkillInstall{}, err
+	}
+	return core.InstallAgentSkill(a.ctx, agents, a.store.Profiles())
 }
+
+// CreateProfile, EditProfile and RemoveProfile back Settings → Profiles.
+func (a *App) CreateProfile(name, emoji string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.CreateProfile(name, emoji)
+}
+func (a *App) EditProfile(id, name, emoji string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.EditProfile(id, name, emoji)
+}
+func (a *App) RemoveProfile(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	state, err := a.store.RemoveProfile(id)
+	if err == nil {
+		a.forgetUsage(id)
+		// The profile's management key cannot be reached any more, so it leaves Keychain too.
+		if keyErr := a.removeOpenRouterKey(id); keyErr != nil && goruntime.GOOS == "darwin" {
+			a.log.Warn("OpenRouter key remove failed", "error", keyErr)
+		}
+	}
+	return state, err
+}
+func (a *App) forgetUsage(profileID string) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	delete(a.usageCache, profileID)
+}
+func (a *App) SetProjectProfile(project, profileID string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SetProjectProfile(project, profileID)
+}
+
+// ProfileLogins asks each agent's CLI whether the profile is signed in; "" is Default.
+func (a *App) ProfileLogins(profileID string) ([]core.ProfileLogin, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
+		return nil, err
+	}
+	return core.ProfileLogins(a.ctx, profile), nil
+}
+
+// LogIn adds a terminal session in the project that runs the agent's login command with the
+// profile's config folder. The user completes the sign-in there.
+func (a *App) LogIn(project, profileID, agent string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	a.forgetUsage(profileID)
+	return a.store.LogIn(project, profileID, agent)
+}
+
 func (a *App) CloseSession(id string, removeWorktree bool) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err

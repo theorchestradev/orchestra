@@ -2,12 +2,14 @@
 import { computed } from 'vue'
 import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTerminal } from '../shared/appearance'
 import { shortcutLabel } from '../shared/platform'
+import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import Icon from './Icon.vue'
 const props = defineProps({
   projects: Array,
   runs: Array,
   project: Object,
   session: Object,
+  profiles: Array,
   destination: String,
   preferences: Object,
   diffOpen: Boolean,
@@ -27,6 +29,15 @@ const activity = computed(() =>
         ? 'Shell running'
         : activityLabel(props.session.activity)
       : 'Session ended',
+)
+// A session outside Default names its profile, so its account is clear.
+const profile = computed(() =>
+  props.session?.profileID
+    ? {
+        name: profileName(props.profiles, props.session.profileID),
+        symbol: profileSymbol(findProfile(props.profiles, props.session.profileID)),
+      }
+    : null,
 )
 const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
 const inbox = computed(() =>
@@ -59,6 +70,9 @@ const inbox = computed(() =>
             :src="agentIcon(session.agent, preferences.appearance)"
             alt=""
           /><span class="truncate">{{ session.name }}</span></span
+        ><span v-if="profile" class="status-item status-optional truncate" :title="'Profile: ' + profile.name"
+          ><span class="status-emoji" aria-hidden="true">{{ profile.symbol }}</span
+          ><span class="truncate"><span class="visually-hidden">Profile: </span>{{ profile.name }}</span></span
         ><span class="status-item" aria-live="polite"
           ><i class="activity-dot" :class="session.restored ? null : session.running ? session.activity : 'ended'" />{{
             activity

@@ -69,7 +69,11 @@ func statusCommand(state string) string {
 }
 func launchCommand(sess *Session, dir string) (string, error) {
 	if sess.Agent == terminalAgent {
-		return shellQuote(loginShell()) + " -l", nil
+		shell := shellQuote(loginShell()) + " -l"
+		if command := loginCommands[sess.LoginAgent]; command != "" && !sess.HasLaunched {
+			return command + "; exec " + shell, nil
+		}
+		return shell, nil
 	}
 	resume := ""
 	if sess.HasLaunched {
@@ -272,11 +276,24 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 		}
 		return TerminalOutput{}, errors.New("The project folder is no longer available.")
 	}
+	profile, err := s.profileLocked(sess.ProfileID)
+	if err != nil {
+		return TerminalOutput{}, errProfileRemoved
+	}
 	command, err := launchCommand(sess, s.runtimeDir)
 	if err != nil {
 		return TerminalOutput{}, err
 	}
 	env := environmentMap()
+	// The profile's config folders select the agent accounts. A resumed session uses the same
+	// folders, because the agent keeps the conversation there.
+	folders, err := profileEnvironment(profile)
+	if err != nil {
+		return TerminalOutput{}, err
+	}
+	for k, v := range folders {
+		env[k] = v
+	}
 	shell := loginShell()
 	env["TERM"] = "xterm-256color"
 	env["COLORTERM"] = "truecolor"
@@ -340,6 +357,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	t.log.Info("session started", "agent", sess.Agent, "worktree", sess.WorktreeDirectory != "", "resume", sess.HasLaunched && sess.AgentSessionID != "")
 	s.terminals[id] = t
 	sess.HasLaunched = true
+	sess.LoginAgent = ""
 	sess.Restored = false
 	sess.Running = true
 	sess.Activity = "unknown"

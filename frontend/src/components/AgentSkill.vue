@@ -56,7 +56,7 @@ async function install() {
       <p class="muted caption">
         Teach agents to use the <code>orchestra</code> CLI for requests and the Scratchpad. The skill tells them to run
         <code>orchestra guide</code>, which always matches this version of Orchestra. It is installed with the
-        <code>skills</code> CLI, only when you click Install or Update.
+        <code>skills</code> CLI, only when you click Install or Update. Installing also adds it to each profile.
       </p>
     </div>
     <p v-if="!status && !error" class="muted caption" role="status"><span class="spinner" />Detecting agents…</p>

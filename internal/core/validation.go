@@ -30,6 +30,16 @@ func validateState(state State) error {
 	if state.Version != 1 {
 		return errors.New("Unsupported saved workspace version.")
 	}
+	profiles := map[string]bool{}
+	for _, p := range state.Profiles {
+		if p == nil || validProfile(p) != nil {
+			return errors.New("Invalid saved profile.")
+		}
+		if _, err := uuid.Parse(p.ID); err != nil || profiles[p.ID] {
+			return errors.New("Invalid or duplicate saved profile ID.")
+		}
+		profiles[p.ID] = true
+	}
 	projects := map[string]bool{}
 	sessions := map[string]bool{}
 	for _, p := range state.Projects {
@@ -67,6 +77,9 @@ func validateState(state State) error {
 			}
 			if sess.GitHubItem != nil && sess.GitHubItem.Number <= 0 {
 				return errors.New("Invalid saved session GitHub item.")
+			}
+			if sess.LoginAgent != "" && (sess.Agent != terminalAgent || loginCommands[sess.LoginAgent] == "") {
+				return errors.New("Invalid saved login session.")
 			}
 		}
 		if p.SelectedSessionID != "" && !local[p.SelectedSessionID] {

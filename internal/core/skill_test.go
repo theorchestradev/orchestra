@@ -7,18 +7,22 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 )
 
 func fakeSkillShell(t *testing.T, fake func(script string) ([]byte, int, error)) *[]string {
 	t.Helper()
 	scripts := []string{}
-	previous := skillShell
-	skillShell = func(_ context.Context, script string) ([]byte, int, error) {
+	var mu sync.Mutex // Sign-in checks run concurrently.
+	previous := cliShell
+	cliShell = func(_ context.Context, script string) ([]byte, int, error) {
+		mu.Lock()
+		defer mu.Unlock()
 		scripts = append(scripts, script)
 		return fake(script)
 	}
-	t.Cleanup(func() { skillShell = previous })
+	t.Cleanup(func() { cliShell = previous })
 	return &scripts
 }
 
@@ -80,7 +84,7 @@ func TestSkillCommand(t *testing.T) {
 		}
 	}
 	scripts := fakeSkillShell(t, func(string) ([]byte, int, error) { return nil, 0, nil })
-	if _, err := InstallAgentSkill(context.Background(), []string{"unknown"}); err == nil || len(*scripts) != 0 {
+	if _, err := InstallAgentSkill(context.Background(), []string{"unknown"}, nil); err == nil || len(*scripts) != 0 {
 		t.Fatal("ran an install without agents")
 	}
 }
@@ -108,7 +112,7 @@ func TestInstallAgentSkill(t *testing.T) {
 	scripts := fakeSkillShell(t, func(string) ([]byte, int, error) {
 		return []byte("\x1b[32m✓\x1b[0m Installed orchestra\r\n"), 0, nil
 	})
-	result, err := InstallAgentSkill(context.Background(), []string{"codex"})
+	result, err := InstallAgentSkill(context.Background(), []string{"codex"}, nil)
 	if err != nil || result.ExitCode != 0 || result.Output != "✓ Installed orchestra" {
 		t.Fatalf("%+v %v", result, err)
 	}
@@ -117,12 +121,12 @@ func TestInstallAgentSkill(t *testing.T) {
 	}
 
 	fakeSkillShell(t, func(string) ([]byte, int, error) { return []byte("error: not found"), 1, nil })
-	if result, err = InstallAgentSkill(context.Background(), []string{"codex"}); err != nil || result.ExitCode != 1 || result.Output != "error: not found" {
+	if result, err = InstallAgentSkill(context.Background(), []string{"codex"}, nil); err != nil || result.ExitCode != 1 || result.Output != "error: not found" {
 		t.Fatalf("%+v %v", result, err)
 	}
 
 	fakeSkillShell(t, func(string) ([]byte, int, error) { return []byte(missingNode + "\n"), 127, nil })
-	if _, err = InstallAgentSkill(context.Background(), []string{"codex"}); err == nil || !strings.Contains(err.Error(), "Node.js (npx)") {
+	if _, err = InstallAgentSkill(context.Background(), []string{"codex"}, nil); err == nil || !strings.Contains(err.Error(), "Node.js (npx)") {
 		t.Fatalf("missing Node: %v", err)
 	}
 }
