@@ -360,11 +360,7 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 		if state.Preferences.AppIcon != previousIcon {
 			a.applyAppIcon(state.Preferences.AppIcon)
 		}
-		if p.Appearance == "dark" {
-			runtime.WindowSetDarkTheme(a.ctx)
-		} else {
-			runtime.WindowSetLightTheme(a.ctx)
-		}
+		a.applyAppearance(state.Preferences.Appearance)
 	}
 	return state, err
 }
@@ -488,6 +484,9 @@ func (a *App) ExecuteRequest(id string) (core.State, error) {
 
 func (a *App) SystemPalettes() map[string][]string { return appearance.SystemPalettes() }
 
+// TerminalFonts lists the installed monospaced font families by name; it is empty when listing fails.
+func (a *App) TerminalFonts() []string { return appearance.MonospaceFonts() }
+
 // AboutInfo returns the build details that macOS shows in its About panel. Platforms
 // without that panel show them in Settings.
 func (a *App) AboutInfo() string { return aboutMessage() }
@@ -571,11 +570,21 @@ func (a *App) domReady(context.Context) {
 		return
 	}
 	a.applyAppIcon(a.store.Snapshot().Preferences.AppIcon)
-	if a.store.Snapshot().Preferences.Appearance == "light" {
+	a.applyAppearance(a.store.Snapshot().Preferences.Appearance)
+}
+
+// applyAppearance sets the native window chrome. With "system" the window follows the OS, and so
+// does the webview's prefers-color-scheme.
+func (a *App) applyAppearance(mode string) {
+	switch mode {
+	case "system":
+		runtime.WindowSetSystemDefaultTheme(a.ctx)
+	case "light":
 		runtime.WindowSetLightTheme(a.ctx)
-	} else {
+	default:
 		runtime.WindowSetDarkTheme(a.ctx)
 	}
+	appearance.SetWindowAppearance(mode)
 }
 
 func (a *App) applyAppIcon(choice string) {

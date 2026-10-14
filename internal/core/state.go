@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -65,13 +66,15 @@ type Project struct {
 	Sessions       []*Session `json:"sessions"`
 }
 type Preferences struct {
-	TelemetryEnabled      bool    `json:"telemetryEnabled"`
-	TelemetryChoiceMade   bool    `json:"telemetryChoiceMade"`
-	TelemetryInstallID    string  `json:"telemetryInstallID,omitempty"`
-	ArcMode               bool    `json:"arcMode"`
-	Appearance            string  `json:"appearance"`
-	AppIcon               string  `json:"appIcon"`
-	Theme                 string  `json:"theme"`
+	TelemetryEnabled    bool   `json:"telemetryEnabled"`
+	TelemetryChoiceMade bool   `json:"telemetryChoiceMade"`
+	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
+	ArcMode             bool   `json:"arcMode"`
+	Appearance          string `json:"appearance"`
+	AppIcon             string `json:"appIcon"`
+	Theme               string `json:"theme"`
+	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
+	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
 	TerminalFontSize      int     `json:"terminalFontSize"`
 	TerminalFontSmoothing bool    `json:"terminalFontSmoothing"`
 	TerminalPaddingX      int     `json:"terminalPaddingX"`
@@ -86,6 +89,8 @@ type Preferences struct {
 	GitHubRefreshInterval int     `json:"gitHubRefreshInterval"`
 	// DeliverRequests lets Store submit queued inbox requests once the recipient agent is free.
 	DeliverRequests bool `json:"deliverRequests"`
+	// AttentionSound plays a sound when an agent finishes its turn or asks for permission.
+	AttentionSound bool `json:"attentionSound"`
 	// Translucent shows the desktop through the window with native vibrancy.
 	Translucent bool `json:"translucent"`
 	// WindowOpacity is the content area's opacity in percent while Translucent is on; the sidebar,
@@ -727,7 +732,7 @@ const minDiffPaneWidth, maxDiffPaneWidth = 280, 900
 const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 40, 95, 78
 
 func defaultPreferences() Preferences {
-	return Preferences{Appearance: "dark", AppIcon: "white", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
+	return Preferences{Appearance: "system", AppIcon: "white", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
 }
 func normalizeGeneralPreferences(p Preferences) Preferences {
 	// Older workspaces and bridge callers have no general preferences.
@@ -755,7 +760,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p = normalizeGeneralPreferences(p)
-	if p.Appearance != "dark" && p.Appearance != "light" {
+	if p.Appearance != "system" && p.Appearance != "dark" && p.Appearance != "light" {
 		return State{}, errors.New("Invalid appearance.")
 	}
 	if p.AppIcon != "white" && p.AppIcon != "black" {
@@ -763,6 +768,10 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	}
 	if p.TerminalFontSize < 10 || p.TerminalFontSize > 24 || p.TerminalPaddingX < 0 || p.TerminalPaddingX > 24 || p.TerminalPaddingY < 0 || p.TerminalPaddingY > 24 || p.SidebarWidth < 220 || p.SidebarWidth > 400 || p.DiffPaneWidth < minDiffPaneWidth || p.DiffPaneWidth > maxDiffPaneWidth {
 		return State{}, errors.New("Invalid preference value.")
+	}
+	// The terminal quotes the family in a CSS font-family list.
+	if len(p.TerminalFontFamily) > 200 || strings.ContainsAny(p.TerminalFontFamily, "\"\\") || strings.IndexFunc(p.TerminalFontFamily, unicode.IsControl) >= 0 {
+		return State{}, errors.New("Invalid terminal font.")
 	}
 	if _, ok := agentNames[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")

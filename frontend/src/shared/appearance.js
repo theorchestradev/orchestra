@@ -1,4 +1,5 @@
-import { shallowRef } from 'vue'
+import { ref, shallowRef } from 'vue'
+import { mac } from './platform.js'
 import themes from './themes.json' with { type: 'json' }
 import terminalColors from './terminalColors.json' with { type: 'json' }
 export const themeNames = Object.entries(themes).map(([id, { name }]) => ({ id, name }))
@@ -20,6 +21,16 @@ function themeFor(id) {
 export function missingCustomTheme(id) {
   return isCustomTheme(id) && !customThemes.value.some((t) => t.id === id)
 }
+// System follows prefers-color-scheme, which on macOS tracks the OS while the window appearance is
+// unset. WebKitGTK does not follow the desktop setting reliably, so System shows Dark elsewhere.
+const systemQuery = mac ? globalThis.matchMedia?.('(prefers-color-scheme: dark)') : null
+export const systemAppearance = ref(systemQuery && !systemQuery.matches ? 'light' : 'dark')
+systemQuery?.addEventListener?.('change', (e) => (systemAppearance.value = e.matches ? 'dark' : 'light'))
+// The appearance shown for the "system", "dark" or "light" preference. Views receive this value,
+// so only Settings knows about System.
+export function effectiveAppearance(appearance, system = systemAppearance.value) {
+  return appearance === 'system' ? system : appearance === 'light' ? 'light' : 'dark'
+}
 export const tokens = ['canvas', 'sidebar', 'surface', 'text', 'muted', 'rule', 'accent', 'selection']
 // Default terminal colors for themes without `ansi`, and for every theme in light mode.
 const { dark: darkANSI, light: lightANSI } = terminalColors
@@ -35,6 +46,9 @@ export function palette(preferences) {
     tokens.map((key, i) => [key, theme[preferences.appearance === 'light' ? 'light' : 'dark'][i]]),
   )
 }
+// Terminals put the chosen family first, so a missing font falls back to System Monospace.
+export const systemMonospace = 'ui-monospace, SFMono-Regular, Menlo, Monaco, monospace'
+export const terminalFontFamily = (family) => (family ? `"${family}", ${systemMonospace}` : systemMonospace)
 // A translucent window lets the vibrancy show through the terminal; the block cursor keeps the
 // opaque canvas behind its character.
 export function terminalTheme(preferences, translucent = false) {

@@ -5,8 +5,11 @@ import {
   themeNames,
   palette,
   terminalTheme,
+  terminalFontFamily,
+  systemMonospace,
   translucencyTokens,
   agentIcon,
+  effectiveAppearance,
   destination,
   runLabel,
   startupDestination,
@@ -46,6 +49,15 @@ test('original agent brand variants exist in both modes', () => {
   for (const agent of ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok'])
     for (const mode of ['dark', 'light'])
       assert.ok(fs.existsSync(new URL('../public' + agentIcon(agent, mode), import.meta.url)))
+})
+test('System mode shows the OS appearance and explicit modes keep their own', () => {
+  assert.equal(effectiveAppearance('system', 'light'), 'light')
+  assert.equal(effectiveAppearance('system', 'dark'), 'dark')
+  assert.equal(effectiveAppearance('light', 'dark'), 'light')
+  assert.equal(effectiveAppearance('dark', 'light'), 'dark')
+  // Outside macOS, and without matchMedia in tests, System falls back to Dark.
+  assert.equal(effectiveAppearance('system'), 'dark')
+  assert.equal(effectiveAppearance(undefined, 'light'), 'dark')
 })
 test('project navigation preserves page priority and messaging labels', () => {
   assert.equal(destination({ showsScratchpad: true, showsGitHub: true, selectedSessionID: 'a' }), 'scratchpad')
@@ -237,4 +249,10 @@ test('window opacity keeps the default look, the sidebar ratio and the readable 
   assert.deepEqual(translucencyTokens(undefined), translucencyTokens(78))
   assert.deepEqual(translucencyTokens(10), { '--canvas-opacity': '40%', '--sidebar-opacity': '32%' })
   assert.deepEqual(translucencyTokens(100), { '--canvas-opacity': '95%', '--sidebar-opacity': '76%' })
+})
+
+test('the terminal font puts the chosen family before System Monospace', () => {
+  assert.equal(terminalFontFamily(''), systemMonospace)
+  assert.equal(terminalFontFamily(undefined), systemMonospace)
+  assert.equal(terminalFontFamily('JetBrains Mono'), `"JetBrains Mono", ${systemMonospace}`)
 })

@@ -1280,6 +1280,10 @@ input::placeholder {
   color: var(--text);
   background: var(--selection);
 }
+/* System, Light and Dark need more room than two choices. */
+.mode-switch.appearance-mode {
+  width: 240px;
+}
 .theme-select {
   font-size: 12px;
   height: 30px;
@@ -1337,6 +1341,23 @@ input::placeholder {
 }
 .terminal-settings label {
   font-weight: 400;
+}
+.font-family-setting > div:first-child {
+  min-width: 0;
+}
+.font-family-setting .general-select {
+  max-width: 60%;
+}
+@media (max-width: 850px) {
+  .font-family-setting {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .font-family-setting .general-select {
+    width: 100%;
+    max-width: 100%;
+  }
 }
 .terminal-settings p {
   margin-top: 2px;
@@ -2155,6 +2176,9 @@ input::placeholder {
   .mode-switch,
   .theme-select {
     width: 170px;
+  }
+  .mode-switch.appearance-mode {
+    width: 216px;
   }
   .project-title {
     max-width: calc(100% - 80px);
