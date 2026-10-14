@@ -41,6 +41,7 @@ import ArcProjectPager from './components/ArcProjectPager.vue'
 import SessionDiff from './components/SessionDiff.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
+import { sessionsNeedingYou, attentionSound } from './shared/attention'
 const workspace = ref({
   projects: [],
   runs: [],
@@ -62,6 +63,7 @@ const workspace = ref({
     confirmSessionClose: true,
     gitHubRefreshInterval: 0,
     deliverRequests: false,
+    attentionSound: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
@@ -190,9 +192,18 @@ const sidebarProjects = computed(() =>
 )
 const sidebarWidth = computed(() => preferences.value.sidebarWidth || 280)
 const showsDiff = computed(() => Boolean(preferences.value.diffPaneOpen && session.value))
+// Codex reports a user interrupt as waiting, so a session the user just typed in stays quiet.
+const lastKey = {}
+const chime = attentionSound(() => new Audio('/sounds/attention.wav').play().catch(() => {}))
+function announce(previous, next) {
+  if (!preferences.value.attentionSound) return
+  const watching = (s) => s.id === session.value?.id && document.hasFocus()
+  if (sessionsNeedingYou(previous, next, (s) => watching(s) || Date.now() - (lastKey[s.id] || 0) < 2000).length) chime()
+}
 function apply(state) {
   if (state?.projects) {
     const localPrefs = workspace.value.preferences
+    announce(workspace.value.projects, state.projects)
     workspace.value = { ...state, runs: state.runs || [] }
     if (preferencePending)
       workspace.value.preferences = {
@@ -1070,6 +1081,7 @@ onBeforeUnmount(() => {
                 :translucent="translucent"
                 :visible="project?.id === p.id && currentDestination === sess.id"
                 @error="error = $event"
+                @key="lastKey[sess.id] = Date.now()"
               /></section></template
         ></template>
       </div>
