@@ -86,6 +86,8 @@ type Preferences struct {
 	GitHubRefreshInterval int     `json:"gitHubRefreshInterval"`
 	// DeliverRequests lets Store submit queued inbox requests once the recipient agent is free.
 	DeliverRequests bool `json:"deliverRequests"`
+	// AttentionSound plays a sound when an agent finishes its turn or asks for permission.
+	AttentionSound bool `json:"attentionSound"`
 	// Translucent shows the desktop through the window with native vibrancy.
 	Translucent bool `json:"translucent"`
 	// WindowOpacity is the content area's opacity in percent while Translucent is on; the sidebar,

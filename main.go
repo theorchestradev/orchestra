@@ -72,8 +72,9 @@ func main() {
 		appMenu = nil
 	}
 	// The webview draws no background of its own, so Settings can turn on the native vibrancy at
-	// runtime; the page paints the opaque theme colors otherwise.
-	err = wails.Run(&options.App{Title: "Orchestra", Width: 1200, Height: 800, MinWidth: 700, MinHeight: 450, WindowStartState: options.Maximised, AssetServer: &assetserver.Options{Assets: dist}, BackgroundColour: &options.RGBA{R: 36, G: 36, B: 36, A: 255}, OnStartup: app.startup, OnDomReady: app.domReady, OnShutdown: app.shutdown, OnBeforeClose: app.beforeClose, Bind: []interface{}{app}, Menu: appMenu, Mac: &mac.Options{TitleBar: mac.TitleBarHiddenInset(), WebviewIsTransparent: true, WindowIsTranslucent: false, About: &mac.AboutInfo{Title: "Orchestra", Message: aboutMessage()}}, Linux: &linux.Options{ProgramName: "Orchestra", Icon: icon}})
+	// runtime; the page paints the opaque theme colors otherwise. Autoplay lets the attention sound
+	// play while the user is in another app.
+	err = wails.Run(&options.App{Title: "Orchestra", Width: 1200, Height: 800, MinWidth: 700, MinHeight: 450, WindowStartState: options.Maximised, AssetServer: &assetserver.Options{Assets: dist}, BackgroundColour: &options.RGBA{R: 36, G: 36, B: 36, A: 255}, OnStartup: app.startup, OnDomReady: app.domReady, OnShutdown: app.shutdown, OnBeforeClose: app.beforeClose, Bind: []interface{}{app}, Menu: appMenu, Mac: &mac.Options{TitleBar: mac.TitleBarHiddenInset(), WebviewIsTransparent: true, Preferences: &mac.Preferences{EnableAutoplayWithoutUserAction: mac.Enabled}, WindowIsTranslucent: false, About: &mac.AboutInfo{Title: "Orchestra", Message: aboutMessage()}}, Linux: &linux.Options{ProgramName: "Orchestra", Icon: icon}})
 	if err != nil {
 		logger.Error("window failed", "error", err)
 		log.Fatal(err)

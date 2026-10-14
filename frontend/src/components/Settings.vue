@@ -261,6 +261,27 @@ if (!mac)
             </button>
           </div>
           <hr />
+          <div class="setting-row">
+            <div>
+              <label for="attentionSound">Play Sound When an Agent Needs You</label>
+              <p class="muted caption">
+                Play a sound when an agent finishes its turn or asks for permission, unless you're already looking at
+                that session.
+              </p>
+            </div>
+            <button
+              id="attentionSound"
+              class="switch"
+              :class="{ on: preferences.attentionSound }"
+              role="switch"
+              :aria-checked="!!preferences.attentionSound"
+              aria-label="Play Sound When an Agent Needs You"
+              @click="choose('attentionSound', !preferences.attentionSound)"
+            >
+              <span />
+            </button>
+          </div>
+          <hr />
           <AgentSkill :appearance="preferences.appearance" />
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
