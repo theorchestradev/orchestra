@@ -77,5 +77,6 @@ test('shortcut keys follow the platform', () => {
   assert.deepEqual(labels('previous', true), [['⇧⌘[', 'Shift Command Left Bracket', '']])
   assert.deepEqual(labels('saveDescription', true), [['⌘↩', 'Command Return', '']])
   assert.deepEqual(labels('saveDescription', false), [['Ctrl+Enter', 'Control Enter', '']])
+  assert.deepEqual(labels('contextMenu', false), [['Shift+F10', 'Shift F10', '']])
   assert.deepEqual(labels('dismiss', false), [['Esc', 'Escape', '']])
 })

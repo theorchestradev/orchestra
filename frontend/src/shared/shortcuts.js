@@ -13,6 +13,7 @@ export const shortcuts = [
   { id: 'dismiss', group: 'General', name: 'Close Dialog or Menu', keys: 'Esc' },
   { id: 'previous', group: 'Navigation', name: 'Previous Item', keys: '⇧⌘[', app: true },
   { id: 'next', group: 'Navigation', name: 'Next Item', keys: '⇧⌘]', app: true },
+  { id: 'contextMenu', group: 'Navigation', name: 'Open Context Menu', keys: '⇧F10' },
   { id: 'sidebar', group: 'View', name: 'Toggle Sidebar', keys: '⌘B', terminal: null, app: true },
   { id: 'diff', group: 'View', name: 'Toggle Changes', keys: '⇧⌘B', app: true },
   { id: 'copy', group: 'Terminal', name: 'Copy', keys: '⌘C', terminal: '⇧⌘C', inTerminal: true },
