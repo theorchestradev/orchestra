@@ -187,12 +187,11 @@ function moveRow(p, target, index) {
   if (p.hasScratchpad) p.scratchpadIndex = rows.findIndex((r) => r.scratchpad)
   return changed()
 }
-// Profiles with a management key in this preview; "" is Default.
-const openRouterConnected = new Set()
+let openRouterConnected = false
 // Themes made with Duplicate as Custom Theme during this preview.
 const previewThemes = []
-const openRouterAccount = (profileID = '') =>
-  openRouterConnected.has(profileID)
+const openRouterAccount = () =>
+  openRouterConnected
     ? {
         configured: true,
         balance: 74.75,
@@ -240,15 +239,15 @@ export const backend = {
     state.preferences.telemetryChoiceMade = true
     return changed()
   },
-  OpenRouterUsage: (refresh, profileID = '') => openRouterAccount(profileID),
-  SetOpenRouterKey: (key, profileID = '') => {
+  OpenRouterUsage: () => openRouterAccount(),
+  SetOpenRouterKey: (key) => {
     if (key !== 'orchestra-preview-management-key')
       throw Error('Use orchestra-preview-management-key in this synthetic preview.')
-    openRouterConnected.add(profileID)
-    return openRouterAccount(profileID)
+    openRouterConnected = true
+    return openRouterAccount()
   },
-  RemoveOpenRouterKey: (profileID = '') => {
-    openRouterConnected.delete(profileID)
+  RemoveOpenRouterKey: () => {
+    openRouterConnected = false
   },
   AgentUsage: (refresh, profileID = '') => {
     const checkedAt = Math.floor(Date.now() / 1000)
@@ -475,7 +474,6 @@ export const backend = {
   },
   RemoveProfile: (profileID) => {
     state.profiles = state.profiles.filter((p) => p.id !== profileID)
-    openRouterConnected.delete(profileID)
     for (const p of state.projects) if (p.profileID === profileID) p.profileID = ''
     return changed()
   },

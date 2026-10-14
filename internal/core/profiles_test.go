@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -185,7 +186,7 @@ func TestLogInRunsTheLoginCommandInATerminal(t *testing.T) {
 		t.Fatalf("login session = %+v", login)
 	}
 	command, err := launchCommand(login, "")
-	if err != nil || command != "codex login; exec "+shellQuote(os.Getenv("SHELL"))+" -l" {
+	if err != nil || command != "codex login" {
 		t.Fatalf("login command = %q %v", command, err)
 	}
 	if _, err = s.StartSession(login.ID, false, 80, 24); err != nil {
@@ -196,6 +197,42 @@ func TestLogInRunsTheLoginCommandInATerminal(t *testing.T) {
 	})
 	if sess := s.Snapshot().Projects[0].Sessions[0]; sess.LoginAgent != "" {
 		t.Fatal("the login command would run again")
+	}
+}
+
+// A real zsh reads the user's rc files before the session's command, and they may export
+// another config folder or wrap the agent in a function. The profile still wins.
+func TestProfileFoldersOutliveTheUsersRCFiles(t *testing.T) {
+	zsh, err := exec.LookPath("zsh")
+	if err != nil {
+		t.Skip("zsh is not installed")
+	}
+	rc := t.TempDir()
+	if err = os.WriteFile(filepath.Join(rc, ".zshrc"), []byte("export CLAUDE_CONFIG_DIR=/from-rc\nclaude() { echo from-function; }\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELL", zsh)
+	t.Setenv("ZDOTDIR", rc)
+	t.Setenv("CLAUDE_CONFIG_DIR", "")
+	s := fixtureStore(t)
+	// The runtime folder leads PATH after the rc files, so the fake CLI wins over any real one.
+	script := "#!/bin/sh\nprintf 'claude=%s\\r\\n' \"$CLAUDE_CONFIG_DIR\"\nwhile IFS= read -r line; do :; done\n"
+	if err = os.WriteFile(filepath.Join(s.runtimeDir, "claude"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	p := projectFixture(t, s)
+	work := profileFixture(t, s, "Work")
+	state, err := s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", work.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := state.Projects[0].Sessions[0]
+	if _, err = s.StartSession(sess.ID, false, 80, 24); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, func() bool { return strings.Contains(terminalText(s, sess.ID), "claude=") })
+	if text := terminalText(s, sess.ID); !strings.Contains(text, "claude="+work.Folders["claude"]) {
+		t.Fatalf("session output = %q", text)
 	}
 }
 

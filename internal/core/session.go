@@ -7,12 +7,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -69,11 +71,13 @@ func statusCommand(state string) string {
 }
 func launchCommand(sess *Session, dir string) (string, error) {
 	if sess.Agent == terminalAgent {
-		shell := shellQuote(loginShell()) + " -l"
+		// A login session runs only the login command and ends with it; restarting it opens a
+		// shell. A shell started after the login would read the user's rc files again, which
+		// may choose another config folder.
 		if command := loginCommands[sess.LoginAgent]; command != "" && !sess.HasLaunched {
-			return command + "; exec " + shell, nil
+			return command, nil
 		}
-		return shell, nil
+		return shellQuote(loginShell()) + " -l", nil
 	}
 	resume := ""
 	if sess.HasLaunched {
@@ -291,9 +295,6 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	if err != nil {
 		return TerminalOutput{}, err
 	}
-	for k, v := range folders {
-		env[k] = v
-	}
 	shell := loginShell()
 	env["TERM"] = "xterm-256color"
 	env["COLORTERM"] = "truecolor"
@@ -339,7 +340,13 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 		data, _ := json.Marshal(config)
 		env["VIBE_SESSION_LOGGING"] = string(data)
 	}
-	setup := "export PATH=" + shellQuote(s.runtimeDir) + ":$PATH; cd -- " + shellQuote(directory) + " && exec " + command
+	// The profile's folders are exported after the shell reads the user's rc files, so an export
+	// there cannot switch account. env runs the agent's executable, never an rc alias or function.
+	setup := "export PATH=" + shellQuote(s.runtimeDir) + ":$PATH; "
+	for _, k := range slices.Sorted(maps.Keys(folders)) {
+		setup += "export " + k + "=" + shellQuote(folders[k]) + "; "
+	}
+	setup += "cd -- " + shellQuote(directory) + " && exec /usr/bin/env " + command
 	t.cmd = exec.Command(shell, "-l", "-i", "-c", setup)
 	t.cmd.Dir = directory
 	t.cmd.Env = environmentList(env)

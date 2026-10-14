@@ -20,19 +20,20 @@ import (
 )
 
 type App struct {
-	ctx             context.Context
-	log             *slog.Logger
-	store           *core.Store
-	updater         *core.Updater
-	telemetry       *telemetry.Client
-	telemetryMu     sync.Mutex
-	startupError    error
-	frontendReady   atomic.Bool
-	quitConfirmed   atomic.Bool
-	usageMu         sync.Mutex
-	usageCache      map[string]usageReading // By profile ID; "" is Default.
-	openRouterMu    sync.Mutex
-	openRouterCache map[string]openRouterReading // By profile ID; "" is Default.
+	ctx               context.Context
+	log               *slog.Logger
+	store             *core.Store
+	updater           *core.Updater
+	telemetry         *telemetry.Client
+	telemetryMu       sync.Mutex
+	startupError      error
+	frontendReady     atomic.Bool
+	quitConfirmed     atomic.Bool
+	usageMu           sync.Mutex
+	usageCache        map[string]usageReading // By profile ID; "" is Default.
+	openRouterMu      sync.Mutex
+	openRouterCache   core.OpenRouterAccount
+	openRouterChecked time.Time
 }
 
 // statePath returns the workspace file, which ORCHESTRA_STATE_FILE overrides for QA.
@@ -213,44 +214,24 @@ func (a *App) AgentUsage(refresh bool, profileID string) ([]core.AgentUsage, err
 	return cached.usage, nil
 }
 
-// QA workspaces use a separate Keychain service instead of the user's key. Each profile
-// keeps its own management key; "" is Default, which keeps the original service.
-func openRouterKeyService(profileID string) string {
+// QA workspaces use a separate Keychain service instead of the user's key.
+func openRouterKeyService() string {
 	service := "com.orchestra.openrouter"
 	if path := os.Getenv("ORCHESTRA_STATE_FILE"); path != "" {
 		service += fmt.Sprintf(".workspace-%x", sha256.Sum256([]byte(path)))
 	}
-	if profileID != "" {
-		service += ".profile-" + profileID
-	}
 	return service
 }
-
-type openRouterReading struct {
-	account core.OpenRouterAccount
-	checked time.Time
-}
-
-// openRouterProfile rejects an unknown profile, so no Keychain item is made for it.
-func (a *App) openRouterProfile(profileID string) error {
+func (a *App) OpenRouterUsage(refresh bool) (core.OpenRouterAccount, error) {
 	if err := a.ready(); err != nil {
-		return err
-	}
-	_, err := a.store.Profile(profileID)
-	return err
-}
-
-// OpenRouterUsage reads the account of a profile's management key; "" is Default.
-func (a *App) OpenRouterUsage(refresh bool, profileID string) (core.OpenRouterAccount, error) {
-	if err := a.openRouterProfile(profileID); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
 	a.openRouterMu.Lock()
 	defer a.openRouterMu.Unlock()
-	if cached, ok := a.openRouterCache[profileID]; ok && time.Since(cached.checked) < 5*time.Minute && (!refresh || time.Since(cached.checked) < 15*time.Second) {
-		return cached.account, nil
+	if !a.openRouterChecked.IsZero() && time.Since(a.openRouterChecked) < 5*time.Minute && (!refresh || time.Since(a.openRouterChecked) < 15*time.Second) {
+		return a.openRouterCache, nil
 	}
-	key, err := core.OpenRouterKey(openRouterKeyService(profileID))
+	key, err := core.OpenRouterKey(openRouterKeyService())
 	if err != nil {
 		return core.OpenRouterAccount{}, err
 	}
@@ -261,17 +242,11 @@ func (a *App) OpenRouterUsage(refresh bool, profileID string) (core.OpenRouterAc
 			result.Message = err.Error()
 		}
 	}
-	a.cacheOpenRouter(profileID, result)
+	a.openRouterCache, a.openRouterChecked = result, time.Now()
 	return result, nil
 }
-func (a *App) cacheOpenRouter(profileID string, account core.OpenRouterAccount) {
-	if a.openRouterCache == nil {
-		a.openRouterCache = map[string]openRouterReading{}
-	}
-	a.openRouterCache[profileID] = openRouterReading{account, time.Now()}
-}
-func (a *App) SetOpenRouterKey(key, profileID string) (core.OpenRouterAccount, error) {
-	if err := a.openRouterProfile(profileID); err != nil {
+func (a *App) SetOpenRouterKey(key string) (core.OpenRouterAccount, error) {
+	if err := a.ready(); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
 	a.openRouterMu.Lock()
@@ -281,25 +256,22 @@ func (a *App) SetOpenRouterKey(key, profileID string) (core.OpenRouterAccount, e
 	if err != nil {
 		return core.OpenRouterAccount{}, err
 	}
-	if err := core.SaveOpenRouterKey(openRouterKeyService(profileID), key); err != nil {
+	if err := core.SaveOpenRouterKey(openRouterKeyService(), key); err != nil {
 		return core.OpenRouterAccount{}, err
 	}
-	a.cacheOpenRouter(profileID, result)
+	a.openRouterCache, a.openRouterChecked = result, time.Now()
 	return result, nil
 }
-func (a *App) RemoveOpenRouterKey(profileID string) error {
-	if err := a.openRouterProfile(profileID); err != nil {
+func (a *App) RemoveOpenRouterKey() error {
+	if err := a.ready(); err != nil {
 		return err
 	}
-	return a.removeOpenRouterKey(profileID)
-}
-func (a *App) removeOpenRouterKey(profileID string) error {
 	a.openRouterMu.Lock()
 	defer a.openRouterMu.Unlock()
-	if err := core.RemoveOpenRouterKey(openRouterKeyService(profileID)); err != nil {
+	if err := core.RemoveOpenRouterKey(openRouterKeyService()); err != nil {
 		return err
 	}
-	delete(a.openRouterCache, profileID)
+	a.openRouterCache, a.openRouterChecked = core.OpenRouterAccount{}, time.Time{}
 	return nil
 }
 func (a *App) CreateProject(name, directory, description string) (core.State, error) {
@@ -473,10 +445,6 @@ func (a *App) RemoveProfile(id string) (core.State, error) {
 	state, err := a.store.RemoveProfile(id)
 	if err == nil {
 		a.forgetUsage(id)
-		// The profile's management key cannot be reached any more, so it leaves Keychain too.
-		if keyErr := a.removeOpenRouterKey(id); keyErr != nil && goruntime.GOOS == "darwin" {
-			a.log.Warn("OpenRouter key remove failed", "error", keyErr)
-		}
 	}
 	return state, err
 }

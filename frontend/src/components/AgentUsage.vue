@@ -105,10 +105,10 @@ const date = (value) => new Date(value * 1000).toLocaleString()
       </div>
       <p class="muted caption usage-checked">Checked {{ date(provider.checkedAt) }}</p>
     </section>
-    <OpenRouterUsage ref="openRouter" :profile-id="profile" />
+    <OpenRouterUsage ref="openRouter" />
     <p v-if="providers.length" class="muted caption usage-footnote">
       Codex and Claude Code use the CLI accounts signed in with the chosen profile. OpenRouter uses the management key
-      you provide for it.
+      you provide, whatever the profile.
     </p>
   </section>
 </template>

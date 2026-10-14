@@ -206,7 +206,8 @@ async function remove() {
     <p class="muted caption profile-notes">
       Log In opens a terminal in {{ project ? projectTitle(project) : 'the selected project' }} where you complete the
       CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default.
-      {{ otherAgents }} cannot choose an account yet, so they always use Default’s.
+      {{ otherAgents }} cannot choose an account yet, so they always use Default’s. In a Terminal session, a shell
+      startup file that sets CLAUDE_CONFIG_DIR or CODEX_HOME can still switch account.
     </p>
     <Teleport to=".app-shell">
       <Modal v-if="editing" :label="editing.id ? 'Edit Profile' : 'New Profile'" @close="!busy && (editing = null)"
@@ -254,7 +255,7 @@ async function remove() {
           <h2>Remove {{ removal.name }}?</h2>
           <p>
             Projects that use it move to Default. Sessions that used it can no longer be resumed, so they never switch
-            account. Its sign-ins and conversations are kept on disk, and any OpenRouter key saved for it is removed.
+            account. Its sign-ins and conversations are kept on disk.
           </p>
           <p v-if="removeError" class="error" role="alert">{{ removeError }}</p>
           <footer>

@@ -1,48 +1,30 @@
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { call, openURL } from '../shared/api'
 import { moneyLabel, countLabel } from '../shared/usage'
-// Each profile keeps its own management key; "" is Default.
-const props = defineProps({ profileId: { type: String, default: '' } })
 const account = ref({ configured: false }),
   key = ref(''),
   busy = ref(false),
   error = ref(''),
   editing = ref(false)
-// A reading for a profile that is no longer chosen is dropped.
-let request = 0
 async function refresh(force = false) {
   if (busy.value) return
   busy.value = true
   error.value = ''
-  const current = ++request
   try {
-    const value = await call('OpenRouterUsage', force, props.profileId)
-    if (current === request) account.value = value
+    account.value = await call('OpenRouterUsage', force)
   } catch {
-    if (current === request)
-      error.value = 'Could not read the OpenRouter key from macOS Keychain. Allow access and try refreshing again.'
+    error.value = 'Could not read the OpenRouter key from macOS Keychain. Allow access and try refreshing again.'
   } finally {
-    if (current === request) busy.value = false
+    busy.value = false
   }
 }
-watch(
-  () => props.profileId,
-  () => {
-    request++
-    busy.value = false
-    account.value = { configured: false }
-    key.value = ''
-    editing.value = false
-    refresh()
-  },
-)
 async function connect() {
   if (busy.value || !key.value.trim()) return
   busy.value = true
   error.value = ''
   try {
-    account.value = await call('SetOpenRouterKey', key.value.trim(), props.profileId)
+    account.value = await call('SetOpenRouterKey', key.value.trim())
     key.value = ''
     editing.value = false
   } catch (e) {
@@ -56,7 +38,7 @@ async function remove() {
   busy.value = true
   error.value = ''
   try {
-    await call('RemoveOpenRouterKey', props.profileId)
+    await call('RemoveOpenRouterKey')
     account.value = { configured: false }
     key.value = ''
     editing.value = false
@@ -152,8 +134,7 @@ onMounted(refresh)
     <form v-if="!account.configured || editing" class="openrouter-key-form" @submit.prevent="connect">
       <label for="openrouter-management-key">Management key</label>
       <p id="openrouter-key-help" class="muted caption">
-        Enter a management key to see your account balance and total spending{{ profileId ? ' for this profile' : '' }}.
-        Stored in macOS Keychain.
+        Enter a management key to see your account balance and total spending. Stored in macOS Keychain.
       </p>
       <input
         id="openrouter-management-key"
