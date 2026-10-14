@@ -3969,8 +3969,9 @@ h2 {
 .split-toggle[aria-expanded='true'] {
   background: var(--selection);
 }
-/* Open in floats over the terminal's top right corner, faded until the pointer is near it or it
-   has focus. It sits beside the Changes pane, so it moves left when the pane opens. */
+/* Open in floats over the terminal's top right corner, faded until the pointer is over it or it
+   has focus. It sits beside the Changes pane, so it moves left when the pane opens. Only the
+   button takes the pointer, so the terminal around it still receives clicks and selections. */
 .terminal-stack {
   position: relative;
   flex: 1;
@@ -3987,6 +3988,7 @@ h2 {
   max-width: calc(100% - 12px);
   opacity: 0.35;
   transition: opacity 0.15s;
+  pointer-events: none;
 }
 .open-in:hover,
 .open-in:focus-within,
@@ -3995,6 +3997,7 @@ h2 {
 }
 .open-in .split-button {
   max-width: 100%;
+  pointer-events: auto;
   box-shadow: 0 2px 8px rgb(0 0 0 / 0.14);
   border-radius: 6px;
 }

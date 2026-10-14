@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"os/exec"
+	"strings"
 	"sync"
 	"unsafe"
 )
@@ -81,8 +82,8 @@ func Open(id, folder string) error {
 		return errors.New(app.name + " is not installed.")
 	}
 	if out, err := exec.Command("open", "-b", bundleID, folder).CombinedOutput(); err != nil {
-		if len(out) > 0 {
-			return errors.New(string(out))
+		if message := strings.TrimSpace(string(out)); message != "" {
+			return errors.New(message)
 		}
 		return err
 	}

@@ -2,6 +2,8 @@
 // and opens folders in them.
 package apps
 
+import "strings"
+
 // App is an installed app that can open a folder. Icon is a PNG data URL, or empty when the
 // platform has no icon for it.
 type App struct {
@@ -22,12 +24,14 @@ const (
 )
 
 // known describes an app Orchestra recognizes: its macOS bundle identifiers and Linux
-// executables, in order of preference. Linux terminals open in the folder as their working directory.
+// executables, in order of preference. On Linux, terminals start in the folder and receive
+// directoryArgs, where %s is the folder, since a running instance may ignore the working directory.
 type known struct {
-	id, name    string
-	kind        Kind
-	bundleIDs   []string
-	executables []string
+	id, name      string
+	kind          Kind
+	bundleIDs     []string
+	executables   []string
+	directoryArgs []string
 }
 
 // FileManager opens folders in Finder or the desktop's file manager; it is listed last.
@@ -52,21 +56,32 @@ var knownApps = []known{
 	{id: "rubymine", name: "RubyMine", kind: Editor, bundleIDs: []string{"com.jetbrains.rubymine"}, executables: []string{"rubymine"}},
 	{id: "phpstorm", name: "PhpStorm", kind: Editor, bundleIDs: []string{"com.jetbrains.PhpStorm"}, executables: []string{"phpstorm"}},
 	{id: "rustrover", name: "RustRover", kind: Editor, bundleIDs: []string{"com.jetbrains.rustrover"}, executables: []string{"rustrover"}},
-	{id: "android-studio", name: "Android Studio", kind: Editor, bundleIDs: []string{"com.google.android.studio"}, executables: []string{"android-studio", "studio"}},
 	{id: "terminal", name: "Terminal", kind: Terminal, bundleIDs: []string{"com.apple.Terminal"}},
 	{id: "iterm", name: "iTerm", kind: Terminal, bundleIDs: []string{"com.googlecode.iterm2"}},
-	{id: "ghostty", name: "Ghostty", kind: Terminal, bundleIDs: []string{"com.mitchellh.ghostty"}, executables: []string{"ghostty"}},
+	{id: "ghostty", name: "Ghostty", kind: Terminal, bundleIDs: []string{"com.mitchellh.ghostty"}, executables: []string{"ghostty"}, directoryArgs: []string{"--working-directory=%s"}},
 	{id: "warp", name: "Warp", kind: Terminal, bundleIDs: []string{"dev.warp.Warp-Stable"}, executables: []string{"warp-terminal"}},
-	{id: "wezterm", name: "WezTerm", kind: Terminal, bundleIDs: []string{"com.github.wez.wezterm"}, executables: []string{"wezterm"}},
-	{id: "kitty", name: "kitty", kind: Terminal, bundleIDs: []string{"net.kovidgoyal.kitty"}, executables: []string{"kitty"}},
-	{id: "gnome-terminal", name: "GNOME Terminal", kind: Terminal, executables: []string{"gnome-terminal"}},
-	{id: "konsole", name: "Konsole", kind: Terminal, executables: []string{"konsole"}},
+	{id: "wezterm", name: "WezTerm", kind: Terminal, bundleIDs: []string{"com.github.wez.wezterm"}, executables: []string{"wezterm"}, directoryArgs: []string{"start", "--cwd", "%s"}},
+	{id: "kitty", name: "kitty", kind: Terminal, bundleIDs: []string{"net.kovidgoyal.kitty"}, executables: []string{"kitty"}, directoryArgs: []string{"--directory", "%s"}},
+	{id: "gnome-terminal", name: "GNOME Terminal", kind: Terminal, executables: []string{"gnome-terminal"}, directoryArgs: []string{"--working-directory=%s"}},
+	{id: "konsole", name: "Konsole", kind: Terminal, executables: []string{"konsole"}, directoryArgs: []string{"--workdir", "%s"}},
 	{id: "fork", name: "Fork", kind: Git, bundleIDs: []string{"com.DanPristupov.Fork"}},
 	{id: "tower", name: "Tower", kind: Git, bundleIDs: []string{"com.fournova.Tower3"}},
 	{id: "github-desktop", name: "GitHub Desktop", kind: Git, bundleIDs: []string{"com.github.GitHubClient"}},
 	{id: "sublime-merge", name: "Sublime Merge", kind: Git, bundleIDs: []string{"com.sublimemerge"}, executables: []string{"smerge"}},
 	{id: "sourcetree", name: "Sourcetree", kind: Git, bundleIDs: []string{"com.torusknot.SourceTreeNotMAS"}},
 	{id: FileManager, name: fileManagerName, kind: Files, bundleIDs: []string{"com.apple.finder"}, executables: []string{"xdg-open"}},
+}
+
+// arguments are what a Linux executable receives to open folder.
+func arguments(app known, folder string) []string {
+	if app.kind != Terminal {
+		return []string{folder}
+	}
+	args := make([]string, len(app.directoryArgs))
+	for i, arg := range app.directoryArgs {
+		args[i] = strings.ReplaceAll(arg, "%s", folder)
+	}
+	return args
 }
 
 func find(id string) (known, bool) {

@@ -45,3 +45,19 @@ func TestOpenRejectsUnknownApps(t *testing.T) {
 		t.Fatal("opened an unknown app")
 	}
 }
+
+func TestLinuxArguments(t *testing.T) {
+	folder := "/home/me/code/100% done"
+	for id, want := range map[string][]string{
+		"zed":     {folder},
+		"files":   {folder},
+		"ghostty": {"--working-directory=" + folder},
+		"wezterm": {"start", "--cwd", folder},
+		"warp":    {},
+	} {
+		app, _ := find(id)
+		if got := arguments(app, folder); !slices.Equal(got, want) {
+			t.Fatalf("%s: %q", id, got)
+		}
+	}
+}

@@ -680,9 +680,13 @@ watch(menu, async (value) => {
     el?.querySelector('button:not(:disabled)')?.focus()
   }
 })
-// Apps can be installed while Orchestra is in the background, so the list is read on focus too.
+// Apps can be installed while Orchestra is in the background, so the list is read on focus too,
+// at most every 30 seconds.
 const openInApps = ref([])
+let openInAppsRead = 0
 async function loadOpenInApps() {
+  if (Date.now() - openInAppsRead < 30000) return
+  openInAppsRead = Date.now()
   try {
     openInApps.value = (await call('OpenInApps')) || []
   } catch (e) {

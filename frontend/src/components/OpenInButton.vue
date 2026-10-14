@@ -45,6 +45,13 @@ function close(restoreFocus = false) {
   listen(false)
   if (restoreFocus) trigger.value?.focus()
 }
+// The main part opens the last app, or the menu before any choice; with the menu open it closes it.
+function primary() {
+  const wasOpen = open.value
+  close()
+  if (current.value) emit('open', current.value.id)
+  else if (!wasOpen) show()
+}
 function choose(event, ...args) {
   close(true)
   emit(event, ...args)
@@ -72,7 +79,7 @@ onBeforeUnmount(() => listen(false))
         class="standard-button open-in-main"
         :title="label"
         :aria-haspopup="current ? undefined : 'menu'"
-        @click="current ? emit('open', current.id) : show()"
+        @click="primary"
       >
         <img v-if="current?.icon" :src="current.icon" alt="" /><Icon
           v-else-if="current"

@@ -39,10 +39,7 @@ func Open(id, folder string) error {
 	if path == "" {
 		return errors.New(app.name + " is not installed.")
 	}
-	cmd := exec.Command(path, folder)
-	if app.kind == Terminal {
-		cmd = exec.Command(path)
-	}
+	cmd := exec.Command(path, arguments(app, folder)...)
 	cmd.Dir = folder
 	if err := cmd.Start(); err != nil {
 		return err
