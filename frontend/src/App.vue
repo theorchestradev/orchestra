@@ -3,6 +3,8 @@ import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, on, copy, preview } from './shared/api'
 import { mac } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
+import { menuKeys } from './shared/menu'
+import { sessionPath, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { gitHubItem } from './shared/github'
 import { projectTitle } from './shared/project'
 import {
@@ -41,6 +43,7 @@ import SidebarList from './components/SidebarList.vue'
 import ArcSpaces from './components/ArcSpaces.vue'
 import ArcProjectPager from './components/ArcProjectPager.vue'
 import SessionDiff from './components/SessionDiff.vue'
+import OpenInButton from './components/OpenInButton.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
@@ -67,6 +70,8 @@ const workspace = ref({
     gitHubRefreshInterval: 0,
     deliverRequests: false,
     attentionSound: false,
+    openInApp: '',
+    hideOpenInButton: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
@@ -285,6 +290,8 @@ async function runCommand({ command: kind, item }) {
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
   if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(project.value)
+  if (kind === 'openIn') return openIn(session.value, item.app)
+  if (kind === 'copyPath') return copyPath(project.value, session.value)
   if (kind === 'session' || kind === 'worktreeSession') {
     sessionProjectID.value = project.value.id
     await createSession(item.agent, '', kind === 'worktreeSession')
@@ -663,26 +670,43 @@ watch(
       .catch(() => {})
   },
 )
-function menuKeys(event) {
-  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-    event.preventDefault()
-    const items = [...event.currentTarget.querySelectorAll('button:not(:disabled)')]
-    const index = items.indexOf(document.activeElement)
-    const next =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? items.length - 1
-          : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
-    items[next]?.focus()
-  }
-}
+// Long menus move up to stay inside the window.
 watch(menu, async (value) => {
   if (value) {
     await nextTick()
-    document.querySelector('.context-menu button:not(:disabled)')?.focus()
+    const el = document.querySelector('.context-menu')
+    const overflow = (el?.getBoundingClientRect().bottom || 0) - (innerHeight - 8)
+    if (overflow > 0) value.y = Math.max(8, value.y - overflow)
+    el?.querySelector('button:not(:disabled)')?.focus()
   }
 })
+// Apps can be installed while Orchestra is in the background, so the list is read on focus too,
+// at most every 30 seconds.
+const openInApps = ref([])
+let openInAppsRead = 0
+async function loadOpenInApps() {
+  if (Date.now() - openInAppsRead < 30000) return
+  openInAppsRead = Date.now()
+  try {
+    openInApps.value = (await call('OpenInApps')) || []
+  } catch (e) {
+    console.warn('Could not list apps: ' + e)
+  }
+}
+// Go resolves the folder from the session; the app used becomes the Open in button's default.
+async function openIn(sess, app) {
+  menu.value = null
+  try {
+    await call('OpenSessionIn', sess.id, app)
+    if (preferences.value.openInApp !== app) changePreferences({ ...preferences.value, openInApp: app })
+  } catch (e) {
+    error.value = String(e)
+  }
+}
+function copyPath(p, sess) {
+  menu.value = null
+  copy(sessionPath(p, sess)).catch((e) => (error.value = String(e)))
+}
 let unsubs = [],
   resizeCleanup
 // Store owns persisted sidebar order; pointer dragging only previews it.
@@ -758,6 +782,8 @@ onMounted(async () => {
   addEventListener('keydown', keys)
   addEventListener('focus', loadCustomThemes)
   addEventListener('focus', applyTranslucency)
+  addEventListener('focus', loadOpenInApps)
+  loadOpenInApps()
   try {
     setSystemPalettes(await call('SystemPalettes'))
     await loadCustomThemes()
@@ -783,6 +809,7 @@ onBeforeUnmount(() => {
   removeEventListener('keydown', keys)
   removeEventListener('focus', loadCustomThemes)
   removeEventListener('focus', applyTranslucency)
+  removeEventListener('focus', loadOpenInApps)
   resizeCleanup?.()
 })
 </script>
@@ -1016,6 +1043,14 @@ onBeforeUnmount(() => {
             <button class="standard-button" @click="openModal('session')">New Session</button>
           </div>
           <div v-if="session?.restored" class="empty-state">
+            <OpenInButton
+              v-if="!preferences.hideOpenInButton"
+              :apps="openInApps"
+              :last="preferences.openInApp"
+              :visible="!modal"
+              @open="openIn(session, $event)"
+              @copy="copyPath(project, session)"
+            />
             <Icon name="terminal" :size="48" />
             <h2>
               {{
@@ -1069,15 +1104,24 @@ onBeforeUnmount(() => {
                   </button></template
                 >
               </div>
-              <TerminalView
-                :key="sess.id + '-' + (terminalVersions[sess.id] || 0)"
-                :session="sess"
-                :preferences="shownPreferences"
-                :translucent="translucent"
-                :visible="project?.id === p.id && currentDestination === sess.id"
-                @error="error = $event"
-                @key="lastKey[sess.id] = Date.now()"
-              /></section></template
+              <div class="terminal-stack">
+                <OpenInButton
+                  v-if="!preferences.hideOpenInButton"
+                  :apps="openInApps"
+                  :last="preferences.openInApp"
+                  :visible="project?.id === p.id && currentDestination === sess.id && !modal"
+                  @open="openIn(sess, $event)"
+                  @copy="copyPath(p, sess)"
+                /><TerminalView
+                  :key="sess.id + '-' + (terminalVersions[sess.id] || 0)"
+                  :session="sess"
+                  :preferences="shownPreferences"
+                  :translucent="translucent"
+                  :visible="project?.id === p.id && currentDestination === sess.id"
+                  @error="error = $event"
+                  @key="lastKey[sess.id] = Date.now()"
+                />
+              </div></section></template
         ></template>
       </div>
       <SessionDiff
@@ -1198,6 +1242,30 @@ onBeforeUnmount(() => {
           Copy Session ID
         </button>
         <hr />
+        <template v-for="group in appGroups(openInApps)" :key="group.kind"
+          ><div role="group" :aria-label="group.label">
+            <button v-for="app in group.apps" :key="app.id" role="menuitem" @click="openIn(menu.session, app.id)">
+              <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else :name="appSymbol(app)" :size="14" /><span
+                class="truncate"
+                >Open in {{ app.name }}</span
+              >
+            </button>
+          </div>
+          <hr
+        /></template>
+        <button
+          v-for="app in openInApps.filter((a) => a.id === fileManager)"
+          :key="app.id"
+          role="menuitem"
+          @click="openIn(menu.session, app.id)"
+        >
+          <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else name="folder" :size="14" /><span class="truncate"
+            >Open in {{ app.name }}</span
+          ></button
+        ><button role="menuitem" @click="copyPath(menu.project, menu.session)">
+          <Icon name="doc.on.doc" :size="14" />Copy Path
+        </button>
+        <hr />
         <button role="menuitem" @click="edit(menu.session.id, menu.session.name, 'Session')">Edit Session…</button
         ><button
           role="menuitem"
@@ -1247,6 +1315,8 @@ onBeforeUnmount(() => {
         :projects="workspace.projects"
         :project="project"
         :sidebar-hidden="sidebarHidden"
+        :session="session"
+        :apps="openInApps"
         @run="runCommand"
     /></Modal>
     <Modal v-else-if="modal === 'project'" label="New Project" @close="closeModal"

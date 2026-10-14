@@ -95,3 +95,31 @@ test('plain terminals are not offered as agents and show the terminal symbol', (
   assert.equal(terminal.icon, 'terminal')
   assert.equal(terminal.agent, undefined)
 })
+
+test('command bar opens the selected session folder in installed apps', () => {
+  const apps = [
+    { id: 'zed', name: 'Zed', icon: 'data:image/png;base64,AA==' },
+    { id: 'files', name: 'Finder' },
+  ]
+  const items = commandItems({
+    projects,
+    project: projects[0],
+    session: projects[0].sessions[0],
+    apps,
+    preferences: {},
+  })
+  const open = items.filter((c) => c.group === 'Session')
+  assert.deepEqual(
+    open.map((c) => [c.id, c.command, c.app, c.name, c.image, c.icon]),
+    [
+      ['openIn:zed', 'openIn', 'zed', 'Open in Zed', apps[0].icon, 'macwindow'],
+      ['openIn:files', 'openIn', 'files', 'Open in Finder', undefined, 'folder'],
+      ['copyPath', undefined, undefined, 'Copy Path', undefined, 'doc.on.doc'],
+    ],
+  )
+  // Without a session there is no folder to open.
+  assert.equal(
+    commandItems({ projects, project: projects[0], apps, preferences: {} }).filter((c) => c.group === 'Session').length,
+    0,
+  )
+})

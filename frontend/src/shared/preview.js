@@ -49,6 +49,7 @@ let state = {
     translucent: false,
     windowOpacity: 78,
     updateChecksOff: false,
+    hideOpenInButton: false,
     betaUpdates: false,
   },
   projects: [
@@ -258,6 +259,16 @@ export const backend = {
     return previewUpdate
   },
   SystemPalettes: () => null,
+  // Illustrative apps with long names and no system icons, as on Linux.
+  OpenInApps: () => [
+    { id: 'vscode', name: 'VS Code', kind: 'editor' },
+    { id: 'zed', name: 'Zed', kind: 'editor' },
+    { id: 'intellij', name: 'IntelliJ IDEA Ultimate Edition With A Very Long Name', kind: 'editor' },
+    { id: 'ghostty', name: 'Ghostty', kind: 'terminal' },
+    { id: 'fork', name: 'Fork', kind: 'git' },
+    { id: 'files', name: 'File Manager', kind: 'files' },
+  ],
+  OpenSessionIn: () => {},
   TerminalFonts: () => ['Courier New', 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono Extra Condensed Light', 'Menlo'],
   // A browser cannot blur the desktop, so an illustrative wallpaper stands in for visual QA.
   WindowTranslucency: (on) => {

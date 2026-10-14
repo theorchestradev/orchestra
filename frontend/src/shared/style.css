@@ -1469,6 +1469,8 @@ input::placeholder {
 .context-menu {
   position: fixed;
   z-index: 30;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--rule);
   border-radius: 7px;
@@ -3966,6 +3968,70 @@ h2 {
 }
 .split-toggle[aria-expanded='true'] {
   background: var(--selection);
+}
+/* Open in floats over the terminal's top right corner, faded until the pointer is over it or it
+   has focus. It sits beside the Changes pane, so it moves left when the pane opens. Only the
+   button takes the pointer, so the terminal around it still receives clicks and selections. */
+.terminal-stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.open-in {
+  position: absolute;
+  top: 2px;
+  right: 6px;
+  z-index: 4;
+  padding: 8px;
+  max-width: calc(100% - 12px);
+  opacity: 0.35;
+  transition: opacity 0.15s;
+  pointer-events: none;
+}
+.open-in:hover,
+.open-in:focus-within,
+.open-in.open {
+  opacity: 1;
+}
+.open-in .split-button {
+  max-width: 100%;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.14);
+  border-radius: 6px;
+}
+.open-in .standard-button {
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-size: 12px;
+}
+.open-in-main {
+  min-width: 0;
+  max-width: 240px;
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+.open-in .split-toggle {
+  margin-left: -1px;
+  padding-left: 7px;
+  padding-right: 7px;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+.open-in img,
+.context-menu button img {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  object-fit: contain;
+}
+.open-in-menu {
+  max-width: min(320px, calc(100vw - 16px));
+}
+.open-in-check {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .work-on-popover {
   width: min(320px, calc(100vw - 16px));

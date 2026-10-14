@@ -262,15 +262,9 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 			sess.AgentSessionID = sess.ID
 		}
 	}
-	directory := p.Directory
-	if sess.WorktreeDirectory != "" {
-		directory = sess.WorktreeDirectory
-	}
-	if info, e := os.Stat(directory); e != nil || !info.IsDir() {
-		if sess.WorktreeDirectory != "" {
-			return TerminalOutput{}, errWorktreeMissing
-		}
-		return TerminalOutput{}, errors.New("The project folder is no longer available.")
+	directory, err := sessionFolder(p.Directory, sess.WorktreeDirectory)
+	if err != nil {
+		return TerminalOutput{}, err
 	}
 	command, err := launchCommand(sess, s.runtimeDir)
 	if err != nil {

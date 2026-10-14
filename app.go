@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/theorchestradev/orchestra/internal/appearance"
+	"github.com/theorchestradev/orchestra/internal/apps"
 	"github.com/theorchestradev/orchestra/internal/core"
 	"github.com/theorchestradev/orchestra/internal/telemetry"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
@@ -486,6 +487,22 @@ func (a *App) SystemPalettes() map[string][]string { return appearance.SystemPal
 
 // TerminalFonts lists the installed monospaced font families by name; it is empty when listing fails.
 func (a *App) TerminalFonts() []string { return appearance.MonospaceFonts() }
+
+// OpenInApps lists the installed editors, terminals and file manager that can open a session's folder.
+func (a *App) OpenInApps() []apps.App { return apps.Installed() }
+
+// OpenSessionIn opens a session's worktree, or its project folder, in an installed app. The folder
+// comes from the session, never from the caller.
+func (a *App) OpenSessionIn(id, app string) error {
+	if err := a.ready(); err != nil {
+		return err
+	}
+	folder, err := a.store.SessionFolder(id)
+	if err != nil {
+		return err
+	}
+	return apps.Open(app, folder)
+}
 
 // AboutInfo returns the build details that macOS shows in its About panel. Platforms
 // without that panel show them in Settings.

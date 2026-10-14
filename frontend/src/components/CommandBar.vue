@@ -4,7 +4,14 @@ import { palette, agentIcon } from '../shared/appearance'
 import { commandItems, filterCommands } from '../shared/commands'
 import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
-const props = defineProps({ preferences: Object, projects: Array, project: Object, sidebarHidden: Boolean })
+const props = defineProps({
+  preferences: Object,
+  projects: Array,
+  project: Object,
+  session: Object,
+  apps: Array,
+  sidebarHidden: Boolean,
+})
 const emit = defineEmits(['run', 'close'])
 const query = ref(''),
   parent = ref(null),
@@ -29,7 +36,13 @@ function enter(item) {
 function activate(result = results.value[selected.value]) {
   if (!result) return
   if (result.children) enter(result)
-  else emit('run', parent.value ? { command: parent.value.id, item: result } : { command: result.id })
+  else
+    emit(
+      'run',
+      parent.value
+        ? { command: parent.value.id, item: result }
+        : { command: result.command || result.id, item: result },
+    )
 }
 function back() {
   if (parent.value && !query.value) enter(null)
@@ -70,7 +83,7 @@ async function move(delta) {
             v-if="result.theme"
             class="theme-dot"
             :style="{ background: palette({ ...preferences, theme: result.theme }).accent }"
-          /><img
+          /><img v-else-if="result.image" class="command-agent" :src="result.image" alt="" /><img
             v-else-if="result.agent"
             class="command-agent"
             :src="agentIcon(result.agent, preferences.appearance)"
