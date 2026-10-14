@@ -7,7 +7,7 @@ import { call, copy, on, paste } from '../shared/api'
 import { mac } from '../shared/platform'
 import { terminalTheme, customThemes } from '../shared/appearance'
 const props = defineProps({ session: Object, preferences: Object, translucent: Boolean, visible: Boolean })
-const emit = defineEmits(['error'])
+const emit = defineEmits(['error', 'key'])
 const host = ref(null)
 let terminal,
   fit,
@@ -97,6 +97,7 @@ onMounted(async () => {
     }
     return !['KeyN', 'KeyK', 'KeyB', 'BracketLeft', 'BracketRight'].includes(e.code)
   })
+  terminal.onKey(() => emit('key'))
   terminal.onData((data) => call('WriteTerminal', props.session.id, data).catch((e) => emit('error', String(e))))
   unsubscribe = on('terminal', append)
   observer = new ResizeObserver(resize)
