@@ -30,6 +30,7 @@ let state = {
   preferences: {
     appearance: 'dark',
     theme: 'system',
+    terminalFontFamily: '',
     terminalFontSize: 14,
     terminalFontSmoothing: true,
     terminalPaddingX: 12,
@@ -257,6 +258,7 @@ export const backend = {
     return previewUpdate
   },
   SystemPalettes: () => null,
+  TerminalFonts: () => ['Courier New', 'JetBrains Mono', 'JetBrainsMono Nerd Font Mono Extra Condensed Light', 'Menlo'],
   // A browser cannot blur the desktop, so an illustrative wallpaper stands in for visual QA.
   WindowTranslucency: (on) => {
     document.body.style.background = on ? 'linear-gradient(135deg, #f5a524, #7c3aed 45%, #0ea5e9)' : ''

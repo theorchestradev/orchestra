@@ -5,6 +5,8 @@ import {
   themeNames,
   palette,
   terminalTheme,
+  terminalFontFamily,
+  systemMonospace,
   translucencyTokens,
   agentIcon,
   effectiveAppearance,
@@ -247,4 +249,10 @@ test('window opacity keeps the default look, the sidebar ratio and the readable 
   assert.deepEqual(translucencyTokens(undefined), translucencyTokens(78))
   assert.deepEqual(translucencyTokens(10), { '--canvas-opacity': '40%', '--sidebar-opacity': '32%' })
   assert.deepEqual(translucencyTokens(100), { '--canvas-opacity': '95%', '--sidebar-opacity': '76%' })
+})
+
+test('the terminal font puts the chosen family before System Monospace', () => {
+  assert.equal(terminalFontFamily(''), systemMonospace)
+  assert.equal(terminalFontFamily(undefined), systemMonospace)
+  assert.equal(terminalFontFamily('JetBrains Mono'), `"JetBrains Mono", ${systemMonospace}`)
 })

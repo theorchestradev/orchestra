@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/google/uuid"
 )
@@ -65,13 +66,15 @@ type Project struct {
 	Sessions       []*Session `json:"sessions"`
 }
 type Preferences struct {
-	TelemetryEnabled      bool    `json:"telemetryEnabled"`
-	TelemetryChoiceMade   bool    `json:"telemetryChoiceMade"`
-	TelemetryInstallID    string  `json:"telemetryInstallID,omitempty"`
-	ArcMode               bool    `json:"arcMode"`
-	Appearance            string  `json:"appearance"`
-	AppIcon               string  `json:"appIcon"`
-	Theme                 string  `json:"theme"`
+	TelemetryEnabled    bool   `json:"telemetryEnabled"`
+	TelemetryChoiceMade bool   `json:"telemetryChoiceMade"`
+	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
+	ArcMode             bool   `json:"arcMode"`
+	Appearance          string `json:"appearance"`
+	AppIcon             string `json:"appIcon"`
+	Theme               string `json:"theme"`
+	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
+	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
 	TerminalFontSize      int     `json:"terminalFontSize"`
 	TerminalFontSmoothing bool    `json:"terminalFontSmoothing"`
 	TerminalPaddingX      int     `json:"terminalPaddingX"`
@@ -765,6 +768,10 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	}
 	if p.TerminalFontSize < 10 || p.TerminalFontSize > 24 || p.TerminalPaddingX < 0 || p.TerminalPaddingX > 24 || p.TerminalPaddingY < 0 || p.TerminalPaddingY > 24 || p.SidebarWidth < 220 || p.SidebarWidth > 400 || p.DiffPaneWidth < minDiffPaneWidth || p.DiffPaneWidth > maxDiffPaneWidth {
 		return State{}, errors.New("Invalid preference value.")
+	}
+	// The terminal quotes the family in a CSS font-family list.
+	if len(p.TerminalFontFamily) > 200 || strings.ContainsAny(p.TerminalFontFamily, "\"\\") || strings.IndexFunc(p.TerminalFontFamily, unicode.IsControl) >= 0 {
+		return State{}, errors.New("Invalid terminal font.")
 	}
 	if _, ok := agentNames[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")

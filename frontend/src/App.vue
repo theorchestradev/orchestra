@@ -50,6 +50,7 @@ const workspace = ref({
     appearance: 'system',
     appIcon: 'white',
     theme: 'system',
+    terminalFontFamily: '',
     terminalFontSize: 14,
     terminalFontSmoothing: true,
     terminalPaddingX: 12,
