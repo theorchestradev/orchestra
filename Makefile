@@ -19,7 +19,7 @@ DEVELOPER_DIR ?= /Applications/Xcode.app/Contents/Developer
 # least the minimum macOS version supported by the Go toolchain.
 MACOS_MIN_VERSION := 13.0
 # cmd/go adds -lobjc for every package with Objective-C files (Wails and
-# internal/appearance), so the linker would warn about duplicate libraries.
+# internal/appearance and internal/apps), so the linker would warn about duplicate libraries.
 LDFLAGS += -extldflags=-Wl,-no_warn_duplicate_libraries
 
 export DEVELOPER_DIR

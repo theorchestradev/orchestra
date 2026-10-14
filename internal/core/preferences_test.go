@@ -161,6 +161,34 @@ func TestTerminalFontFamilyPreference(t *testing.T) {
 	}
 }
 
+func TestOpenInAppPreference(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	if prefs.OpenInApp != "" {
+		t.Fatalf("new installs should not have chosen an app: %q", prefs.OpenInApp)
+	}
+	if prefs.HideOpenInButton {
+		t.Fatal("new installs should show the Open in button")
+	}
+	prefs.OpenInApp = "zed"
+	prefs.HideOpenInButton = true
+	if _, err := s.SetPreferences(prefs); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	if got := reopened.Snapshot().Preferences; got.OpenInApp != "zed" || !got.HideOpenInButton {
+		t.Fatalf("Open in preferences were not restored: %q %v", got.OpenInApp, got.HideOpenInButton)
+	}
+	prefs.OpenInApp = "/Applications/Evil.app"
+	if _, err := s.SetPreferences(prefs); err == nil {
+		t.Fatal("accepted an unknown app")
+	}
+}
+
 func TestAppearancePreference(t *testing.T) {
 	if defaultPreferences().Appearance != "system" {
 		t.Fatal("new installs should follow the system appearance")

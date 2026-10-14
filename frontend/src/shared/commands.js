@@ -1,9 +1,10 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
 import { projectTitle } from './project.js'
 import { shortcut } from './shortcuts.js'
+import { appSymbol } from './openIn.js'
 
 // Command bar entries. `children` opens a nested list; leaves are run by App.vue through `run`.
-export function commandItems({ projects = [], project, preferences = {}, sidebarHidden = false }) {
+export function commandItems({ projects = [], project, session, apps = [], preferences = {}, sidebarHidden = false }) {
   const sessionAgents = [...agents]
     .sort((a, b) => Number(b.id === preferences.defaultAgent) - Number(a.id === preferences.defaultAgent))
     .map((a) => ({ id: a.id, name: a.name, agent: a.id, detail: a.id === preferences.defaultAgent ? 'Default' : '' }))
@@ -28,6 +29,19 @@ export function commandItems({ projects = [], project, preferences = {}, sidebar
       name: project.hasScratchpad ? 'Open ' + (project.scratchpadName || 'Scratchpad') : 'New Scratchpad',
       icon: 'note.text',
     },
+    // Leaves with `command` run that command with themselves as the item.
+    ...(session
+      ? apps.map((a) => ({
+          id: 'openIn:' + a.id,
+          command: 'openIn',
+          app: a.id,
+          group: 'Session',
+          name: 'Open in ' + a.name,
+          image: a.icon,
+          icon: appSymbol(a),
+        }))
+      : []),
+    session && { id: 'copyPath', group: 'Session', name: 'Copy Path', icon: 'doc.on.doc' },
     project && {
       id: 'session',
       group: 'Create',

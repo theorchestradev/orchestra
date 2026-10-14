@@ -561,6 +561,27 @@ if (!mac)
               <span />
             </button>
           </div>
+          <hr />
+          <div class="setting-row">
+            <div>
+              <label for="open-in-button">Show Open in Button</label>
+              <p class="muted caption">
+                Show a button above sessions that opens their folder in an editor, terminal or Git tool. The session
+                menu and the command bar keep these actions.
+              </p>
+            </div>
+            <button
+              id="open-in-button"
+              class="switch"
+              :class="{ on: !preferences.hideOpenInButton }"
+              role="switch"
+              :aria-checked="!preferences.hideOpenInButton"
+              aria-label="Show Open in Button"
+              @click="choose('hideOpenInButton', !preferences.hideOpenInButton)"
+            >
+              <span />
+            </button>
+          </div>
         </div>
         <div v-else-if="section === 'Shortcuts'" class="settings-card general-settings shortcut-settings">
           <p class="muted caption">

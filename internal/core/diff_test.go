@@ -126,12 +126,18 @@ func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 		t.Fatalf("merge-base fallback: %+v %v", fallback, err)
 	}
 
+	if folder, err := s.SessionFolder(sess.ID); err != nil || folder != w {
+		t.Fatalf("worktree folder: %q %v", folder, err)
+	}
 	// A missing worktree never falls back to the original checkout.
 	if err = os.RemoveAll(w); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.SessionDiff(sess.ID); err != errWorktreeMissing {
 		t.Fatalf("missing worktree: %v", err)
+	}
+	if _, err = s.SessionFolder(sess.ID); err != errWorktreeMissing {
+		t.Fatalf("missing worktree folder: %v", err)
 	}
 }
 
@@ -160,6 +166,13 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 	}
 	if _, err = s.SessionDiff("missing"); err == nil {
 		t.Fatal("unknown session accepted")
+	}
+	// Sessions without a worktree, terminals included, open the project folder.
+	if folder, err := s.SessionFolder(terminal.ID); err != nil || folder != p.Directory {
+		t.Fatalf("project folder: %q %v", folder, err)
+	}
+	if _, err = s.SessionFolder("missing"); err == nil {
+		t.Fatal("unknown session folder accepted")
 	}
 	// A repository without commits compares against the empty tree.
 	empty := projectFixture(t, s)

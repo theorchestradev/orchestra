@@ -102,6 +102,10 @@ type Preferences struct {
 	BetaUpdates bool `json:"betaUpdates"`
 	// SkippedUpdate is the release version the user chose to skip.
 	SkippedUpdate string `json:"skippedUpdate,omitempty"`
+	// OpenInApp is the app the session view's Open in button used last; empty means none yet.
+	OpenInApp string `json:"openInApp,omitempty"`
+	// HideOpenInButton hides the session view's Open in button; the zero value shows it.
+	HideOpenInButton bool `json:"hideOpenInButton"`
 }
 type State struct {
 	Version           int         `json:"version"`
@@ -784,6 +788,10 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	}
 	if err := validUpdateVersion(p.SkippedUpdate); err != nil {
 		return State{}, err
+	}
+	// An app id from internal/apps; opening rejects ids it does not know.
+	if len(p.OpenInApp) > 40 || strings.Trim(p.OpenInApp, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" {
+		return State{}, errors.New("Unknown app.")
 	}
 	previous := s.state.Preferences
 	p.TelemetryEnabled = previous.TelemetryEnabled

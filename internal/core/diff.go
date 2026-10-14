@@ -49,6 +49,33 @@ type SessionDiff struct {
 	Truncated bool       `json:"truncated,omitempty"`
 }
 
+// sessionFolder is where a session runs: its worktree, or the project folder without one.
+func sessionFolder(projectDirectory, worktreeDirectory string) (string, error) {
+	if worktreeDirectory == "" {
+		if info, err := os.Stat(projectDirectory); err != nil || !info.IsDir() {
+			return "", errors.New("The project folder is no longer available.")
+		}
+		return projectDirectory, nil
+	}
+	if info, err := os.Stat(worktreeDirectory); err != nil || !info.IsDir() {
+		return "", errWorktreeMissing
+	}
+	return worktreeDirectory, nil
+}
+
+// SessionFolder returns the existing folder a session runs in, for opening it in other apps.
+func (s *Store) SessionFolder(id string) (string, error) {
+	s.mu.Lock()
+	p, sess, err := s.sessionLocked(id)
+	if err != nil {
+		s.mu.Unlock()
+		return "", err
+	}
+	projectDirectory, worktreeDirectory := p.Directory, sess.WorktreeDirectory
+	s.mu.Unlock()
+	return sessionFolder(projectDirectory, worktreeDirectory)
+}
+
 // SessionDiff only reads Git. It never starts, stops or writes to a session's process.
 func (s *Store) SessionDiff(id string) (SessionDiff, error) {
 	s.mu.Lock()
@@ -68,15 +95,13 @@ func readSessionDiff(agent, projectDirectory, worktreeDirectory, savedBase strin
 		result.Message = "Terminal sessions don’t track changes. Agent sessions show what they changed here."
 		return result, nil
 	}
-	directory, scope := projectDirectory, "folder"
-	if worktreeDirectory != "" {
-		directory, scope = worktreeDirectory, "worktree"
+	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	if err != nil {
+		return SessionDiff{}, err
 	}
-	if info, err := os.Stat(directory); err != nil || !info.IsDir() {
-		if scope == "worktree" {
-			return SessionDiff{}, errWorktreeMissing
-		}
-		return SessionDiff{}, errors.New("The project folder is no longer available.")
+	scope := "folder"
+	if worktreeDirectory != "" {
+		scope = "worktree"
 	}
 	if _, err := runCommand(directory, "git", "rev-parse", "--is-inside-work-tree"); err != nil {
 		if scope == "worktree" {
