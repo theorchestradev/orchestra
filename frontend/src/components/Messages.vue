@@ -107,6 +107,7 @@ async function action(method, ...args) {
         aria-label="Message text"
         class="message-editor"
         @keydown.meta.enter.prevent="to && text.trim() && !busy && action('SendRequest', session.id, to, text)"
+        @keydown.ctrl.enter.prevent="to && text.trim() && !busy && action('SendRequest', session.id, to, text)"
       />
       <footer>
         <button

@@ -6,5 +6,5 @@ export const mac = /Mac/.test(globalThis.navigator?.platform || '')
 export function shortcutLabel(text, isMac = mac) {
   if (isMac) return text
   const key = text.replace(/[⇧⌘]/g, '').replace('↩', 'Enter')
-  return 'Ctrl+' + (text.includes('⇧') ? 'Shift+' : '') + key
+  return (text.includes('⌘') ? 'Ctrl+' : '') + (text.includes('⇧') ? 'Shift+' : '') + key
 }

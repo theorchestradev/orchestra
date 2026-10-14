@@ -3990,3 +3990,53 @@ h2 {
 .status-button.update-available {
   color: var(--accent);
 }
+.shortcut-group h3 {
+  margin-bottom: 4px;
+}
+.shortcut-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--rule);
+}
+.shortcut-row:last-child {
+  border-bottom: 0;
+}
+.shortcut-row dt {
+  flex: 1 1 10em;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.shortcut-row dd {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  margin-left: auto;
+  max-width: 100%;
+}
+.shortcut-keys {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 2px 8px;
+}
+.shortcut-keys small {
+  order: -1;
+}
+.shortcut-keys kbd {
+  font:
+    11px -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  letter-spacing: 1px;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  border-radius: 5px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}

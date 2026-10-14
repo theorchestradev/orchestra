@@ -7,7 +7,8 @@ import AgentUsage from './AgentUsage.vue'
 import AgentSkill from './AgentSkill.vue'
 import { call, openURL } from '../shared/api'
 import { privacyURL } from '../shared/telemetry'
-import { mac } from '../shared/platform'
+import { mac, shortcutLabel } from '../shared/platform'
+import { shortcuts, shortcutKeys } from '../shared/shortcuts'
 const props = defineProps({
   preferences: Object,
   themeErrors: Array,
@@ -20,6 +21,10 @@ const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
 const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates'])
 const section = ref('General')
+const shortcutGroups = [...new Set(shortcuts.map((s) => s.group))].map((name) => ({
+  name,
+  entries: shortcuts.filter((s) => s.group === name),
+}))
 // Opacity matters only while the window is actually translucent.
 const opacityEnabled = computed(() => props.preferences.translucent && !props.reduceTransparency)
 const windowOpacity = computed(() => props.preferences.windowOpacity || windowOpacityRange.default)
@@ -75,7 +80,7 @@ if (!mac)
   <div class="settings-dialog">
     <nav class="settings-rail" aria-label="Settings sections">
       <button
-        v-for="name in ['General', 'Agents', 'Appearance', 'Terminal', 'Usage', 'Privacy']"
+        v-for="name in ['General', 'Agents', 'Appearance', 'Terminal', 'Shortcuts', 'Usage', 'Privacy']"
         :key="name"
         :class="{ selected: section === name }"
         :aria-pressed="section === name"
@@ -93,7 +98,9 @@ if (!mac)
                     ? 'circle.dotted'
                     : name === 'Privacy'
                       ? 'shield'
-                      : 'terminal'
+                      : name === 'Shortcuts'
+                        ? 'keyboard'
+                        : 'terminal'
           "
           :size="14"
         />{{ name }}
@@ -490,6 +497,34 @@ if (!mac)
               <span />
             </button>
           </div>
+        </div>
+        <div v-else-if="section === 'Shortcuts'" class="settings-card general-settings shortcut-settings">
+          <p class="muted caption">
+            The command bar ({{ shortcutLabel('⌘K') }}) lists every command.<template v-if="!mac">
+              Inside terminals, app shortcuts and copy and paste add Shift, so Ctrl+B, Ctrl+K and Ctrl+N reach the
+              terminal.</template
+            >
+          </p>
+          <section
+            v-for="(group, i) in shortcutGroups"
+            :key="group.name"
+            class="shortcut-group"
+            :aria-labelledby="'shortcut-group-' + i"
+          >
+            <h3 :id="'shortcut-group-' + i">{{ group.name }}</h3>
+            <dl>
+              <div v-for="entry in group.entries" :key="entry.id" class="shortcut-row">
+                <dt>{{ entry.name }}</dt>
+                <dd>
+                  <span v-for="key in shortcutKeys(entry)" :key="key.label" class="shortcut-keys"
+                    ><kbd aria-hidden="true">{{ key.label }}</kbd
+                    ><span class="visually-hidden">{{ key.name }}</span
+                    ><small v-if="key.note" class="muted caption">{{ key.note }}</small></span
+                  >
+                </dd>
+              </div>
+            </dl>
+          </section>
         </div>
         <div v-else-if="section === 'Privacy'" class="settings-card general-settings">
           <div class="setting-row">

@@ -1,5 +1,6 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
 import { projectTitle } from './project.js'
+import { shortcut } from './shortcuts.js'
 
 // Command bar entries. `children` opens a nested list; leaves are run by App.vue through `run`.
 export function commandItems({ projects = [], project, preferences = {}, sidebarHidden = false }) {
@@ -32,7 +33,7 @@ export function commandItems({ projects = [], project, preferences = {}, sidebar
       group: 'Create',
       name: 'New Session…',
       icon: 'terminal',
-      shortcut: '⌘N',
+      shortcut: shortcut('session'),
       placeholder: 'Search agents',
       children: sessionAgents,
     },
@@ -45,16 +46,22 @@ export function commandItems({ projects = [], project, preferences = {}, sidebar
       children: sessionAgents,
     },
     project && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
-    { id: 'project', group: 'Create', name: 'New Project…', icon: 'folder', shortcut: '⇧⌘N' },
-    { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: '⌘,' },
+    { id: 'project', group: 'Create', name: 'New Project…', icon: 'folder', shortcut: shortcut('project') },
+    { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: shortcut('settings') },
     { id: 'update', group: 'App', name: 'Check for Updates…', icon: 'arrow.down.circle' },
-    { id: 'sidebar', group: 'App', name: sidebarHidden ? 'Show Sidebar' : 'Hide Sidebar', icon: 'sidebar.left' },
+    {
+      id: 'sidebar',
+      group: 'App',
+      name: sidebarHidden ? 'Show Sidebar' : 'Hide Sidebar',
+      icon: 'sidebar.left',
+      shortcut: shortcut('sidebar'),
+    },
     project && {
       id: 'diff',
       group: 'App',
       name: preferences.diffPaneOpen ? 'Hide Changes' : 'Show Changes',
       icon: 'sidebar.right',
-      shortcut: '⇧⌘B',
+      shortcut: shortcut('diff'),
     },
     {
       id: 'appearance',
