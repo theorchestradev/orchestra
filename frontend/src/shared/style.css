@@ -1280,6 +1280,10 @@ input::placeholder {
   color: var(--text);
   background: var(--selection);
 }
+/* System, Light and Dark need more room than two choices. */
+.mode-switch.appearance-mode {
+  width: 240px;
+}
 .theme-select {
   font-size: 12px;
   height: 30px;
@@ -2155,6 +2159,9 @@ input::placeholder {
   .mode-switch,
   .theme-select {
     width: 170px;
+  }
+  .mode-switch.appearance-mode {
+    width: 216px;
   }
   .project-title {
     max-width: calc(100% - 80px);
