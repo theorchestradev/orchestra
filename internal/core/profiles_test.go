@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func profileFixture(t *testing.T, s *Store, name string) *Profile {
@@ -208,6 +209,10 @@ func TestProfileFoldersOutliveTheUsersRCFiles(t *testing.T) {
 		t.Skip("zsh is not installed")
 	}
 	rc := t.TempDir()
+	// System rc files are skipped: some run compinit, which can stop to ask about folder permissions.
+	if err = os.WriteFile(filepath.Join(rc, ".zshenv"), []byte("setopt no_global_rcs\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err = os.WriteFile(filepath.Join(rc, ".zshrc"), []byte("export CLAUDE_CONFIG_DIR=/from-rc\nclaude() { echo from-function; }\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -230,8 +235,12 @@ func TestProfileFoldersOutliveTheUsersRCFiles(t *testing.T) {
 	if _, err = s.StartSession(sess.ID, false, 80, 24); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, func() bool { return strings.Contains(terminalText(s, sess.ID), "claude=") })
-	if text := terminalText(s, sess.ID); !strings.Contains(text, "claude="+work.Folders["claude"]) {
+	text := ""
+	for until := time.Now().Add(10 * time.Second); !strings.Contains(text, "claude=") && time.Now().Before(until); {
+		time.Sleep(20 * time.Millisecond)
+		text = terminalText(s, sess.ID)
+	}
+	if !strings.Contains(text, "claude="+work.Folders["claude"]+"\r") {
 		t.Fatalf("session output = %q", text)
 	}
 }
