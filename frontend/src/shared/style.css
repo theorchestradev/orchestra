@@ -3591,7 +3591,7 @@ h2 {
   gap: 8px;
   padding-top: 10px;
 }
-/* Settings → Agents → Agent Skill */
+/* Settings → Agents → Orchestra Skill */
 .agent-skill {
   display: flex;
   flex-direction: column;
@@ -4129,4 +4129,232 @@ h2 {
   border-radius: 5px;
   padding: 2px 6px;
   white-space: nowrap;
+}
+
+/* Profiles: the session badge, menus, dialogs and Settings → Profiles. */
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 4px;
+  background: var(--selection);
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+}
+.profile-badge.missing {
+  color: var(--status-deleted);
+}
+.menu-heading {
+  display: block;
+  padding: 4px 9px 2px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.menu-check-space {
+  width: 12px;
+  flex-shrink: 0;
+}
+.context-menu .truncate {
+  max-width: 260px;
+}
+.modal .session-profile {
+  gap: 12px;
+}
+.modal .session-profile > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.modal .session-profile label {
+  display: block;
+}
+.modal .session-profile .theme-select {
+  width: 220px;
+  max-width: 60%;
+}
+.usage-toolbar .usage-profile {
+  margin-left: auto;
+  width: 180px;
+}
+.profile-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 760px;
+}
+.profile-settings > .caption {
+  margin: 0;
+  max-width: 560px;
+  line-height: 1.45;
+}
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.profile-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.profile-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.profile-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--selection);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+}
+.profile-title {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.profile-title strong {
+  font-weight: 600;
+}
+.profile-action {
+  color: var(--muted);
+}
+.profile-action:hover {
+  color: var(--text);
+}
+.profile-agents {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0 0 0 40px;
+  list-style: none;
+}
+.profile-agent {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 30px;
+}
+.profile-agent img {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.profile-agent-name {
+  width: 96px;
+  flex-shrink: 0;
+}
+.profile-agent > .caption {
+  flex: 1;
+  min-width: 0;
+}
+.profile-agent .standard-button,
+.profile-relogin {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.profile-relogin {
+  color: var(--muted);
+  font-size: 12px;
+}
+.profile-relogin:disabled {
+  opacity: 0.5;
+}
+.profile-login {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.profile-login i {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border: 1px solid var(--muted);
+  border-radius: 50%;
+}
+.profile-login.on {
+  color: var(--text);
+}
+.profile-login.on i {
+  border-color: var(--status-open);
+  background: var(--status-open);
+}
+.profile-skill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--canvas);
+}
+.profile-skill > .symbol {
+  color: var(--muted);
+}
+.profile-skill p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  max-width: none;
+  line-height: 1.45;
+}
+.profile-skill strong {
+  font-weight: 500;
+}
+.profile-row .skill-output {
+  margin-left: 40px;
+}
+.profile-list .theme-actions {
+  padding-top: 0;
+}
+.profile-list .theme-actions .standard-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.modal-backdrop:has(.profile-dialog) {
+  z-index: 21;
+}
+@media (max-width: 700px) {
+  .profile-agents {
+    padding-left: 0;
+  }
+  .profile-skill,
+  .profile-row .skill-output {
+    margin-left: 0;
+  }
+  .profile-agent-name {
+    width: auto;
+  }
+}
+.modal-backdrop:has(.profile-remove-dialog) {
+  z-index: 21;
+}
+.profile-remove-dialog :is(h2, p) {
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }

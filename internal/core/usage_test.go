@@ -71,7 +71,7 @@ func TestUsageInstalledCLIIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	results := ReadAgentUsage(context.Background())
+	results := ReadAgentUsage(context.Background(), nil)
 	if len(results) != 2 {
 		t.Fatal(results)
 	}

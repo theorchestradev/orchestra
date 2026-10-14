@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -70,9 +71,10 @@ func SkillCommand(agents []string) (string, error) {
 	return strings.Join(args, " "), nil
 }
 
-// skillShell runs a script through the login shell sessions use, without a TTY, in a
-// neutral directory, and returns its combined output and exit code. Tests replace it.
-var skillShell = func(ctx context.Context, script string) ([]byte, int, error) {
+// cliShell runs a script through the login shell sessions use, without a TTY, in a
+// neutral directory, and returns its combined output and exit code. Skill installs and
+// sign-in checks use it; tests replace it.
+var cliShell = func(ctx context.Context, script string) ([]byte, int, error) {
 	directory, err := os.MkdirTemp("", "orchestra-skill-")
 	if err != nil {
 		return nil, -1, err
@@ -109,7 +111,7 @@ func AgentSkillStatus(ctx context.Context) SkillStatus {
 		names = append(names, agentExecutables[agent])
 	}
 	// Login shells may print before the list, so only marked lines count.
-	output, code, err := skillShell(ctx, `for c in `+strings.Join(names, " ")+`; do command -v "$c" >/dev/null 2>&1 && printf 'orchestra-found:%s\n' "$c"; done; exit 0`)
+	output, code, err := cliShell(ctx, `for c in `+strings.Join(names, " ")+`; do command -v "$c" >/dev/null 2>&1 && printf 'orchestra-found:%s\n' "$c"; done; exit 0`)
 	found := map[string]bool{}
 	if err == nil && code == 0 {
 		status.Detected = true
@@ -141,16 +143,118 @@ const missingNode = "orchestra-missing-npx"
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07`)
 
-// InstallAgentSkill runs the pinned skills CLI for the chosen agents. It runs only when
-// the user asks, never edits agent settings itself and never writes to a terminal.
-func InstallAgentSkill(ctx context.Context, agents []string) (SkillInstall, error) {
+// profileSkillAgents are the agents whose global skills live in their config folder, so each
+// profile needs its own install. The pinned skills CLI puts Codex skills in ~/.agents/skills,
+// which every profile shares.
+var profileSkillAgents = map[string]bool{"claude": true}
+
+// InstallAgentSkill runs the pinned skills CLI for the chosen agents, then again for each
+// profile's own config folders. It runs only when the user asks, never edits agent settings
+// itself and never writes to a terminal.
+func InstallAgentSkill(ctx context.Context, agents []string, profiles []*Profile) (SkillInstall, error) {
 	command, err := SkillCommand(agents)
 	if err != nil {
 		return SkillInstall{}, err
 	}
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	output, code, err := skillShell(ctx, `command -v npx >/dev/null 2>&1 || { echo `+missingNode+`; exit 127; }; exec `+command)
+	result, err := installSkill(ctx, "", command)
+	for _, p := range profiles {
+		if err != nil || result.ExitCode != 0 {
+			break
+		}
+		var next SkillInstall
+		var ran bool
+		if next, ran, err = installProfileSkill(ctx, p, agents); ran {
+			result.Output = strings.TrimSpace(result.Output + "\n\nProfile " + p.Name + ":\n" + next.Output)
+			result.ExitCode = next.ExitCode
+		}
+	}
+	if len(result.Output) > 64*1024 {
+		result.Output = "…" + result.Output[len(result.Output)-64*1024:]
+	}
+	return result, err
+}
+
+// InstallProfileSkill installs the Orchestra skill where a profile is missing it; nil is
+// Default. Skills every profile shares are installed once, for Default.
+func InstallProfileSkill(ctx context.Context, p *Profile) (SkillInstall, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	defer cancel()
+	shared, own := []string{}, []string{}
+	for _, agent := range skillAgentOrder() {
+		if agentConfigEnv[agent] == "" || profileSkillInstalled(p, agent) {
+			continue
+		}
+		if _, ok := profileFolders(p)[agentConfigEnv[agent]]; ok && profileSkillAgents[agent] {
+			own = append(own, agent)
+		} else {
+			shared = append(shared, agent)
+		}
+	}
+	result, err := SkillInstall{}, error(nil)
+	if len(shared) > 0 {
+		command, _ := SkillCommand(shared)
+		if result, err = installSkill(ctx, "", command); err != nil || result.ExitCode != 0 {
+			return result, err
+		}
+	}
+	if len(own) > 0 {
+		next, _, e := installProfileSkill(ctx, p, own)
+		result.Output = strings.TrimSpace(result.Output + "\n\n" + next.Output)
+		result.ExitCode, err = next.ExitCode, e
+	}
+	return result, err
+}
+
+// installProfileSkill installs the skill into the profile's own config folders and reports
+// whether any of the agents needed it.
+func installProfileSkill(ctx context.Context, p *Profile, agents []string) (SkillInstall, bool, error) {
+	exports, chosen := "", []string{}
+	for _, agent := range agents {
+		folder, ok := p.Folders[agent]
+		if !ok || !profileSkillAgents[agent] {
+			continue
+		}
+		path, err := expandFolder(folder)
+		if err == nil {
+			err = os.MkdirAll(path, 0700)
+		}
+		if err != nil {
+			return SkillInstall{}, true, err
+		}
+		// The skills CLI installs into CLAUDE_CONFIG_DIR when it is set.
+		exports += "export " + agentConfigEnv[agent] + "=" + shellQuote(path) + "; "
+		chosen = append(chosen, agent)
+	}
+	if len(chosen) == 0 {
+		return SkillInstall{}, false, nil
+	}
+	command, _ := SkillCommand(chosen)
+	result, err := installSkill(ctx, exports, command)
+	return result, true, err
+}
+
+// profileSkillInstalled reports whether the agent finds the Orchestra skill with the profile.
+// It only checks that the skill file exists.
+func profileSkillInstalled(p *Profile, agent string) bool {
+	home, _ := os.UserHomeDir()
+	folder := profileFolders(p)[agentConfigEnv[agent]]
+	switch {
+	case folder != "" && profileSkillAgents[agent]:
+	case agent == "claude":
+		if folder = os.Getenv("CLAUDE_CONFIG_DIR"); folder == "" {
+			folder = filepath.Join(home, ".claude")
+		}
+	default:
+		folder = filepath.Join(home, ".agents")
+	}
+	_, err := os.Stat(filepath.Join(folder, "skills", "orchestra", "SKILL.md"))
+	return err == nil
+}
+
+func installSkill(ctx context.Context, exports, command string) (SkillInstall, error) {
+	output, code, err := cliShell(ctx, `command -v npx >/dev/null 2>&1 || { echo `+missingNode+`; exit 127; }; `+exports+`exec `+command)
 	text := strings.TrimSpace(ansiPattern.ReplaceAllString(strings.ReplaceAll(string(output), "\r\n", "\n"), ""))
 	if len(text) > 64*1024 {
 		text = "…" + text[len(text)-64*1024:]

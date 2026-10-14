@@ -5,6 +5,7 @@ import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import AgentUsage from './AgentUsage.vue'
 import AgentSkill from './AgentSkill.vue'
+import Profiles from './Profiles.vue'
 import { call, openURL } from '../shared/api'
 import { privacyURL } from '../shared/telemetry'
 import { mac, shortcutLabel } from '../shared/platform'
@@ -16,11 +17,25 @@ const props = defineProps({
   reduceTransparency: Boolean,
   telemetryStatus: Object,
   telemetryBusy: Boolean,
+  profiles: Array,
+  project: Object,
+  // The profile Usage shows first: the selected session's, or else the project's.
+  usageProfileID: String,
 })
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
-const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates'])
+const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
 const section = ref('General')
+const sections = {
+  General: 'gearshape',
+  Agents: 'person.2',
+  Profiles: 'person.crop.circle',
+  Appearance: 'paintpalette',
+  Terminal: 'terminal',
+  Shortcuts: 'keyboard',
+  Usage: 'circle.dotted',
+  Privacy: 'shield',
+}
 const shortcutGroups = [...new Set(shortcuts.map((s) => s.group))].map((name) => ({
   name,
   entries: shortcuts.filter((s) => s.group === name),
@@ -100,30 +115,13 @@ if (!mac)
   <div class="settings-dialog">
     <nav class="settings-rail" aria-label="Settings sections">
       <button
-        v-for="name in ['General', 'Agents', 'Appearance', 'Terminal', 'Shortcuts', 'Usage', 'Privacy']"
+        v-for="(icon, name) in sections"
         :key="name"
         :class="{ selected: section === name }"
         :aria-pressed="section === name"
         @click="section = name"
       >
-        <Icon
-          :name="
-            name === 'General'
-              ? 'gearshape'
-              : name === 'Agents'
-                ? 'person.2'
-                : name === 'Appearance'
-                  ? 'paintpalette'
-                  : name === 'Usage'
-                    ? 'circle.dotted'
-                    : name === 'Privacy'
-                      ? 'shield'
-                      : name === 'Shortcuts'
-                        ? 'keyboard'
-                        : 'terminal'
-          "
-          :size="14"
-        />{{ name }}
+        <Icon :name="icon" :size="14" />{{ name }}
       </button>
     </nav>
     <main class="settings-main">
@@ -647,7 +645,15 @@ if (!mac)
             Privacy &amp; usage data: every event and property
           </button>
         </div>
-        <AgentUsage v-else :appearance="shownAppearance" />
+        <Profiles
+          v-else-if="section === 'Profiles'"
+          :profiles="profiles"
+          :project="project"
+          :appearance="shownAppearance"
+          @state="emit('state', $event)"
+          @login="emit('login', $event)"
+        />
+        <AgentUsage v-else :appearance="shownAppearance" :profiles="profiles" :profile-id="usageProfileID" />
       </div>
     </main>
     <button class="settings-close icon-button" aria-label="Close Settings" @click="emit('close')">

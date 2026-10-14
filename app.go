@@ -31,8 +31,7 @@ type App struct {
 	frontendReady     atomic.Bool
 	quitConfirmed     atomic.Bool
 	usageMu           sync.Mutex
-	usageCache        []core.AgentUsage
-	usageChecked      time.Time
+	usageCache        map[string]usageReading // By profile ID; "" is Default.
 	openRouterMu      sync.Mutex
 	openRouterCache   core.OpenRouterAccount
 	openRouterChecked time.Time
@@ -188,17 +187,32 @@ func (a *App) ChooseFolder() (string, error) {
 
 	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Project Folder", CanCreateDirectories: false})
 }
-func (a *App) AgentUsage(refresh bool) ([]core.AgentUsage, error) {
+
+type usageReading struct {
+	usage   []core.AgentUsage
+	checked time.Time
+}
+
+// AgentUsage reads the Codex and Claude limits of a profile's accounts; "" is Default.
+func (a *App) AgentUsage(refresh bool, profileID string) ([]core.AgentUsage, error) {
 	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
 		return nil, err
 	}
 	a.usageMu.Lock()
 	defer a.usageMu.Unlock()
-	if a.usageCache == nil || time.Since(a.usageChecked) >= 5*time.Minute || (refresh && time.Since(a.usageChecked) >= 15*time.Second) {
-		a.usageCache = core.ReadAgentUsage(a.ctx)
-		a.usageChecked = time.Now()
+	if a.usageCache == nil {
+		a.usageCache = map[string]usageReading{}
 	}
-	return a.usageCache, nil
+	cached, ok := a.usageCache[profileID]
+	if !ok || time.Since(cached.checked) >= 5*time.Minute || (refresh && time.Since(cached.checked) >= 15*time.Second) {
+		cached = usageReading{core.ReadAgentUsage(a.ctx, profile), time.Now()}
+		a.usageCache[profileID] = cached
+	}
+	return cached.usage, nil
 }
 
 // QA workspaces use a separate Keychain service instead of the user's key.
@@ -365,12 +379,12 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort string) (core.State, error) {
+func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort)
+	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID)
 	if err == nil && gitHubItem != nil {
 		action := "work_on"
 		if gitHubItem.PullRequest {
@@ -393,8 +407,82 @@ func (a *App) AgentSkillCommand(agents []string) (string, error) {
 	return core.SkillCommand(agents)
 }
 func (a *App) InstallAgentSkill(agents []string) (core.SkillInstall, error) {
-	return core.InstallAgentSkill(a.ctx, agents)
+	if err := a.ready(); err != nil {
+		return core.SkillInstall{}, err
+	}
+	return core.InstallAgentSkill(a.ctx, agents, a.store.Profiles())
 }
+
+// InstallProfileSkill installs the Orchestra skill where a profile is missing it; "" is Default.
+// It runs only when the user clicks Install in Settings → Profiles.
+func (a *App) InstallProfileSkill(profileID string) (core.SkillInstall, error) {
+	if err := a.ready(); err != nil {
+		return core.SkillInstall{}, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
+		return core.SkillInstall{}, err
+	}
+	return core.InstallProfileSkill(a.ctx, profile)
+}
+
+// CreateProfile, EditProfile and RemoveProfile back Settings → Profiles.
+func (a *App) CreateProfile(name, emoji string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.CreateProfile(name, emoji)
+}
+func (a *App) EditProfile(id, name, emoji string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.EditProfile(id, name, emoji)
+}
+func (a *App) RemoveProfile(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	state, err := a.store.RemoveProfile(id)
+	if err == nil {
+		a.forgetUsage(id)
+	}
+	return state, err
+}
+func (a *App) forgetUsage(profileID string) {
+	a.usageMu.Lock()
+	defer a.usageMu.Unlock()
+	delete(a.usageCache, profileID)
+}
+func (a *App) SetProjectProfile(project, profileID string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SetProjectProfile(project, profileID)
+}
+
+// ProfileLogins asks each agent's CLI whether the profile is signed in; "" is Default.
+func (a *App) ProfileLogins(profileID string) ([]core.ProfileLogin, error) {
+	if err := a.ready(); err != nil {
+		return nil, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
+		return nil, err
+	}
+	return core.ProfileLogins(a.ctx, profile), nil
+}
+
+// LogIn adds a terminal session in the project that runs the agent's login command with the
+// profile's config folder. The user completes the sign-in there.
+func (a *App) LogIn(project, profileID, agent string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	a.forgetUsage(profileID)
+	return a.store.LogIn(project, profileID, agent)
+}
+
 func (a *App) CloseSession(id string, removeWorktree bool) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err

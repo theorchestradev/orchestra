@@ -7,6 +7,7 @@ import { menuKeys } from './shared/menu'
 import { sessionPath, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { gitHubItem } from './shared/github'
 import { projectTitle } from './shared/project'
+import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
   palette,
   effectiveAppearance,
@@ -49,6 +50,7 @@ import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
 const workspace = ref({
   projects: [],
+  profiles: [],
   runs: [],
   preferences: {
     appearance: 'system',
@@ -91,6 +93,9 @@ const projectName = ref(''),
   renameKind = ref(''),
   sessionID = ref(''),
   sessionProjectID = ref(''),
+  // The profile a new session or an edited project uses; "" is Default.
+  sessionProfileID = ref(''),
+  projectProfileID = ref(''),
   formError = ref('')
 const visitedTerminals = ref(new Set()),
   visitedGitHub = ref(new Set()),
@@ -218,7 +223,7 @@ function apply(state) {
   if (state?.projects) {
     const localPrefs = workspace.value.preferences
     announce(workspace.value.projects, state.projects)
-    workspace.value = { ...state, runs: state.runs || [] }
+    workspace.value = { ...state, profiles: state.profiles || [], runs: state.runs || [] }
     if (preferencePending)
       workspace.value.preferences = {
         ...localPrefs,
@@ -250,6 +255,7 @@ function openModal(kind, p = project.value) {
   if (kind === 'session') {
     newWorktree.value = true
     if (p) sessionProjectID.value = p.id
+    sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
   }
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
@@ -389,6 +395,7 @@ async function createSession(
   source = null,
   model = '',
   effort = '',
+  profileID = (modalProject.value || project.value)?.profileID || '',
 ) {
   busy.value = true
   try {
@@ -403,6 +410,7 @@ async function createSession(
         source,
         model,
         effort,
+        profileID,
       ),
     )
     visitedTerminals.value.add(state.projects.find((p) => p.id === state.selectedProjectID).selectedSessionID)
@@ -443,7 +451,8 @@ async function workOn(item, choice = {}) {
     formError.value = ''
   }
 }
-function edit(id, name, kind, description = '', emoji = '') {
+function edit(id, name, kind, description = '', emoji = '', profileID = '') {
+  projectProfileID.value = profileID
   renameID.value = id
   renameValue.value = name
   renameKind.value = kind
@@ -454,11 +463,13 @@ function edit(id, name, kind, description = '', emoji = '') {
 async function rename() {
   busy.value = true
   try {
-    apply(
-      await (renameKind.value === 'Project'
-        ? call('EditProject', renameID.value, renameValue.value, projectDescription.value, projectEmoji.value)
-        : call(renameKind.value === 'Scratchpad' ? 'RenameScratchpad' : 'Rename', renameID.value, renameValue.value)),
-    )
+    let state = await (renameKind.value === 'Project'
+      ? call('EditProject', renameID.value, renameValue.value, projectDescription.value, projectEmoji.value)
+      : call(renameKind.value === 'Scratchpad' ? 'RenameScratchpad' : 'Rename', renameID.value, renameValue.value))
+    const edited = state.projects?.find((p) => p.id === renameID.value)
+    if (renameKind.value === 'Project' && edited && (edited.profileID || '') !== projectProfileID.value)
+      state = await call('SetProjectProfile', renameID.value, projectProfileID.value)
+    apply(state)
     closeModal()
   } catch (e) {
     formError.value = String(e)
@@ -531,8 +542,20 @@ function projectMenu(event, p, kind) {
     kind,
     project: p,
     x: Math.min(rect.left, innerWidth - 230),
-    y: Math.min(rect.bottom + 3, innerHeight - (kind === 'project' ? 200 : 150)),
+    y: Math.min(
+      rect.bottom + 3,
+      innerHeight -
+        (kind === 'project'
+          ? 200 + workspace.value.profiles.length * 30 + (workspace.value.profiles.length ? 70 : 0)
+          : 150),
+    ),
   }
+}
+// Signing in runs in a terminal session; Settings closes so the user can complete it there.
+function loggingIn(state) {
+  apply(state)
+  visitedTerminals.value.add(state.projects.find((p) => p.id === state.selectedProjectID).selectedSessionID)
+  closeModal()
 }
 function messages(p, sess) {
   sessionID.value = sess.id
@@ -923,6 +946,8 @@ onBeforeUnmount(() => {
                         :title="
                           (sess.worktreeBranch ? sess.worktreeBranch + ' · ' + sess.worktreeDirectory + ' — ' : '') +
                           sess.name +
+                          ' — Profile: ' +
+                          profileName(workspace.profiles, sess.profileID) +
                           ' — ' +
                           (isTerminal(sess)
                             ? sess.restored
@@ -951,6 +976,13 @@ onBeforeUnmount(() => {
                                 : 'Resume unavailable'
                           }}</small
                           ><small v-if="sess.worktreeBranch" class="truncate">{{ sess.worktreeBranch }}</small></span
+                        ><span
+                          v-if="sessionProfile(workspace.profiles, p, sess)"
+                          class="profile-badge"
+                          :class="{ missing: sessionProfile(workspace.profiles, p, sess).missing }"
+                          role="img"
+                          :aria-label="'Profile: ' + sessionProfile(workspace.profiles, p, sess).name"
+                          >{{ sessionProfile(workspace.profiles, p, sess).symbol }}</span
                         ><span
                           v-if="workspace.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length"
                           class="count unread"
@@ -1144,6 +1176,7 @@ onBeforeUnmount(() => {
       :runs="workspace.runs"
       :project="project"
       :session="session"
+      :profiles="workspace.profiles"
       :destination="currentDestination"
       :preferences="shownPreferences"
       :diff-open="showsDiff"
@@ -1172,7 +1205,16 @@ onBeforeUnmount(() => {
       ><template v-else-if="menu.kind === 'project'"
         ><button
           role="menuitem"
-          @click="edit(menu.project.id, menu.project.name, 'Project', menu.project.description, menu.project.emoji)"
+          @click="
+            edit(
+              menu.project.id,
+              menu.project.name,
+              'Project',
+              menu.project.description,
+              menu.project.emoji,
+              menu.project.profileID || '',
+            )
+          "
         >
           Edit Project…</button
         ><button
@@ -1188,6 +1230,23 @@ onBeforeUnmount(() => {
         >
           Move Down
         </button>
+        <template v-if="workspace.profiles.length"
+          ><hr />
+          <span class="menu-heading" aria-hidden="true">Profile for New Sessions</span
+          ><button
+            v-for="profile in [{ id: '', name: 'Default' }, ...workspace.profiles]"
+            :key="profile.id"
+            role="menuitemradio"
+            :aria-checked="(menu.project.profileID || '') === profile.id"
+            :aria-label="'Profile for new sessions: ' + profile.name"
+            @click="action('SetProjectProfile', menu.project.id, profile.id).then(() => (menu = null))"
+          >
+            <Icon v-if="(menu.project.profileID || '') === profile.id" name="checkmark" :size="12" /><i
+              v-else
+              class="menu-check-space"
+            /><span class="truncate">{{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}</span>
+          </button></template
+        >
         <hr />
         <button role="menuitem" class="destructive" @click="removeProject(menu.project)">
           <Icon name="trash" :size="14" />Remove Project…
@@ -1240,6 +1299,9 @@ onBeforeUnmount(() => {
           @click="copy(menu.session.id).catch(e=>error=String(e));menu=null"
         >
           Copy Session ID
+        </button>
+        <button role="menuitem" disabled>
+          <span class="truncate">Profile: {{ profileName(workspace.profiles, menu.session.profileID) }}</span>
         </button>
         <hr />
         <template v-for="group in appGroups(openInApps)" :key="group.kind"
@@ -1301,7 +1363,12 @@ onBeforeUnmount(() => {
         :theme-errors="themeErrors"
         :theme-directory="themeDirectory"
         :reduce-transparency="reduceTransparency"
+        :profiles="workspace.profiles"
+        :project="project"
+        :usage-profile-id="(session || project)?.profileID || ''"
         @change="changePreferences"
+        @state="apply"
+        @login="loggingIn"
         :telemetry-status="telemetryStatus"
         :telemetry-busy="telemetryBusy"
         @consent="chooseTelemetry"
@@ -1372,6 +1439,17 @@ onBeforeUnmount(() => {
             ></span
           ></label
         >
+        <div v-if="workspace.profiles.length" class="setting-row session-profile">
+          <label for="session-profile">Profile</label>
+          <div class="theme-select general-select">
+            <select id="session-profile" v-model="sessionProfileID" :disabled="busy">
+              <option value="">Default</option>
+              <option v-for="profile in workspace.profiles" :key="profile.id" :value="profile.id">
+                {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
+        </div>
         <div class="agent-options">
           <button
             v-for="agent in sessionAgents"
@@ -1379,7 +1457,7 @@ onBeforeUnmount(() => {
             :autofocus="agent.id === preferences.defaultAgent"
             :disabled="busy"
             :aria-label="'Start a ' + agent.name + ' session'"
-            @click="createSession(agent.id, '', newWorktree)"
+            @click="createSession(agent.id, '', newWorktree, '', null, '', '', sessionProfileID)"
           >
             <img :src="agentIcon(agent.id, shownPreferences.appearance)" alt="" /><span>{{ agent.name }}</span
             ><small v-if="agent.id === preferences.defaultAgent" class="muted caption">Default</small>
@@ -1428,6 +1506,20 @@ onBeforeUnmount(() => {
             aria-label="Description (optional)"
           />
         </label>
+        <div v-if="renameKind === 'Project' && workspace.profiles.length" class="setting-row session-profile">
+          <span>
+            <label for="project-profile">Profile</label>
+            <small id="project-profile-description" class="muted caption">New sessions use these accounts.</small>
+          </span>
+          <div class="theme-select general-select">
+            <select id="project-profile" v-model="projectProfileID" aria-describedby="project-profile-description">
+              <option value="">Default</option>
+              <option v-for="profile in workspace.profiles" :key="profile.id" :value="profile.id">
+                {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
+        </div>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button type="button" class="standard-button" @click="closeModal">Cancel</button

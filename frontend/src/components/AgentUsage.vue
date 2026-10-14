@@ -1,29 +1,36 @@
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { call } from '../shared/api'
 import { agentIcon } from '../shared/appearance'
+import { findProfile } from '../shared/profiles'
 import { resetLabel, remainingLabel } from '../shared/usage'
 import Icon from './Icon.vue'
 import OpenRouterUsage from './OpenRouterUsage.vue'
-defineProps({ appearance: String })
+const props = defineProps({ appearance: String, profiles: Array, profileId: String })
+// Codex and Claude limits belong to the accounts of one profile; "" is Default.
+const profile = ref(findProfile(props.profiles, props.profileId) ? props.profileId : '')
 const providers = ref([]),
   loading = ref(false),
   error = ref(''),
   now = ref(Date.now())
 const openRouter = ref(null)
-let timer
+let timer,
+  request = 0
 async function refresh(force = false) {
   if (loading.value) return
   loading.value = true
   error.value = ''
+  // A reading for a profile that is no longer chosen is dropped.
+  const current = ++request
   try {
-    const [values] = await Promise.all([call('AgentUsage', force), openRouter.value?.refresh(force)])
+    const [values] = await Promise.all([call('AgentUsage', force, profile.value), openRouter.value?.refresh(force)])
+    if (current !== request) return
     providers.value = values
     now.value = Date.now()
   } catch {
-    error.value = 'Could not check usage. Try refreshing again.'
+    if (current === request) error.value = 'Could not check usage. Try refreshing again.'
   } finally {
-    loading.value = false
+    if (current === request) loading.value = false
   }
 }
 onMounted(() => {
@@ -34,12 +41,26 @@ onMounted(() => {
   }, 60000)
 })
 onUnmounted(() => clearInterval(timer))
+watch(profile, () => {
+  providers.value = []
+  loading.value = false
+  request++
+  refresh()
+})
 const date = (value) => new Date(value * 1000).toLocaleString()
 </script>
 <template>
   <section class="agent-usage" :aria-busy="loading">
     <header class="usage-toolbar">
       <p class="muted caption">Account limits and credits shared across sessions.</p>
+      <div v-if="profiles?.length" class="theme-select general-select usage-profile">
+        <select v-model="profile" aria-label="Profile">
+          <option value="">Default</option>
+          <option v-for="p in profiles" :key="p.id" :value="p.id">
+            {{ p.emoji ? p.emoji + ' ' : '' }}{{ p.name }}
+          </option></select
+        ><Icon name="chevron.up.chevron.down" :size="10" />
+      </div>
       <button class="standard-button" :disabled="loading" @click="refresh(true)">
         <Icon name="arrow.clockwise" :size="12" />{{ loading ? 'Checking…' : 'Refresh' }}
       </button>
@@ -86,7 +107,8 @@ const date = (value) => new Date(value * 1000).toLocaleString()
     </section>
     <OpenRouterUsage ref="openRouter" />
     <p v-if="providers.length" class="muted caption usage-footnote">
-      Codex and Claude Code use their signed-in CLI accounts. OpenRouter uses the management key you provide.
+      Codex and Claude Code use the CLI accounts signed in with the chosen profile. OpenRouter uses the management key
+      you provide, whatever the profile.
     </p>
   </section>
 </template>

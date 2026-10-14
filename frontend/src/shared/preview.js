@@ -4,7 +4,13 @@ import { projectRows } from './appearance'
 const id = () => crypto.randomUUID()
 const projectID = id(),
   sessionID = id(),
-  peerID = id()
+  peerID = id(),
+  workID = id(),
+  sideID = id()
+// Illustrative sign-ins by profile ID ("" is Default); the preview never runs a CLI.
+const signedIn = { '': ['codex', 'claude'], [workID]: ['claude'] }
+// Profiles with the Orchestra Skill installed for Claude Code in this preview.
+const skilled = new Set(['', workID])
 const previewUpdate = {
   current: '0.1.0',
   supported: true,
@@ -65,6 +71,7 @@ let state = {
       showsScratchpad: true,
       showsGitHub: false,
       selectedSessionID: sessionID,
+      profileID: workID,
       sessions: [
         {
           id: sessionID,
@@ -77,6 +84,7 @@ let state = {
           restored: true,
           running: false,
           activity: 'waiting',
+          profileID: workID,
         },
         {
           id: peerID,
@@ -86,8 +94,28 @@ let state = {
           restored: true,
           running: false,
           activity: 'working',
+          profileID: sideID,
         },
       ],
+    },
+  ],
+  profiles: [
+    {
+      id: workID,
+      name: 'Work',
+      emoji: '💼',
+      folders: {
+        claude: '~/.orchestra/profiles/work/claude',
+        codex: '~/.orchestra/profiles/work/codex',
+      },
+    },
+    {
+      id: sideID,
+      name: 'Side Projects and Open Source Contributions Account',
+      folders: {
+        claude: '~/.orchestra/profiles/side-projects-and-open-source-contribut/claude',
+        codex: '~/.orchestra/profiles/side-projects-and-open-source-contribut/codex',
+      },
     },
   ],
   runs: [],
@@ -222,8 +250,17 @@ export const backend = {
   RemoveOpenRouterKey: () => {
     openRouterConnected = false
   },
-  AgentUsage: () => {
+  AgentUsage: (refresh, profileID = '') => {
     const checkedAt = Math.floor(Date.now() / 1000)
+    if (profileID)
+      return ['codex', 'claude'].map((agent) => ({
+        agent,
+        checkedAt,
+        windows: signedIn[profileID]?.includes(agent)
+          ? [{ label: 'Weekly', remaining: 41, resetsAt: checkedAt + 86400 }]
+          : [],
+        message: signedIn[profileID]?.includes(agent) ? '' : 'Log in to this profile to see subscription limits.',
+      }))
     return [
       {
         agent: 'codex',
@@ -420,6 +457,74 @@ export const backend = {
     await new Promise((r) => setTimeout(r, 800))
     return { exitCode: 0, output: 'Preview: the skills CLI is not run.\nSelected agents: ' + ids.join(', ') }
   },
+  CreateProfile: (name, emoji) => {
+    if (!name.trim()) throw Error('Enter a profile name.')
+    const slug =
+      name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || 'profile'
+    state.profiles.push({
+      id: id(),
+      name: name.trim(),
+      emoji,
+      folders: {
+        claude: `~/.orchestra/profiles/${slug}/claude`,
+        codex: `~/.orchestra/profiles/${slug}/codex`,
+      },
+    })
+    return changed()
+  },
+  EditProfile: (profileID, name, emoji) => {
+    if (!name.trim()) throw Error('Enter a profile name.')
+    Object.assign(
+      state.profiles.find((p) => p.id === profileID),
+      { name: name.trim(), emoji },
+    )
+    return changed()
+  },
+  RemoveProfile: (profileID) => {
+    state.profiles = state.profiles.filter((p) => p.id !== profileID)
+    for (const p of state.projects) if (p.profileID === profileID) p.profileID = ''
+    return changed()
+  },
+  SetProjectProfile: (pid, profileID) => {
+    project(pid).profileID = profileID
+    return changed()
+  },
+  ProfileLogins: async (profileID) => {
+    await new Promise((r) => setTimeout(r, 400))
+    const profile = state.profiles.find((p) => p.id === profileID)
+    return ['codex', 'claude'].map((agent) => ({
+      agent,
+      folder: profile?.folders?.[agent] || '',
+      loggedIn: !!signedIn[profileID]?.includes(agent),
+      // Codex skills are shared; Claude Code needs the skill in each profile.
+      skill: agent === 'codex' || skilled.has(profileID),
+    }))
+  },
+  InstallProfileSkill: async (profileID) => {
+    await new Promise((r) => setTimeout(r, 800))
+    skilled.add(profileID)
+    return { exitCode: 0, output: 'Preview: the skills CLI is not run.' }
+  },
+  LogIn: (pid, profileID, agent) => {
+    ;(signedIn[profileID] ||= []).push(agent)
+    const name = { claude: 'Claude Code', codex: 'Codex' }[agent]
+    const profile = state.profiles.find((p) => p.id === profileID)
+    backend.CreateSession(
+      pid,
+      'terminal',
+      `Log In · ${name} · ${profile?.name || 'Default'}`,
+      '',
+      false,
+      null,
+      '',
+      '',
+      profileID,
+    )
+    return changed()
+  },
   AgentModels: async (agent) => {
     const levels = ['low', 'medium', 'high', 'xhigh', 'max']
     await new Promise((r) => setTimeout(r, 300))
@@ -446,7 +551,7 @@ export const backend = {
       (agent === 'pi' ? Promise.reject('Could not list models. Check that Pi is installed and signed in.') : [])
     )
   },
-  CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort) => {
+  CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID = '') => {
     const p = project(pid),
       sess = {
         id: id(),
@@ -474,6 +579,7 @@ export const backend = {
         initialPrompt: prompt,
       }
     if (gitHubItem && agent !== 'terminal') sess.gitHubItem = gitHubItem
+    if (profileID) sess.profileID = profileID
     if (model) sess.model = model
     if (effort) sess.effort = effort
     if (createWorktree) {

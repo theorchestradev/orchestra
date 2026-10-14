@@ -3,7 +3,7 @@ import { ref, watch } from 'vue'
 import { agents, agentIcon } from '../shared/appearance'
 import { call, copy } from '../shared/api'
 defineProps({ appearance: String })
-// Settings → Agents → Agent Skill. Go builds the pinned `npx skills add` command with explicit
+// Settings → Agents → Orchestra Skill. Go builds the pinned `npx skills add` command with explicit
 // agent keys and runs it only when the user clicks Install or Update.
 const status = ref(null),
   selected = ref([]),
@@ -52,11 +52,12 @@ async function install() {
 <template>
   <div class="agent-skill" role="group" aria-labelledby="agent-skill-heading">
     <div>
-      <h3 id="agent-skill-heading">Agent Skill</h3>
+      <h3 id="agent-skill-heading">Orchestra Skill</h3>
       <p class="muted caption">
-        Teach agents to use the <code>orchestra</code> CLI for requests and the Scratchpad. The skill tells them to run
-        <code>orchestra guide</code>, which always matches this version of Orchestra. It is installed with the
-        <code>skills</code> CLI, only when you click Install or Update.
+        Lets agents in different sessions talk to each other: they send requests and share the project Scratchpad
+        through the <code>orchestra</code> CLI. The skill tells them to run <code>orchestra guide</code>, which always
+        matches this version of Orchestra. It is installed with the <code>skills</code> CLI, only when you click Install
+        or Update, and also for each profile.
       </p>
     </div>
     <p v-if="!status && !error" class="muted caption" role="status"><span class="spinner" />Detecting agents…</p>

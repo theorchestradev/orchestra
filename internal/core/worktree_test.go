@@ -126,7 +126,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	p.Directory = filepath.Join(root, "nested")
 	s.state.Projects[0].Directory = p.Directory
 	before := gitWorktreeFixture(t, root, "status", "--porcelain")
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if gitWorktreeFixture(t, root, "branch", "--show-current") != "main" || gitWorktreeFixture(t, root, "status", "--porcelain") != before {
 		t.Fatal("worktree creation changed the original checkout")
 	}
-	state, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "")
+	state, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if err = os.Mkdir(s.path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", ""); err == nil {
+	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil {
 		t.Fatal("expected failed save")
 	}
 	after := s.Snapshot().Projects[0]
@@ -199,7 +199,7 @@ func TestCreateSessionWorktreeRequiresCommittedProject(t *testing.T) {
 				}
 				s.state.Projects[0].Directory = p.Directory
 			}
-			if _, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", ""); err == nil || len(s.Snapshot().Projects[0].Sessions) != 0 {
+			if _, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", ""); err == nil || len(s.Snapshot().Projects[0].Sessions) != 0 {
 				t.Fatal("invalid worktree creation was accepted or left a session behind")
 			}
 			if kind == "uncommitted-subfolder" && (strings.Count(gitWorktreeFixture(t, root, "worktree", "list", "--porcelain"), "worktree ") != 1 || gitWorktreeFixture(t, root, "branch", "--list", "orchestra/*") != "") {
@@ -217,10 +217,10 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	p := projectFixture(t, s)
 	gitWorktreeFixture(t, p.Directory, "init", "-b", "main")
 	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "")
+	state, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
