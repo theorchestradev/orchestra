@@ -1,6 +1,6 @@
 <script setup>
 import { computed, nextTick, ref } from 'vue'
-import { themeOptions, themeSource, agents, windowOpacityRange } from '../shared/appearance'
+import { themeOptions, themeSource, agents, windowOpacityRange, effectiveAppearance } from '../shared/appearance'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import AgentUsage from './AgentUsage.vue'
@@ -23,6 +23,12 @@ const section = ref('General')
 // Opacity matters only while the window is actually translucent.
 const opacityEnabled = computed(() => props.preferences.translucent && !props.reduceTransparency)
 const windowOpacity = computed(() => props.preferences.windowOpacity || windowOpacityRange.default)
+const shownAppearance = computed(() => effectiveAppearance(props.preferences.appearance))
+const modes = [
+  { id: 'system', name: 'System', icon: 'circle.lefthalf.filled' },
+  { id: 'light', name: 'Light', icon: 'sun.max' },
+  { id: 'dark', name: 'Dark', icon: 'moon' },
+]
 const choose = (key, value) => emit('change', { ...props.preferences, [key]: value })
 // Duplicate as Custom Theme writes the selected theme's colors through Go; App then reloads the
 // custom themes and selects the copy.
@@ -282,22 +288,23 @@ if (!mac)
             </button>
           </div>
           <hr />
-          <AgentSkill :appearance="preferences.appearance" />
+          <AgentSkill :appearance="shownAppearance" />
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
           <div class="setting-row">
-            <span>Mode</span>
-            <div class="mode-switch" role="group" aria-label="Mode">
+            <div>
+              <span>Mode</span>
+              <p v-if="!mac" class="muted caption">System uses Dark on Linux.</p>
+            </div>
+            <div class="mode-switch appearance-mode" role="group" aria-label="Mode">
               <button
-                v-for="mode in ['dark', 'light']"
-                :key="mode"
-                :aria-pressed="preferences.appearance === mode"
-                :class="{ selected: preferences.appearance === mode }"
-                @click="choose('appearance', mode)"
+                v-for="mode in modes"
+                :key="mode.id"
+                :aria-pressed="preferences.appearance === mode.id"
+                :class="{ selected: preferences.appearance === mode.id }"
+                @click="choose('appearance', mode.id)"
               >
-                <Icon :name="mode === 'light' ? 'sun.max' : 'moon'" :size="14" />{{
-                  mode === 'light' ? 'Light' : 'Dark'
-                }}
+                <Icon :name="mode.icon" :size="14" />{{ mode.name }}
               </button>
             </div>
           </div>
@@ -548,7 +555,7 @@ if (!mac)
             Privacy &amp; usage data: every event and property
           </button>
         </div>
-        <AgentUsage v-else :appearance="preferences.appearance" />
+        <AgentUsage v-else :appearance="shownAppearance" />
       </div>
     </main>
     <button class="settings-close icon-button" aria-label="Close Settings" @click="emit('close')">
