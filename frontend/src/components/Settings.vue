@@ -327,27 +327,6 @@ if (!mac)
               </button>
             </div>
           </div>
-          <template v-if="mac">
-            <hr />
-            <div class="setting-row app-icon-setting">
-              <div>
-                <span>App Icon</span>
-                <p class="muted caption">Choose the Dock icon. Your choice is kept when you reopen Orchestra.</p>
-              </div>
-              <div class="mode-switch app-icon-switch" role="group" aria-label="App Icon">
-                <button
-                  v-for="choice in ['white', 'black']"
-                  :key="choice"
-                  :aria-pressed="(preferences.appIcon || 'white') === choice"
-                  :class="{ selected: (preferences.appIcon || 'white') === choice }"
-                  @click="choose('appIcon', choice)"
-                >
-                  <img :src="`/app-icons/${choice}.png`" alt="" width="48" height="48" />
-                  {{ choice === 'white' ? 'White' : 'Black' }}
-                </button>
-              </div>
-            </div>
-          </template>
           <hr />
           <div class="setting-row theme-setting">
             <div>

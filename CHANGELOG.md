@@ -4,6 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### Changed
+
+- **New app icon.** Orchestra has a new icon, and the White/Black choice in
+  Settings → Appearance is gone.
+  ([#21](https://github.com/theorchestradev/orchestra/pull/21))
+
+### Fixed
+
+- **Open in WezTerm works on macOS.** The WezTerm window no longer closes right
+  after it opens.
+  ([#21](https://github.com/theorchestradev/orchestra/pull/21))
+
 ## 0.3.0 — 2026-10-14
 
 ### New

@@ -3557,23 +3557,11 @@ h2 {
   line-height: 1;
   padding-bottom: 3px;
 }
-.app-icon-switch button {
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 12px;
-}
-.app-icon-switch img {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-}
-.app-icon-setting > div,
 .arc-mode-setting > div,
 .translucent-setting > div,
 .theme-setting > div:first-child {
   min-width: 0;
 }
-.app-icon-setting p,
 .arc-mode-setting p,
 .translucent-setting p,
 .theme-setting p {

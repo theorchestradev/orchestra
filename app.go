@@ -368,13 +368,8 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-
-	previousIcon := a.store.Snapshot().Preferences.AppIcon
 	state, err := a.store.SetPreferences(p)
 	if err == nil {
-		if state.Preferences.AppIcon != previousIcon {
-			a.applyAppIcon(state.Preferences.AppIcon)
-		}
 		a.applyAppearance(state.Preferences.Appearance)
 	}
 	return state, err
@@ -674,7 +669,6 @@ func (a *App) domReady(context.Context) {
 	if a.ready() != nil {
 		return
 	}
-	a.applyAppIcon(a.store.Snapshot().Preferences.AppIcon)
 	a.applyAppearance(a.store.Snapshot().Preferences.Appearance)
 }
 
@@ -690,19 +684,6 @@ func (a *App) applyAppearance(mode string) {
 		runtime.WindowSetDarkTheme(a.ctx)
 	}
 	appearance.SetWindowAppearance(mode)
-}
-
-func (a *App) applyAppIcon(choice string) {
-	if goruntime.GOOS != "darwin" {
-		return
-	}
-	data := icon
-	if choice == "black" {
-		data = blackAppIcon
-	}
-	if !appearance.SetAppIcon(data) {
-		a.log.Error("app icon could not be decoded", "icon", choice)
-	}
 }
 
 // SessionDiff reads what the session changed in its working folder. It only reads Git.

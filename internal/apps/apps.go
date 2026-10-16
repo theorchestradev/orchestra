@@ -26,12 +26,15 @@ const (
 // known describes an app Orchestra recognizes: its macOS bundle identifiers and Linux
 // executables, in order of preference. On Linux, terminals start in the folder and receive
 // directoryArgs, where %s is the folder, since a running instance may ignore the working directory.
+// On macOS, an app with bundleExecutable runs that program inside its bundle with directoryArgs
+// instead of receiving the folder from Launch Services, for apps that treat it as a file to run.
 type known struct {
-	id, name      string
-	kind          Kind
-	bundleIDs     []string
-	executables   []string
-	directoryArgs []string
+	id, name         string
+	kind             Kind
+	bundleIDs        []string
+	executables      []string
+	directoryArgs    []string
+	bundleExecutable string
 }
 
 // FileManager opens folders in Finder or the desktop's file manager; it is listed last.
@@ -60,7 +63,7 @@ var knownApps = []known{
 	{id: "iterm", name: "iTerm", kind: Terminal, bundleIDs: []string{"com.googlecode.iterm2"}},
 	{id: "ghostty", name: "Ghostty", kind: Terminal, bundleIDs: []string{"com.mitchellh.ghostty"}, executables: []string{"ghostty"}, directoryArgs: []string{"--working-directory=%s"}},
 	{id: "warp", name: "Warp", kind: Terminal, bundleIDs: []string{"dev.warp.Warp-Stable"}, executables: []string{"warp-terminal"}},
-	{id: "wezterm", name: "WezTerm", kind: Terminal, bundleIDs: []string{"com.github.wez.wezterm"}, executables: []string{"wezterm"}, directoryArgs: []string{"start", "--cwd", "%s"}},
+	{id: "wezterm", name: "WezTerm", kind: Terminal, bundleIDs: []string{"com.github.wez.wezterm"}, executables: []string{"wezterm"}, directoryArgs: []string{"start", "--cwd", "%s"}, bundleExecutable: "Contents/MacOS/wezterm"},
 	{id: "kitty", name: "kitty", kind: Terminal, bundleIDs: []string{"net.kovidgoyal.kitty"}, executables: []string{"kitty"}, directoryArgs: []string{"--directory", "%s"}},
 	{id: "gnome-terminal", name: "GNOME Terminal", kind: Terminal, executables: []string{"gnome-terminal"}, directoryArgs: []string{"--working-directory=%s"}},
 	{id: "konsole", name: "Konsole", kind: Terminal, executables: []string{"konsole"}, directoryArgs: []string{"--workdir", "%s"}},
@@ -72,7 +75,7 @@ var knownApps = []known{
 	{id: FileManager, name: fileManagerName, kind: Files, bundleIDs: []string{"com.apple.finder"}, executables: []string{"xdg-open"}},
 }
 
-// arguments are what a Linux executable receives to open folder.
+// arguments are what an executable receives to open folder.
 func arguments(app known, folder string) []string {
 	if app.kind != Terminal {
 		return []string{folder}

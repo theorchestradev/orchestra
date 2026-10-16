@@ -283,49 +283,6 @@ func TestTranslucentWindowPersistence(t *testing.T) {
 	}
 }
 
-func TestAppIconPreference(t *testing.T) {
-	s := fixtureStore(t)
-	if s.Snapshot().Preferences.AppIcon != "white" {
-		t.Fatal("app icon should default to white")
-	}
-	for _, choice := range []string{"black", "white", ""} {
-		prefs := s.Snapshot().Preferences
-		prefs.AppIcon = choice
-		if _, err := s.SetPreferences(prefs); err != nil {
-			t.Fatal(err)
-		}
-		reopened, err := NewStore(s.path, s.executable, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := reopened.Snapshot().Preferences.AppIcon
-		reopened.Shutdown()
-		want := choice
-		if want == "" {
-			want = "white"
-		}
-		if got != want {
-			t.Fatalf("app icon restored as %q, want %q", got, want)
-		}
-	}
-	before := s.Snapshot().Preferences
-	invalid := before
-	invalid.AppIcon = "../other"
-	if _, err := s.SetPreferences(invalid); err == nil || s.Snapshot().Preferences != before {
-		t.Fatal("invalid icon must be rejected without changing preferences")
-	}
-	blocker := filepath.Join(t.TempDir(), "file")
-	if err := os.WriteFile(blocker, []byte("not a folder"), 0600); err != nil {
-		t.Fatal(err)
-	}
-	s.path = filepath.Join(blocker, "state.json")
-	changed := before
-	changed.AppIcon = "black"
-	if _, err := s.SetPreferences(changed); err == nil || s.Snapshot().Preferences != before {
-		t.Fatal("failed save must preserve the selected icon")
-	}
-}
-
 func TestWindowOpacityPreference(t *testing.T) {
 	s := fixtureStore(t)
 	if got := s.Snapshot().Preferences.WindowOpacity; got != defaultWindowOpacity {
