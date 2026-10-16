@@ -13,6 +13,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unsafe"
@@ -71,15 +72,25 @@ func icon(path string) string {
 	return data
 }
 
-// Open asks Launch Services to open folder with the app.
+// Open asks Launch Services to open folder with the app, or starts the app's bundled executable
+// on it without waiting for it to quit.
 func Open(id, folder string) error {
 	app, ok := find(id)
 	if !ok {
 		return errors.New("Unknown app.")
 	}
-	bundleID, _ := resolve(app)
+	bundleID, path := resolve(app)
 	if bundleID == "" {
 		return errors.New(app.name + " is not installed.")
+	}
+	if app.bundleExecutable != "" {
+		cmd := exec.Command(filepath.Join(path, app.bundleExecutable), arguments(app, folder)...)
+		cmd.Dir = folder
+		if err := cmd.Start(); err != nil {
+			return err
+		}
+		go cmd.Wait()
+		return nil
 	}
 	if out, err := exec.Command("open", "-b", bundleID, folder).CombinedOutput(); err != nil {
 		if message := strings.TrimSpace(string(out)); message != "" {
