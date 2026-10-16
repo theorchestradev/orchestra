@@ -54,7 +54,6 @@ const workspace = ref({
   runs: [],
   preferences: {
     appearance: 'system',
-    appIcon: 'white',
     theme: 'system',
     terminalFontFamily: '',
     terminalFontSize: 14,

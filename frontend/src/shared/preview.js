@@ -45,7 +45,6 @@ let state = {
     diffPaneWidth: 440,
     diffPaneOpen: false,
     arcMode: false,
-    appIcon: 'white',
     defaultAgent: 'claude',
     startupView: 'last',
     confirmQuit: true,

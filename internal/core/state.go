@@ -77,7 +77,6 @@ type Preferences struct {
 	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
 	ArcMode             bool   `json:"arcMode"`
 	Appearance          string `json:"appearance"`
-	AppIcon             string `json:"appIcon"`
 	Theme               string `json:"theme"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
@@ -746,7 +745,7 @@ const minDiffPaneWidth, maxDiffPaneWidth = 280, 900
 const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 40, 95, 78
 
 func defaultPreferences() Preferences {
-	return Preferences{Appearance: "system", AppIcon: "white", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
+	return Preferences{Appearance: "system", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
 }
 func normalizeGeneralPreferences(p Preferences) Preferences {
 	// Older workspaces and bridge callers have no general preferences.
@@ -757,9 +756,6 @@ func normalizeGeneralPreferences(p Preferences) Preferences {
 	}
 	if p.StartupView == "" {
 		p.StartupView = "last"
-	}
-	if p.AppIcon == "" {
-		p.AppIcon = "white"
 	}
 	if p.DiffPaneWidth == 0 {
 		p.DiffPaneWidth = 440
@@ -776,9 +772,6 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	p = normalizeGeneralPreferences(p)
 	if p.Appearance != "system" && p.Appearance != "dark" && p.Appearance != "light" {
 		return State{}, errors.New("Invalid appearance.")
-	}
-	if p.AppIcon != "white" && p.AppIcon != "black" {
-		return State{}, errors.New("Invalid app icon.")
 	}
 	if p.TerminalFontSize < 10 || p.TerminalFontSize > 24 || p.TerminalPaddingX < 0 || p.TerminalPaddingX > 24 || p.TerminalPaddingY < 0 || p.TerminalPaddingY > 24 || p.SidebarWidth < 220 || p.SidebarWidth > 400 || p.DiffPaneWidth < minDiffPaneWidth || p.DiffPaneWidth > maxDiffPaneWidth {
 		return State{}, errors.New("Invalid preference value.")
