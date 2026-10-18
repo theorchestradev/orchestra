@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,9 +17,6 @@ func TestAgentListsFollowRegistry(t *testing.T) {
 	for _, spec := range agentOrder {
 		ids = append(ids, spec.ID)
 		names[spec.ID] = spec.Name
-		if spec.Command == nil || spec.Executable == "" || (spec.ModelCommand == nil) != (spec.ParseModels == nil) || spec.Efforts != nil && spec.EffortFlag == nil {
-			t.Fatalf("%s spec is incomplete", spec.ID)
-		}
 	}
 	data, err := os.ReadFile("../../frontend/src/shared/appearance.js")
 	if err != nil {
@@ -47,6 +45,72 @@ func TestAgentListsFollowRegistry(t *testing.T) {
 		want := slices.Sorted(slices.Values(append(slices.Clone(ids), terminalAgent)))
 		if !slices.Equal(values, want) {
 			t.Fatalf("%s agents %v, want %v", event, values, want)
+		}
+	}
+}
+
+// The registry has no other checks, so a spec must hold together on its own.
+func TestAgentSpecsAreConsistent(t *testing.T) {
+	seen := map[string]bool{}
+	for _, spec := range agentOrder {
+		fail := func(problem string) { t.Errorf("%s: %s", spec.ID, problem) }
+		if spec.ID == "" || spec.ID == terminalAgent || seen[spec.ID] {
+			fail("needs a unique ID other than terminal")
+		}
+		seen[spec.ID] = true
+		if spec.Name == "" || spec.Executable == "" || spec.Command == nil {
+			fail("needs a name, an executable and a command")
+		}
+		// The exit 127 message names Executable, so every command must start with it.
+		for _, l := range []launch{{Session: &Session{ID: "id"}}, {Session: &Session{ID: "id"}, Resume: "resume", Prompt: "'prompt'"}} {
+			if command := spec.Command(l); !strings.HasPrefix(command+" ", spec.Executable+" ") {
+				fail("command " + command + " does not run " + spec.Executable)
+			}
+		}
+		// Each agent learns its conversation ID one way at most; none means ORCHESTRA_AGENT_ID_FILE.
+		ways := 0
+		for _, set := range []bool{spec.PresetID, spec.RecoverID != nil, spec.CaptureID != nil} {
+			if set {
+				ways++
+			}
+		}
+		if ways > 1 {
+			fail("sets more than one of PresetID, RecoverID and CaptureID")
+		}
+		if spec.RecoverID != nil && spec.RecoverID.NumSubexp() != 1 {
+			fail("RecoverID needs exactly one group for the ID")
+		}
+		if (spec.ModelCommand == nil) != (spec.ParseModels == nil) || spec.ModelCommand != nil && spec.Models != nil {
+			fail("needs either ModelCommand with ParseModels or a fixed Models catalog")
+		}
+		if (spec.ModelFlag != "") != (spec.ModelCommand != nil || spec.Models != nil) {
+			fail("ModelFlag and a model catalog go together")
+		}
+		if spec.EffortFlag != nil && spec.ModelFlag == "" || spec.Efforts != nil && spec.EffortFlag == nil {
+			fail("efforts need EffortFlag, and EffortFlag needs ModelFlag")
+		}
+		for _, effort := range spec.Efforts {
+			if !effortPattern.MatchString(effort) {
+				fail("invalid effort " + effort)
+			}
+		}
+		for _, model := range spec.Models {
+			unknown := slices.ContainsFunc(model.Efforts, func(e string) bool { return !slices.Contains(spec.Efforts, e) })
+			if !modelPattern.MatchString(model.ID) || model.Efforts == nil || unknown {
+				fail("invalid model " + model.ID)
+			}
+		}
+		// Profiles list sign-ins for agents with a config folder and a skills CLI key.
+		if (spec.ConfigEnv != "") != (spec.LoginStatusCommand != "") || spec.ConfigEnv != "" && spec.SkillKey == "" {
+			fail("ConfigEnv needs LoginStatusCommand and SkillKey")
+		}
+		if (spec.LoginCommand != "" || spec.ProfileSkillDir != "") && spec.ConfigEnv == "" {
+			fail("LoginCommand and ProfileSkillDir need ConfigEnv")
+		}
+		for _, command := range []string{spec.LoginCommand, spec.LoginStatusCommand} {
+			if command != "" && !strings.HasPrefix(command, spec.Executable+" ") {
+				fail(command + " does not run " + spec.Executable)
+			}
 		}
 	}
 }

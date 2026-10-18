@@ -138,11 +138,6 @@ const missingNode = "orchestra-missing-npx"
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07`)
 
-// profileSkillAgents are the agents whose global skills live in their config folder, so each
-// profile needs its own install. The pinned skills CLI puts Codex skills in ~/.agents/skills,
-// which every profile shares.
-var profileSkillAgents = map[string]bool{"claude": true}
-
 // InstallAgentSkill runs the pinned skills CLI for the chosen agents, then again for each
 // profile's own config folders. It runs only when the user asks, never edits agent settings
 // itself and never writes to a terminal.
@@ -181,7 +176,7 @@ func InstallProfileSkill(ctx context.Context, p *Profile) (SkillInstall, error) 
 		if agentConfigEnv[agent] == "" || profileSkillInstalled(p, agent) {
 			continue
 		}
-		if _, ok := profileFolders(p)[agentConfigEnv[agent]]; ok && profileSkillAgents[agent] {
+		if _, ok := profileFolders(p)[agentConfigEnv[agent]]; ok && profileSkillDirs[agent] != "" {
 			own = append(own, agent)
 		} else {
 			shared = append(shared, agent)
@@ -208,7 +203,7 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 	exports, chosen := "", []string{}
 	for _, agent := range agents {
 		folder, ok := p.Folders[agent]
-		if !ok || !profileSkillAgents[agent] {
+		if !ok || profileSkillDirs[agent] == "" {
 			continue
 		}
 		path, err := expandFolder(folder)
@@ -218,7 +213,7 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 		if err != nil {
 			return SkillInstall{}, true, err
 		}
-		// The skills CLI installs into CLAUDE_CONFIG_DIR when it is set.
+		// The skills CLI installs into the agent's config folder when its variable is set.
 		exports += "export " + agentConfigEnv[agent] + "=" + shellQuote(path) + "; "
 		chosen = append(chosen, agent)
 	}
@@ -236,10 +231,10 @@ func profileSkillInstalled(p *Profile, agent string) bool {
 	home, _ := os.UserHomeDir()
 	folder := profileFolders(p)[agentConfigEnv[agent]]
 	switch {
-	case folder != "" && profileSkillAgents[agent]:
-	case agent == "claude":
-		if folder = os.Getenv("CLAUDE_CONFIG_DIR"); folder == "" {
-			folder = filepath.Join(home, ".claude")
+	case folder != "" && profileSkillDirs[agent] != "":
+	case profileSkillDirs[agent] != "":
+		if folder = os.Getenv(agentConfigEnv[agent]); folder == "" {
+			folder = filepath.Join(home, profileSkillDirs[agent])
 		}
 	default:
 		folder = filepath.Join(home, ".agents")

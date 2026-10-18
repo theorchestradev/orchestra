@@ -51,6 +51,17 @@ type agentSpec struct {
 	// Efforts lists the accepted values; nil accepts any effortPattern value.
 	EffortFlag func(effort string) string
 	Efforts    []string
+	// ConfigEnv names the variable the CLI reads its config folder from: settings,
+	// conversations and login. Empty means profiles cannot choose the agent's account.
+	ConfigEnv string
+	// LoginCommand signs the CLI in, in a terminal the user drives. LoginStatusCommand
+	// exits 0 when the CLI is signed in; it only asks the CLI, and Orchestra never reads
+	// credential files.
+	LoginCommand, LoginStatusCommand string
+	// ProfileSkillDir is the default config folder under the home folder when the agent's
+	// global skills live in its config folder, so each profile needs its own install. Empty
+	// means the skills CLI installs into ~/.agents, which every profile shares.
+	ProfileSkillDir string
 }
 
 // launch is what an agent's Command receives. Resume is the conversation to continue,
@@ -70,6 +81,24 @@ var agentSpecs = func() map[string]*agentSpec {
 	}
 	return m
 }()
+
+// specIndex maps the agents whose field is set to its value.
+func specIndex[T comparable](field func(*agentSpec) T) map[string]T {
+	m, zero := map[string]T{}, *new(T)
+	for _, spec := range agentOrder {
+		if value := field(spec); value != zero {
+			m[spec.ID] = value
+		}
+	}
+	return m
+}
+
+var (
+	agentConfigEnv      = specIndex(func(s *agentSpec) string { return s.ConfigEnv })
+	loginCommands       = specIndex(func(s *agentSpec) string { return s.LoginCommand })
+	loginStatusCommands = specIndex(func(s *agentSpec) string { return s.LoginStatusCommand })
+	profileSkillDirs    = specIndex(func(s *agentSpec) string { return s.ProfileSkillDir })
+)
 
 // presetsID reports whether new sessions of the agent start with Orchestra's ID.
 func presetsID(agent string) bool {

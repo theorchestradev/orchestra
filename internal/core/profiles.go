@@ -26,17 +26,6 @@ type Profile struct {
 	Folders map[string]string `json:"folders,omitempty"`
 }
 
-// agentConfigEnv names the variable each agent's CLI reads its config folder from: settings,
-// conversations and login. Agents without one cannot have a per-profile folder yet.
-var agentConfigEnv = map[string]string{"claude": "CLAUDE_CONFIG_DIR", "codex": "CODEX_HOME"}
-
-// loginCommands sign an agent's CLI in. They run in a terminal the user drives.
-var loginCommands = map[string]string{"claude": "claude auth login", "codex": "codex login"}
-
-// loginStatusCommands exit 0 when the CLI is signed in. They only ask the CLI; Orchestra
-// never reads credential files.
-var loginStatusCommands = map[string]string{"claude": "claude auth status --json", "codex": "codex login status"}
-
 var errProfileRemoved = errors.New("This session’s profile was removed. Orchestra will not resume it with another account. Close the session, or start a new one.")
 
 // expandFolder resolves a leading "~" and requires an absolute path.

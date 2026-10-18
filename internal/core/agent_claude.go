@@ -33,4 +33,9 @@ var claudeAgent = &agentSpec{
 	Models:     []AgentModel{{"fable", "Fable", claudeEfforts}, {"opus", "Opus", claudeEfforts}, {"sonnet", "Sonnet", claudeEfforts}, {"haiku", "Haiku", []string{}}},
 	EffortFlag: quotedFlag("--effort"),
 	Efforts:    claudeEfforts,
+
+	ConfigEnv:          "CLAUDE_CONFIG_DIR",
+	LoginCommand:       "claude auth login",
+	LoginStatusCommand: "claude auth status --json",
+	ProfileSkillDir:    ".claude",
 }

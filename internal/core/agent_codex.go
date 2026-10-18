@@ -34,6 +34,11 @@ var codexAgent = &agentSpec{
 	EffortFlag: func(effort string) string {
 		return " -c " + shellQuote("model_reasoning_effort="+tomlString(effort))
 	},
+
+	// The skills CLI puts Codex skills in ~/.agents/skills, which every profile shares.
+	ConfigEnv:          "CODEX_HOME",
+	LoginCommand:       "codex login",
+	LoginStatusCommand: "codex login status",
 }
 
 func parseCodexModels(output []byte) ([]AgentModel, error) {
