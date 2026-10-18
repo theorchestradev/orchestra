@@ -6,7 +6,7 @@ import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { gitHubItem } from './shared/github'
-import { projectTitle } from './shared/project'
+import { projectTitle, needsGitRepository } from './shared/project'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
   palette,
@@ -104,7 +104,10 @@ const visitedTerminals = ref(new Set()),
 const scratchpadView = ref(null),
   quitting = ref(false),
   newWorktree = ref(true),
-  removeWorktree = ref(false)
+  removeWorktree = ref(false),
+  initializingGit = ref(false),
+  gitInitialized = ref(false),
+  offerGitInit = ref(false)
 const activeSessionCount = computed(
   () => workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running).length,
 )
@@ -254,6 +257,7 @@ function openModal(kind, p = project.value) {
   }
   if (kind === 'session') {
     newWorktree.value = true
+    gitInitialized.value = offerGitInit.value = false
     if (p) sessionProjectID.value = p.id
     sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
   }
@@ -417,8 +421,26 @@ async function createSession(
     closeModal()
   } catch (e) {
     formError.value = String(e)
+    offerGitInit.value = needsGitRepository(e)
   } finally {
     busy.value = false
+  }
+}
+// Only on request: the session options stay as chosen, and the worktree still needs a first commit.
+async function initializeGit() {
+  if (busy.value) return
+  busy.value = initializingGit.value = true
+  try {
+    apply(await call('InitializeGitRepository', modalProject.value.id))
+    formError.value = ''
+    offerGitInit.value = false
+    gitInitialized.value = true
+    // The button goes away, so keep keyboard focus inside the dialog.
+    nextTick(() => document.querySelector('.session-dialog .agent-options :is([autofocus], button)')?.focus())
+  } catch (e) {
+    formError.value = String(e)
+  } finally {
+    busy.value = initializingGit.value = false
   }
 }
 async function newTerminal(p) {
@@ -1463,8 +1485,26 @@ onBeforeUnmount(() => {
             ><small v-if="agent.id === preferences.defaultAgent" class="muted caption">Default</small>
           </button>
         </div>
-        <p v-if="busy && newWorktree" class="muted caption" role="status">Creating worktree…</p>
+        <p v-if="busy && newWorktree && !initializingGit" class="muted caption" role="status">Creating worktree…</p>
+        <p v-if="initializingGit" class="muted caption" role="status">Initializing Git…</p>
+        <p v-if="gitInitialized" class="muted caption" role="status">
+          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then choose an agent
+          again.
+        </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
+        <div v-if="offerGitInit" class="git-init">
+          <p class="muted caption" id="git-init-description">
+            Runs git init in this project folder. Files stay as they are, and nothing is staged or committed.
+          </p>
+          <button
+            class="standard-button"
+            :disabled="busy"
+            aria-describedby="git-init-description"
+            @click="initializeGit"
+          >
+            Initialize Git Repository
+          </button>
+        </div>
         <footer><button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button></footer>
       </div></Modal
     >

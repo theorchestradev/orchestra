@@ -519,6 +519,12 @@ func (a *App) ResizeTerminal(id string, cols, rows int) error {
 
 	return a.store.ResizeTerminal(id, cols, rows)
 }
+func (a *App) InitializeGitRepository(project string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.InitializeGitRepository(project)
+}
 func (a *App) DetectRepository(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err

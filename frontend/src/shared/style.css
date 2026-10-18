@@ -2423,6 +2423,15 @@ input::placeholder {
 .session-dialog p {
   line-height: 16px;
 }
+.session-dialog .error {
+  overflow-wrap: anywhere;
+}
+.git-init {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
 .session-dialog .project-path {
   line-height: 13px;
 }
