@@ -1253,6 +1253,32 @@ input::placeholder {
   justify-content: space-between;
   gap: 16px;
 }
+.app-icon-setting {
+  flex-wrap: wrap;
+}
+.app-icon-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-icon-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 12px;
+}
+.app-icon-options button.selected {
+  border-color: var(--accent);
+  background: var(--selection);
+}
+.app-icon-options img {
+  display: block;
+}
 .mode-switch {
   display: flex;
   gap: 4px;
