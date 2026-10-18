@@ -55,6 +55,8 @@ let state = {
     windowOpacity: 78,
     updateChecksOff: false,
     hideOpenInButton: false,
+    hideUsageStatus: false,
+    usageDetailed: false,
     betaUpdates: false,
   },
   projects: [

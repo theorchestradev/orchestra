@@ -4,6 +4,7 @@ import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTermin
 import { shortcutLabel } from '../shared/platform'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import Icon from './Icon.vue'
+import UsageStatus from './UsageStatus.vue'
 const props = defineProps({
   projects: Array,
   runs: Array,
@@ -16,7 +17,7 @@ const props = defineProps({
   update: Object,
   updateReady: Boolean,
 })
-const emit = defineEmits(['inbox', 'appearance', 'diff', 'update'])
+const emit = defineEmits(['inbox', 'appearance', 'diff', 'update', 'settings', 'change'])
 const summary = computed(() => statusSummary(props.projects, props.runs))
 const agentName = computed(() =>
   isTerminal(props.session) ? 'Terminal' : agents.find((a) => a.id === props.session?.agent)?.name || 'Agent',
@@ -39,6 +40,11 @@ const profile = computed(() =>
       }
     : null,
 )
+// Usage follows the account Settings → Usage shows first: the session's profile, or else the project's.
+const usageProfileID = computed(() => {
+  const id = (props.session || props.project)?.profileID || ''
+  return findProfile(props.profiles, id) ? id : ''
+})
 const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
 const inbox = computed(() =>
   [
@@ -147,6 +153,16 @@ const inbox = computed(() =>
           summary.queued + summary.attention
         }}</span>
       </button>
+      <UsageStatus
+        v-if="!preferences.hideUsageStatus"
+        :appearance="preferences.appearance"
+        :agent="session?.agent"
+        :profile-id="usageProfileID"
+        :profile-name="profileName(profiles, usageProfileID)"
+        :detailed="preferences.usageDetailed"
+        @detailed="emit('change', { usageDetailed: $event })"
+        @settings="emit('settings', $event)"
+      />
       <button
         class="status-item status-button"
         :aria-label="

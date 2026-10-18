@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { themeOptions, themeSource, agents, windowOpacityRange, effectiveAppearance } from '../shared/appearance'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
@@ -20,12 +20,18 @@ const props = defineProps({
   profiles: Array,
   project: Object,
   // The profile Usage shows first: the selected session's, or else the project's.
-  usageProfileID: String,
+  usageProfileId: String,
+  // The section shown on open; the status bar's usage popover opens Usage or Profiles.
+  initialSection: String,
 })
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
 const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
-const section = ref('General')
+const section = ref(props.initialSection || 'General')
+watch(
+  () => props.initialSection,
+  (value) => value && (section.value = value),
+)
 const sections = {
   General: 'gearshape',
   Agents: 'person.2',
@@ -632,7 +638,30 @@ if (!mac)
           @state="emit('state', $event)"
           @login="emit('login', $event)"
         />
-        <AgentUsage v-else :appearance="shownAppearance" :profiles="profiles" :profile-id="usageProfileID" />
+        <template v-else
+          ><div class="settings-card general-settings usage-status-setting">
+            <div class="setting-row">
+              <div>
+                <label for="usage-status">Show Usage in Status Bar</label>
+                <p class="muted caption">
+                  Show how much of the session agent's limit is used and when it resets. Click it for every agent.
+                </p>
+              </div>
+              <button
+                id="usage-status"
+                class="switch"
+                :class="{ on: !preferences.hideUsageStatus }"
+                role="switch"
+                :aria-checked="!preferences.hideUsageStatus"
+                aria-label="Show Usage in Status Bar"
+                @click="choose('hideUsageStatus', !preferences.hideUsageStatus)"
+              >
+                <span />
+              </button>
+            </div>
+          </div>
+          <AgentUsage :appearance="shownAppearance" :profiles="profiles" :profile-id="usageProfileId"
+        /></template>
       </div>
     </main>
     <button class="settings-close icon-button" aria-label="Close Settings" @click="emit('close')">

@@ -73,6 +73,8 @@ const workspace = ref({
     attentionSound: false,
     openInApp: '',
     hideOpenInButton: false,
+    hideUsageStatus: false,
+    usageDetailed: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
@@ -203,6 +205,7 @@ const appearance = computed(() => {
     '--status-open': dark ? '#4ade80' : '#15803d',
     '--status-merged': dark ? '#c4a0ff' : '#8250df',
     '--status-deleted': dark ? '#f87171' : '#cf222e',
+    '--status-warning': dark ? '#fbbf24' : '#9a6700',
   }
 })
 const sidebarProjects = computed(() =>
@@ -241,7 +244,9 @@ async function action(method, ...args) {
     return null
   }
 }
+const settingsSection = ref('General')
 function openModal(kind, p = project.value) {
+  if (kind === 'settings') settingsSection.value = 'General'
   if (kind === 'command' && modal.value !== kind) track('feature_used', { feature: 'command_bar' })
   menu.value = null
   formError.value = ''
@@ -256,6 +261,11 @@ function openModal(kind, p = project.value) {
     if (p) sessionProjectID.value = p.id
     sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
   }
+}
+// The status bar's usage popover opens Settings at Usage or Profiles; other entry points start at General.
+function openSettings(section) {
+  openModal('settings')
+  settingsSection.value = section
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -1185,6 +1195,8 @@ onBeforeUnmount(() => {
       @inbox="openInbox"
       @diff="toggleDiff"
       @appearance="toggleAppearance"
+      @settings="openSettings"
+      @change="changePreferences({ ...preferences, ...$event })"
     />
     <div
       v-if="menu"
@@ -1365,6 +1377,7 @@ onBeforeUnmount(() => {
         :profiles="workspace.profiles"
         :project="project"
         :usage-profile-id="(session || project)?.profileID || ''"
+        :initial-section="settingsSection"
         @change="changePreferences"
         @state="apply"
         @login="loggingIn"
