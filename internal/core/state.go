@@ -789,7 +789,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	if len(p.TerminalFontFamily) > 200 || strings.ContainsAny(p.TerminalFontFamily, "\"\\") || strings.IndexFunc(p.TerminalFontFamily, unicode.IsControl) >= 0 {
 		return State{}, errors.New("Invalid terminal font.")
 	}
-	if _, ok := agentNames[p.DefaultAgent]; !ok {
+	if _, ok := agentSpecs[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")
 	}
 	if p.StartupView != "last" && p.StartupView != "scratchpad" && p.StartupView != "github" {
@@ -877,7 +877,7 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
 	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent}
-	if agent == "claude" || agent == "pi" || agent == "grok" {
+	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID
 	}
 	worktreeRoot := ""
