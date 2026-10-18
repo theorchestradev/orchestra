@@ -428,6 +428,7 @@ export const backend = {
     state.preferences = structuredClone(preferences)
     return changed()
   },
+  CanCreateWorktree: (pid) => !/no-git/.test(project(pid).directory) || !!project(pid).gitInitialized,
   DetectRepository: (pid) => {
     const p = project(pid)
     if (!p.repository) p.repository = 'example/' + p.name.toLowerCase().replace(/\W+/g, '-')
@@ -550,7 +551,7 @@ export const backend = {
       (agent === 'pi' ? Promise.reject('Could not list models. Check that Pi is installed and signed in.') : [])
     )
   },
-  // Preview folders named *no-git* show the non-repository worktree error and its Initialize Git action.
+  // Preview folders named *no-git* disable worktrees in New Session and offer Initialize Git.
   InitializeGitRepository: async (pid) => {
     await new Promise((r) => setTimeout(r, 600))
     const p = project(pid)
