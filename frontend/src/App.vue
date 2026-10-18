@@ -444,6 +444,7 @@ async function workOn(item, choice = {}) {
     gitHubItem(item),
     choice.model,
     choice.effort,
+    choice.profileID,
   )
   if (formError.value) {
     error.value = formError.value
@@ -1061,6 +1062,7 @@ onBeforeUnmount(() => {
                 :project="p"
                 :refresh-interval="preferences.gitHubRefreshInterval"
                 :default-agent="preferences.defaultAgent"
+                :profiles="workspace.profiles"
                 :visible="project?.id === p.id && currentDestination === 'github' && !modal"
                 @work="workOn"
                 @session="(sess) => select(p, sess.id)"
