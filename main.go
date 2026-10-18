@@ -55,6 +55,7 @@ func main() {
 	file := appMenu.AddSubmenu("File")
 	file.AddText("New Project…", keys.Combo("n", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "project") })
 	file.AddText("New Session", keys.CmdOrCtrl("n"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "session") })
+	// domReady moves these registered items into the native Orchestra menu.
 	file.AddText("Settings…", keys.CmdOrCtrl(","), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "settings") })
 	file.AddText("Check for Updates…", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "update") })
 	appMenu.Append(menu.EditMenu())

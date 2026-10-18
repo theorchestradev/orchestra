@@ -675,6 +675,7 @@ func (a *App) ConfirmQuit() {
 	runtime.Quit(a.ctx)
 }
 func (a *App) domReady(context.Context) {
+	moveAppMenuItems()
 	a.frontendReady.Store(true)
 	if a.ready() != nil {
 		return
