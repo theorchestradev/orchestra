@@ -4,6 +4,25 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.6.0 — 2026-10-19
+
+### New
+
+- **Drop files into a terminal.** Drag files onto a session to insert their
+  shell-quoted paths, ready to use in a command.
+  ([#35](https://github.com/theorchestradev/orchestra/pull/35))
+- **Keep your local main branch up to date.** Settings → Git & Source Control
+  can fetch and fast-forward the local base branch when creating a session
+  worktree. It skips branches with uncommitted changes or local-only commits.
+  A notice offers to enable it when the local branch is behind.
+  ([#36](https://github.com/theorchestradev/orchestra/pull/36))
+
+### Fixed
+
+- Use the arrow keys to navigate choices in New Session.
+- The local branch notice opens the correct Git & Source Control setting.
+- Settings → Usage preserves the selected profile.
+
 ## 0.5.0 — 2026-10-19
 
 ### New

@@ -20,7 +20,7 @@ const props = defineProps({
   profiles: Array,
   project: Object,
   // The profile Usage shows first: the selected session's, or else the project's.
-  usageProfileID: String,
+  usageProfileId: String,
   // The section to open with, and the id of a setting in it to focus.
   initialSection: String,
   initialFocus: String,

@@ -254,8 +254,6 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	gitWorktreeFixture(t, p.Directory, "show-ref", "--verify", "refs/heads/"+unmerged.WorktreeBranch)
 }
 
-}
-
 // Initializing Git from New Session must keep files, never commit, and never reinitialize a repository.
 func TestInitializeGitRepository(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)

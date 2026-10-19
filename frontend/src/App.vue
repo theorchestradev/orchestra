@@ -256,7 +256,6 @@ async function action(method, ...args) {
     return null
   }
 }
-const settingsSection = ref('General')
 function openModal(kind, p = project.value) {
   if (kind === 'settings') settingsSection.value = 'General'
   if (kind === 'command' && modal.value !== kind) track('feature_used', { feature: 'command_bar' })
@@ -381,9 +380,9 @@ function dismissLocalMainNotice() {
 }
 function openGitSettings() {
   localMainNotice.value = null
+  openModal('settings')
   settingsSection.value = 'Git & Source Control'
   settingsFocus.value = 'keepLocalMainUpdated'
-  openModal('settings')
 }
 function closeModal() {
   settingsSection.value = ''
