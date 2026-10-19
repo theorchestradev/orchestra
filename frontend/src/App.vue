@@ -1526,7 +1526,7 @@ onBeforeUnmount(() => {
             ><Icon name="chevron.up.chevron.down" :size="10" />
           </div>
         </div>
-        <div class="agent-options">
+        <div class="agent-options" @keydown="menuKeys">
           <button
             v-for="agent in sessionAgents"
             :key="agent.id"
