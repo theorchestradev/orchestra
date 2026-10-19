@@ -3582,6 +3582,7 @@ h2 {
   width: 32px;
   height: 32px;
   color: var(--muted);
+  flex-shrink: 0;
 }
 .arc-spaces {
   display: flex;
@@ -3592,7 +3593,29 @@ h2 {
   min-width: 0;
   overflow-x: auto;
   padding: 4px;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+}
+.arc-spaces::-webkit-scrollbar {
+  display: none;
+}
+.arc-spaces.compact {
+  gap: 0;
+}
+.arc-spaces.compact .arc-space {
+  width: max(12px, calc(100% / var(--visible-spaces)));
+}
+.arc-space .arc-space-dot {
+  width: 5px;
+  height: 5px;
+  padding: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.compact .arc-space.selected .arc-space-dot {
+  background: var(--accent);
+}
+.compact .arc-space.selected:after {
+  display: none;
 }
 .arc-space {
   position: relative;
