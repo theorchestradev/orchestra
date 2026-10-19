@@ -244,6 +244,26 @@ func TestOpenInAppPreference(t *testing.T) {
 	}
 }
 
+func TestUsageStatusPreferences(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	if prefs.HideUsageStatus || prefs.UsageDetailed {
+		t.Fatal("new installs should show compact usage in the status bar")
+	}
+	prefs.HideUsageStatus, prefs.UsageDetailed = true, true
+	if _, err := s.SetPreferences(prefs); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	if got := reopened.Snapshot().Preferences; !got.HideUsageStatus || !got.UsageDetailed {
+		t.Fatalf("usage preferences were not restored: %v %v", got.HideUsageStatus, got.UsageDetailed)
+	}
+}
+
 func TestAppearancePreference(t *testing.T) {
 	if defaultPreferences().Appearance != "system" {
 		t.Fatal("new installs should follow the system appearance")

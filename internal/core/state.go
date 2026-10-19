@@ -112,6 +112,10 @@ type Preferences struct {
 	OpenInApp string `json:"openInApp,omitempty"`
 	// HideOpenInButton hides the session view's Open in button; the zero value shows it.
 	HideOpenInButton bool `json:"hideOpenInButton"`
+	// HideUsageStatus hides the status bar's agent usage; the zero value shows it.
+	HideUsageStatus bool `json:"hideUsageStatus"`
+	// UsageDetailed shows every limit window in the status bar's usage popover instead of one row per agent.
+	UsageDetailed bool `json:"usageDetailed"`
 }
 type State struct {
 	Version           int         `json:"version"`
