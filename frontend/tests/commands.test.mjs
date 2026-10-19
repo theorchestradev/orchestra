@@ -115,6 +115,7 @@ test('command bar opens the selected session folder in installed apps', () => {
       ['openIn:zed', 'openIn', 'zed', 'Open in Zed', apps[0].icon, 'macwindow'],
       ['openIn:files', 'openIn', 'files', 'Open in Finder', undefined, 'folder'],
       ['copyPath', undefined, undefined, 'Copy Path', undefined, 'doc.on.doc'],
+      ['closeSession', undefined, undefined, 'Close Current Session', undefined, 'trash'],
     ],
   )
   // Without a session there is no folder to open.
