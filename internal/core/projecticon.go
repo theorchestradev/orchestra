@@ -32,7 +32,10 @@ var iconNames = []string{"favicon.svg", "favicon.png", "favicon.ico", "icon.svg"
 var iconFolders = []string{"", "public", "static", "app", "assets", "images", "img", "icons", "build", "src-tauri/icons", "resources"}
 
 // skippedFolders are dependencies and generated output, which hold other projects' icons.
-var skippedFolders = map[string]bool{"node_modules": true, "vendor": true, "dist": true, "out": true, "target": true, "coverage": true, "tmp": true, "Pods": true, "DerivedData": true}
+var skippedFolders = map[string]bool{"node_modules": true, "vendor": true, "dist": true, "out": true, "target": true, "coverage": true, "tmp": true, "Pods": true, "DerivedData": true, "Library": true}
+
+// projectMarkers show a folder is a project, so its subfolders are worth searching for an icon.
+var projectMarkers = []string{".git", "package.json", "go.mod", "Cargo.toml", "pyproject.toml", "composer.json", "Gemfile", "wails.json", "pubspec.yaml"}
 
 type cachedIcon struct {
 	data string
@@ -64,8 +67,16 @@ func ProjectIcon(directory string) string {
 }
 
 // findProjectIcon looks a few levels into directory, so monorepos such as apps/web/public are found,
-// and picks the best named icon, then the best folder, then the shallowest.
+// and picks the best named icon, then the best folder, then the shallowest. Only project folders are
+// searched below their top level, and the home folder and its parents are never searched.
 func findProjectIcon(directory string) string {
+	if isHomeOrAbove(directory) {
+		return ""
+	}
+	maxDepth := 0
+	if isProject(directory) {
+		maxDepth = iconMaxDepth
+	}
 	type candidate struct {
 		path                string
 		name, folder, depth int
@@ -85,7 +96,7 @@ func findProjectIcon(directory string) string {
 			name := item.Name()
 			path := filepath.Join(dir, name)
 			if item.IsDir() {
-				if depth < iconMaxDepth && !strings.HasPrefix(name, ".") && !skippedFolders[name] {
+				if depth < maxDepth && !strings.HasPrefix(name, ".") && !skippedFolders[name] {
 					walk(path, filepath.ToSlash(filepath.Join(rel, name)), depth+1)
 				}
 				continue
@@ -121,6 +132,26 @@ func findProjectIcon(directory string) string {
 		}
 	}
 	return ""
+}
+
+func isProject(directory string) bool {
+	for _, marker := range projectMarkers {
+		if _, err := os.Lstat(filepath.Join(directory, marker)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+// isHomeOrAbove reports whether directory is the home folder or one of its parents, which hold
+// unrelated projects and folders macOS asks permission to read.
+func isHomeOrAbove(directory string) bool {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(directory, home)
+	return err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 func iconNameRank(name string) int {
