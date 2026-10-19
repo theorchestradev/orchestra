@@ -296,6 +296,7 @@ export const backend = {
   },
   SystemPalettes: () => null,
   // Illustrative apps with long names and no system icons, as on Linux.
+  ProjectIcons: () => ({}),
   OpenInApps: () => [
     { id: 'vscode', name: 'VS Code', kind: 'editor' },
     { id: 'zed', name: 'Zed', kind: 'editor' },
