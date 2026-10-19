@@ -3,7 +3,8 @@ import { ref, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
-import { call, copy, on, paste } from '../shared/api'
+import { call, copy, on, onFileDrop, paste } from '../shared/api'
+import { shellPaths } from '../shared/fileDrop'
 import { mac } from '../shared/platform'
 import { terminalKeeps } from '../shared/shortcuts'
 import { terminalTheme, terminalFontFamily, customThemes } from '../shared/appearance'
@@ -14,6 +15,7 @@ let terminal,
   fit,
   observer,
   unsubscribe,
+  unsubscribeDrop,
   position = 0,
   attaching = true,
   pending = [],
@@ -29,6 +31,12 @@ function append(output) {
   const skip = Math.max(0, position - output.start)
   terminal.write(bytes.subarray(skip))
   position = output.end
+}
+// Finder drops type the paths where they land, like pasting them, without pressing Enter.
+function drop(x, y, paths) {
+  if (!props.visible || !host.value?.contains(document.elementFromPoint(x, y))) return
+  terminal?.paste(shellPaths(paths))
+  terminal?.focus()
 }
 function pad() {
   terminal.element.style.padding = `${props.preferences.terminalPaddingY}px ${props.preferences.terminalPaddingX}px`
@@ -103,6 +111,7 @@ onMounted(async () => {
   terminal.onKey(() => emit('key'))
   terminal.onData((data) => call('WriteTerminal', props.session.id, data).catch((e) => emit('error', String(e))))
   unsubscribe = on('terminal', append)
+  unsubscribeDrop = onFileDrop(drop)
   observer = new ResizeObserver(resize)
   observer.observe(host.value)
   await nextTick()
@@ -139,6 +148,7 @@ onBeforeUnmount(() => {
   alive = false
   observer?.disconnect()
   unsubscribe?.()
+  unsubscribeDrop?.()
   terminal?.dispose()
 })
 </script>

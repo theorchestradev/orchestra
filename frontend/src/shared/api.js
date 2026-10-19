@@ -10,6 +10,17 @@ export function on(event, handler) {
   }
   return window.runtime?.EventsOn(event, handler) || (() => {})
 }
+// Wails accepts one file drop callback, so every terminal shares it and checks the drop point.
+// It stays registered because its listeners also keep stray drops from opening the file.
+const dropHandlers = new Set()
+let dropRegistered = false
+export function onFileDrop(handler) {
+  if (preview || !window.runtime?.OnFileDrop) return () => {}
+  if (!dropRegistered) window.runtime.OnFileDrop((x, y, paths) => dropHandlers.forEach((fn) => fn(x, y, paths)), false)
+  dropRegistered = true
+  dropHandlers.add(handler)
+  return () => dropHandlers.delete(handler)
+}
 export function emitPreview(event, value) {
   listeners.get(event)?.forEach((fn) => fn(value))
 }
