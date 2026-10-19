@@ -25,6 +25,9 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icon []byte
 
+//go:embed frontend/public/app-icons/*.png
+var appIcons embed.FS
+
 func main() {
 	core.Version = version
 	if len(os.Args) > 1 && os.Args[1] == "--orchestra-cli" {
@@ -52,6 +55,7 @@ func main() {
 	file := appMenu.AddSubmenu("File")
 	file.AddText("New Project…", keys.Combo("n", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "project") })
 	file.AddText("New Session", keys.CmdOrCtrl("n"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "session") })
+	// domReady moves these registered items into the native Orchestra menu.
 	file.AddText("Settings…", keys.CmdOrCtrl(","), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "settings") })
 	file.AddText("Check for Updates…", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "update") })
 	appMenu.Append(menu.EditMenu())

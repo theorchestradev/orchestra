@@ -11,7 +11,13 @@ import GitHubMetadataEditor from './GitHubMetadataEditor.vue'
 import GitHubSessions from './GitHubSessions.vue'
 import Modal from './Modal.vue'
 import WorkOnButton from './WorkOnButton.vue'
-const props = defineProps({ project: Object, visible: Boolean, refreshInterval: Number, defaultAgent: String })
+const props = defineProps({
+  project: Object,
+  visible: Boolean,
+  refreshInterval: Number,
+  defaultAgent: String,
+  profiles: Array,
+})
 const emit = defineEmits(['work', 'session', 'error'])
 const detailElement = ref(null),
   itemMenu = ref(null),
@@ -428,6 +434,8 @@ onMounted(() => load())
               v-if="canWorkOn(content.detail)"
               :label="selected.pull_request ? 'Review' : 'Work on'"
               :default-agent="defaultAgent"
+              :profiles="profiles"
+              :profile-id="project.profileID || ''"
               :visible="visible"
               @work="emit('work', selected, $event)"
             />

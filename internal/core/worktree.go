@@ -19,12 +19,69 @@ func repositoryName(p *Project) string {
 	return p.ID
 }
 
+// gitTopLevel returns the repository root. Git runs in the C locale so isNotGitRepository
+// can recognize its message whatever language the user's Git speaks.
+func gitTopLevel(directory string) (string, error) {
+	root, err := runCommand(directory, "/usr/bin/env", "LC_ALL=C", "git", "rev-parse", "--show-toplevel")
+	return strings.TrimSpace(string(root)), err
+}
+
+// isNotGitRepository separates a folder outside any repository from missing Git,
+// permission problems and other Git failures.
+func isNotGitRepository(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "not a git repository")
+}
+
+// InitializeGitRepository runs git init in the project folder, only when it is not already
+// inside a repository. It never stages, commits, configures identity or adds remotes.
+func (s *Store) InitializeGitRepository(projectID string) (State, error) {
+	// Holding the lock serializes repeated requests, so a second one sees the new repository.
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		return State{}, err
+	}
+	root, err := gitTopLevel(p.Directory)
+	if err == nil {
+		return State{}, fmt.Errorf("The project folder is already in the Git repository at %s.", root)
+	}
+	if !isNotGitRepository(err) {
+		return State{}, fmt.Errorf("Could not check the project folder: %w", err)
+	}
+	if _, err = runCommand(p.Directory, "git", "init"); err != nil {
+		s.log.Warn("git init failed", "project", p.ID, "error", err)
+		return State{}, fmt.Errorf("Could not initialize Git: %w", err)
+	}
+	s.log.Info("git repository initialized", "project", p.ID)
+	return s.snapshotLocked(), nil
+}
+
+// CanCreateWorktree reports whether New Session can offer a worktree. Only a folder outside
+// any repository is ruled out; other Git failures still surface when the session starts.
+func (s *Store) CanCreateWorktree(projectID string) (bool, error) {
+	s.mu.Lock()
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		s.mu.Unlock()
+		return false, err
+	}
+	directory := p.Directory
+	s.mu.Unlock()
+	_, err = gitTopLevel(directory)
+	return !isNotGitRepository(err), nil
+}
+
 // Worktrees share Git history but never copy uncommitted project changes.
 // It returns the working folder and the commit the session branch starts from.
 func createSessionWorktree(directory, destination, branch string) (string, string, error) {
-	root, err := runCommand(directory, "git", "rev-parse", "--show-toplevel")
-	if err != nil {
+	root, err := gitTopLevel(directory)
+	if isNotGitRepository(err) {
+		// New Session offers Initialize Git Repository for this message; keep it stable.
 		return "", "", fmt.Errorf("A worktree requires a Git repository: %w", err)
+	}
+	if err != nil {
+		return "", "", fmt.Errorf("Could not read the project's Git repository: %w", err)
 	}
 	head, err := runCommand(directory, "git", "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
@@ -36,7 +93,7 @@ func createSessionWorktree(directory, destination, branch string) (string, strin
 	if err != nil {
 		return "", "", err
 	}
-	repositoryDirectory, err := filepath.EvalSymlinks(strings.TrimSpace(string(root)))
+	repositoryDirectory, err := filepath.EvalSymlinks(root)
 	if err != nil {
 		return "", "", err
 	}

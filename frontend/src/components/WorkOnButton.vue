@@ -7,19 +7,28 @@ import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { call } from '../shared/api'
 import { agents } from '../shared/appearance'
 import { modelEfforts, effortLabel } from '../shared/github'
+import { findProfile } from '../shared/profiles'
 import Icon from './Icon.vue'
-const props = defineProps({ label: String, defaultAgent: String, visible: Boolean })
+const props = defineProps({
+  label: String,
+  defaultAgent: String,
+  visible: Boolean,
+  profiles: { type: Array, default: () => [] },
+  profileId: String,
+})
 const emit = defineEmits(['work'])
 const trigger = ref(null),
   popup = ref(null),
   open = ref(false),
   position = ref({})
-const agent = ref(''),
+const profile = ref(''),
+  agent = ref(''),
   model = ref(''),
   effort = ref(''),
   models = ref([]),
   loading = ref(false),
   error = ref('')
+const choices = computed(() => (props.profiles.length ? 'profile, agent, model and effort' : 'agent, model and effort'))
 const agentName = computed(() => agents.find((a) => a.id === agent.value)?.name)
 const efforts = computed(() => modelEfforts(models.value, model.value))
 let request = 0
@@ -73,6 +82,8 @@ async function toggle() {
   if (open.value) return close()
   if (!agents.some((a) => a.id === agent.value))
     agent.value = agents.some((a) => a.id === props.defaultAgent) ? props.defaultAgent : agents[0].id
+  // Each opening starts from the project's profile, or Default when it was removed.
+  profile.value = findProfile(props.profiles, props.profileId) ? props.profileId : ''
   open.value = true
   listen(true)
   await nextTick()
@@ -86,7 +97,7 @@ function close(restoreFocus = false) {
   if (restoreFocus) trigger.value?.focus()
 }
 function start() {
-  emit('work', { agent: agent.value, model: model.value, effort: effort.value })
+  emit('work', { agent: agent.value, model: model.value, effort: effort.value, profileID: profile.value })
   close()
 }
 watch(
@@ -103,8 +114,8 @@ onBeforeUnmount(() => listen(false))
     ><button
       ref="trigger"
       class="standard-button split-toggle"
-      :aria-label="`Choose agent, model and effort for ${label}`"
-      title="Choose agent, model and effort"
+      :aria-label="`Choose ${choices} for ${label}`"
+      :title="`Choose ${choices}`"
       aria-haspopup="dialog"
       :aria-expanded="open"
       @click="toggle"
@@ -123,6 +134,15 @@ onBeforeUnmount(() => listen(false))
       @keydown.esc.stop.prevent="close(true)"
     >
       <form class="metadata-editor" @submit.prevent="start">
+        <label v-if="profiles.length"
+          >Profile<span class="theme-select general-select"
+            ><select v-model="profile">
+              <option value="">Default</option>
+              <option v-for="p in profiles" :key="p.id" :value="p.id">
+                {{ p.emoji ? p.emoji + ' ' : '' }}{{ p.name }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" /></span
+        ></label>
         <label
           >Agent<span class="theme-select general-select"
             ><select v-model="agent">

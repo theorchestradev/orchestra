@@ -34,6 +34,7 @@ const edgeAction = (index) =>
 let wheelTimer,
   wheelLocked = false,
   wheelActive = false,
+  wheelTail = Infinity,
   lastWheel = null
 async function finishGesture() {
   const g = gesture.value
@@ -67,18 +68,29 @@ function idle() {
 }
 function wheel(event) {
   const el = viewport.value,
-    delta = arcScrollDelta(event, el.clientWidth)
+    delta = arcScrollDelta(event, el.clientWidth),
+    magnitude = Math.abs(delta)
   if (!delta || props.items.length < (props.createProject || props.openSettings ? 1 : 2) || !el.clientWidth) return
   event.preventDefault()
-  // Momentum keeps its direction and arrives every frame, so a pause or a reversal starts another pan.
-  if (lastWheel && (event.timeStamp - lastWheel.time >= 50 || Math.sign(delta) !== lastWheel.direction))
+  // A new stroke can overlap the previous momentum in the same direction. Rearm on
+  // renewed force after decay as well as a pause/reversal; tiny tail jitter stays locked.
+  if (
+    lastWheel &&
+    (event.timeStamp - lastWheel.time >= 50 ||
+      Math.sign(delta) !== lastWheel.direction ||
+      (magnitude >= wheelTail * 2 && magnitude - wheelTail >= 8))
+  )
     wheelLocked = false
-  lastWheel = { time: event.timeStamp, direction: Math.sign(delta) }
+  if (wheelLocked && lastWheel && magnitude < lastWheel.magnitude) wheelTail = Math.min(wheelTail, magnitude)
+  lastWheel = { time: event.timeStamp, direction: Math.sign(delta), magnitude }
   wheelActive = true
   clearTimeout(wheelTimer)
   wheelTimer = setTimeout(idle, 150)
   if (wheelLocked || gesture.value?.saving) return
-  if (!gesture.value) gesture.value = { index: activeIndex.value, progress: 0, saving: false }
+  if (!gesture.value) {
+    wheelTail = Infinity
+    gesture.value = { index: activeIndex.value, progress: 0, saving: false }
+  }
   const g = gesture.value,
     min = g.index > 0 || props.openSettings ? -1 : 0,
     max = g.index < props.items.length - 1 || props.createProject ? 1 : 0
@@ -93,6 +105,7 @@ function routeWheel(event) {
 function cancelGesture() {
   gesture.value = null
   wheelLocked = wheelActive
+  wheelTail = Infinity
 }
 watch(
   () => props.selectedId,

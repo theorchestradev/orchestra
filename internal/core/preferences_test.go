@@ -68,6 +68,61 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 		})
 	}
 }
+
+func TestAppIconPreferences(t *testing.T) {
+	s := fixtureStore(t)
+	if got := s.Snapshot().Preferences.AppIcon; got != "color" {
+		t.Fatalf("default icon = %q, want color", got)
+	}
+	for _, icon := range []string{"white", "black", "color", ""} {
+		prefs := s.Snapshot().Preferences
+		prefs.AppIcon = icon
+		state, err := s.SetPreferences(prefs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := icon
+		if want == "" {
+			want = "color"
+		}
+		reopened, err := NewStore(s.path, s.executable, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := reopened.Snapshot().Preferences.AppIcon
+		reopened.Shutdown()
+		if state.Preferences.AppIcon != want || got != want {
+			t.Fatalf("icon %q was not persisted: saved=%q reopened=%q", icon, state.Preferences.AppIcon, got)
+		}
+	}
+	before := s.Snapshot().Preferences
+	invalid := before
+	invalid.AppIcon = "../other"
+	if _, err := s.SetPreferences(invalid); err == nil || s.Snapshot().Preferences != before {
+		t.Fatal("invalid icon accepted or changed preferences")
+	}
+	// Existing workspaces have no appIcon; invalid saved values also fall back to Color.
+	for _, value := range []string{"", "removed-icon"} {
+		state := s.Snapshot()
+		state.Preferences.AppIcon = value
+		data, err := json.Marshal(state)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(s.path, data, 0600); err != nil {
+			t.Fatal(err)
+		}
+		reopened, err := NewStore(s.path, s.executable, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := reopened.Snapshot().Preferences.AppIcon
+		reopened.Shutdown()
+		if got != "color" {
+			t.Fatalf("legacy icon %q became %q, want color", value, got)
+		}
+	}
+}
 func TestArcModePersistenceAndProjectSwitch(t *testing.T) {
 	s := fixtureStore(t)
 	first := projectFixture(t, s)

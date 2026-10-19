@@ -9,6 +9,7 @@ const props = defineProps({
   projects: Array,
   runs: Array,
   project: Object,
+  projectIcon: String,
   session: Object,
   profiles: Array,
   destination: String,
@@ -61,7 +62,11 @@ const inbox = computed(() =>
       <template v-if="project"
         ><span class="status-item truncate" :title="project.directory"
           ><span v-if="project.emoji" class="status-emoji" aria-hidden="true">{{ project.emoji }}</span
-          ><Icon v-else name="folder" :size="12" /><span class="truncate">{{ project.name }}</span></span
+          ><img v-else-if="projectIcon" class="status-project-icon" :src="projectIcon" alt="" /><Icon
+            v-else
+            name="folder"
+            :size="12"
+          /><span class="truncate">{{ project.name }}</span></span
         ><span
           v-if="project.repository"
           class="status-item status-optional truncate"

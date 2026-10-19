@@ -322,6 +322,13 @@ hr {
   text-align: center;
   text-overflow: clip;
 }
+.project-title .project-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+}
 .arc-sidebar .project-title .project-emoji {
   width: auto;
   font-size: 11px;
@@ -1252,6 +1259,32 @@ input::placeholder {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+.app-icon-setting {
+  flex-wrap: wrap;
+}
+.app-icon-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.app-icon-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 8px 8px;
+  border: 1px solid var(--rule);
+  border-radius: 9px;
+  background: var(--canvas);
+  color: var(--text);
+  font-size: 12px;
+}
+.app-icon-options button.selected {
+  border-color: var(--accent);
+  background: var(--selection);
+}
+.app-icon-options img {
+  display: block;
 }
 .mode-switch {
   display: flex;
@@ -2397,6 +2430,15 @@ input::placeholder {
 .session-dialog p {
   line-height: 16px;
 }
+.session-dialog .error {
+  overflow-wrap: anywhere;
+}
+.git-init {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
 .session-dialog .project-path {
   line-height: 13px;
 }
@@ -3212,6 +3254,9 @@ h2 {
 .worktree-option input:disabled {
   opacity: 0.5;
 }
+.modal.sheet label.worktree-option:has(input:disabled) {
+  cursor: default;
+}
 .worktree-option span {
   min-width: 0;
 }
@@ -3321,6 +3366,13 @@ h2 {
   flex-shrink: 0;
   font-size: 10px;
   line-height: 1;
+}
+.status-project-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  border-radius: 2px;
 }
 .status-context > .status-item:first-child {
   color: var(--text);
