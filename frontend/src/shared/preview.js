@@ -57,6 +57,7 @@ let state = {
     hideOpenInButton: false,
     hideUsageStatus: false,
     usageDetailed: false,
+    keepLocalMainUpdated: false,
     betaUpdates: false,
   },
   projects: [
@@ -609,6 +610,23 @@ export const backend = {
     p.showsScratchpad = p.showsGitHub = false
     p.isExpanded = true
     state.selectedProjectID = pid
+    const result = changed()
+    // The preview's local main is always a few commits behind origin.
+    if (
+      createWorktree &&
+      agent !== 'terminal' &&
+      !state.preferences.keepLocalMainUpdated &&
+      !p.localMainNoticeDismissed
+    )
+      setTimeout(() => emitPreview('local-main-behind', { projectID: pid, branch: 'main', behind: 4 }))
+    return result
+  },
+  KeepLocalMainUpToDate: () => {
+    state.preferences.keepLocalMainUpdated = true
+    return changed()
+  },
+  DismissLocalMainNotice: (pid) => {
+    project(pid).localMainNoticeDismissed = true
     return changed()
   },
   StartSession: (target) => {

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -169,4 +170,96 @@ func discardSessionWorktree(directory, destination, branch string, log *slog.Log
 		log.Debug("worktree branch kept", "branch", branch, "error", err)
 	}
 	return nil
+}
+
+// defaultBranch names the branch origin/HEAD points to, falling back to main, then master.
+func defaultBranch(directory string) (string, error) {
+	if head, err := runCommand(directory, "git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); err == nil {
+		if branch := strings.TrimPrefix(strings.TrimSpace(string(head)), "origin/"); branch != "" {
+			return branch, nil
+		}
+	}
+	for _, branch := range []string{"main", "master"} {
+		if _, err := runCommand(directory, "git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/"+branch); err == nil {
+			return branch, nil
+		}
+	}
+	return "", errors.New("The repository has no origin default branch.")
+}
+
+// localMainBehind counts the commits local main lacks from origin. It reads fetched refs only.
+func localMainBehind(directory string) (string, int, error) {
+	branch, err := defaultBranch(directory)
+	if err != nil {
+		return "", 0, err
+	}
+	count, err := runCommand(directory, "git", "rev-list", "--count", "refs/heads/"+branch+"..refs/remotes/origin/"+branch)
+	if err != nil {
+		return branch, 0, err
+	}
+	behind, err := strconv.Atoi(strings.TrimSpace(string(count)))
+	return branch, behind, err
+}
+
+// updateLocalMain fetches the default branch and fast-forwards local main only when nothing
+// local would be lost: no local-only commits, and a clean checkout wherever it is checked out.
+// It never rebases, resets, stashes or forces.
+func updateLocalMain(directory string) (string, error) {
+	branch, err := defaultBranch(directory)
+	if err != nil {
+		return "", err
+	}
+	if _, err = runCommand(directory, "git", "fetch", "--quiet", "--no-tags", "origin", "+refs/heads/"+branch+":refs/remotes/origin/"+branch); err != nil {
+		return branch, err
+	}
+	local, err := runCommand(directory, "git", "rev-parse", "--verify", "--quiet", "refs/heads/"+branch+"^{commit}")
+	if err != nil {
+		// No local branch to keep up to date.
+		return branch, nil
+	}
+	remote, err := runCommand(directory, "git", "rev-parse", "--verify", "refs/remotes/origin/"+branch+"^{commit}")
+	if err != nil {
+		return branch, err
+	}
+	localCommit, remoteCommit := strings.TrimSpace(string(local)), strings.TrimSpace(string(remote))
+	if localCommit == remoteCommit {
+		return branch, nil
+	}
+	if _, err = runCommand(directory, "git", "merge-base", "--is-ancestor", localCommit, remoteCommit); err != nil {
+		return branch, fmt.Errorf("Local %s has commits that are not on origin, so it was not updated.", branch)
+	}
+	checkout, err := branchCheckout(directory, branch)
+	if err != nil {
+		return branch, err
+	}
+	if checkout == "" {
+		_, err = runCommand(directory, "git", "update-ref", "refs/heads/"+branch, remoteCommit, localCommit)
+		return branch, err
+	}
+	status, err := runCommand(checkout, "git", "status", "--porcelain", "--untracked-files=no")
+	if err != nil {
+		return branch, err
+	}
+	if len(strings.TrimSpace(string(status))) > 0 {
+		return branch, fmt.Errorf("Local %s has uncommitted changes, so it was not updated.", branch)
+	}
+	_, err = runCommand(checkout, "git", "merge", "--ff-only", "--quiet", remoteCommit)
+	return branch, err
+}
+
+// branchCheckout returns the worktree that has branch checked out, or "" when none does.
+func branchCheckout(directory, branch string) (string, error) {
+	list, err := runCommand(directory, "git", "worktree", "list", "--porcelain")
+	if err != nil {
+		return "", err
+	}
+	path := ""
+	for _, line := range strings.Split(string(list), "\n") {
+		if p, ok := strings.CutPrefix(line, "worktree "); ok {
+			path = p
+		} else if line == "branch refs/heads/"+branch {
+			return path, nil
+		}
+	}
+	return "", nil
 }
