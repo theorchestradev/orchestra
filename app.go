@@ -723,3 +723,18 @@ func (a *App) SessionDiff(id string) (core.SessionDiff, error) {
 	}
 	return a.store.SessionDiff(id)
 }
+
+// ProjectIcons maps project IDs to the favicon or app icon found in their folders, as data URLs.
+// Projects without one are left out.
+func (a *App) ProjectIcons() map[string]string {
+	result := map[string]string{}
+	if a.ready() != nil {
+		return result
+	}
+	for _, p := range a.store.Snapshot().Projects {
+		if icon := core.ProjectIcon(p.Directory); icon != "" {
+			result[p.ID] = icon
+		}
+	}
+	return result
+}

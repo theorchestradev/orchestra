@@ -753,6 +753,23 @@ async function loadOpenInApps() {
     console.warn('Could not list apps: ' + e)
   }
 }
+// Favicons in project folders replace the folder symbol when a project has no emoji. They are read
+// when projects are added or moved to another folder, and on focus at most every 30 seconds.
+const projectIcons = ref({})
+let projectIconsRead = 0
+async function loadProjectIcons(force) {
+  if (force !== true && Date.now() - projectIconsRead < 30000) return
+  projectIconsRead = Date.now()
+  try {
+    projectIcons.value = (await call('ProjectIcons')) || {}
+  } catch (e) {
+    console.warn('Could not read project icons: ' + e)
+  }
+}
+watch(
+  () => workspace.value.projects?.map((p) => p.id + '\0' + p.directory).join('\n'),
+  () => loadProjectIcons(true),
+)
 // Go resolves the folder from the session; the app used becomes the Open in button's default.
 async function openIn(sess, app) {
   menu.value = null
@@ -843,6 +860,7 @@ onMounted(async () => {
   addEventListener('focus', loadCustomThemes)
   addEventListener('focus', applyTranslucency)
   addEventListener('focus', loadOpenInApps)
+  addEventListener('focus', loadProjectIcons)
   loadOpenInApps()
   try {
     setSystemPalettes(await call('SystemPalettes'))
@@ -870,6 +888,7 @@ onBeforeUnmount(() => {
   removeEventListener('focus', loadCustomThemes)
   removeEventListener('focus', applyTranslucency)
   removeEventListener('focus', loadOpenInApps)
+  removeEventListener('focus', loadProjectIcons)
   resizeCleanup?.()
 })
 </script>
@@ -925,9 +944,11 @@ onBeforeUnmount(() => {
                   @click="select(p, 'project')"
                 >
                   <span v-if="p.emoji" class="project-emoji" aria-hidden="true">{{ p.emoji }}</span
-                  ><Icon v-else :name="p.isExpanded ? 'folder' : 'folder.fill'" :size="16" /><span>{{
-                    p.name
-                  }}</span></button
+                  ><img v-else-if="projectIcons[p.id]" class="project-icon" :src="projectIcons[p.id]" alt="" /><Icon
+                    v-else
+                    :name="p.isExpanded ? 'folder' : 'folder.fill'"
+                    :size="16"
+                  /><span>{{ p.name }}</span></button
                 ><button
                   v-if="!preferences.arcMode"
                   class="icon-button hover-control"
@@ -1212,6 +1233,7 @@ onBeforeUnmount(() => {
       :projects="workspace.projects"
       :runs="workspace.runs"
       :project="project"
+      :project-icon="projectIcons[project?.id]"
       :session="session"
       :profiles="workspace.profiles"
       :destination="currentDestination"

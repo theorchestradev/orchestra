@@ -322,6 +322,13 @@ hr {
   text-align: center;
   text-overflow: clip;
 }
+.project-title .project-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  border-radius: 3px;
+}
 .arc-sidebar .project-title .project-emoji {
   width: auto;
   font-size: 11px;
@@ -3359,6 +3366,13 @@ h2 {
   flex-shrink: 0;
   font-size: 10px;
   line-height: 1;
+}
+.status-project-icon {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  object-fit: contain;
+  border-radius: 2px;
 }
 .status-context > .status-item:first-child {
   color: var(--text);
