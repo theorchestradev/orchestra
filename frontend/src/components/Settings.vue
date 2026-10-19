@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { themeOptions, themeSource, agents, windowOpacityRange, effectiveAppearance } from '../shared/appearance'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
@@ -21,14 +21,18 @@ const props = defineProps({
   project: Object,
   // The profile Usage shows first: the selected session's, or else the project's.
   usageProfileID: String,
+  // The section to open with, and the id of a setting in it to focus.
+  initialSection: String,
+  initialFocus: String,
 })
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
 const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
-const section = ref('General')
+const section = ref(props.initialSection || 'General')
 const sections = {
   General: 'gearshape',
   Agents: 'person.2',
+  'Git & Source Control': 'arrow.triangle.branch',
   Profiles: 'person.crop.circle',
   Appearance: 'paintpalette',
   Terminal: 'terminal',
@@ -104,6 +108,7 @@ const fontOptions = computed(() => {
   const list = terminalFonts.value || []
   return savedFont.value && !list.includes(savedFont.value) ? [savedFont.value, ...list] : list
 })
+onMounted(() => props.initialFocus && document.getElementById(props.initialFocus)?.focus())
 // macOS shows build details in its About panel; elsewhere General lists them.
 const about = ref('')
 if (!mac)
@@ -308,6 +313,30 @@ if (!mac)
           </div>
           <hr />
           <AgentSkill :appearance="shownAppearance" />
+        </div>
+        <div v-else-if="section === 'Git & Source Control'" class="settings-card general-settings">
+          <div class="setting-row">
+            <div>
+              <label for="keepLocalMainUpdated">Keep Local Main Up to Date</label>
+              <p class="muted caption">
+                When you create a session worktree, Orchestra fetches the remote base and safely fast-forwards your
+                matching local branch, such as <code>main</code> or <code>master</code>. This keeps commands like
+                <code>git diff main...HEAD</code> from comparing against stale history. Orchestra skips the update if
+                that branch has uncommitted changes or local-only commits.
+              </p>
+            </div>
+            <button
+              id="keepLocalMainUpdated"
+              class="switch"
+              :class="{ on: preferences.keepLocalMainUpdated }"
+              role="switch"
+              :aria-checked="!!preferences.keepLocalMainUpdated"
+              aria-label="Keep Local Main Up to Date"
+              @click="choose('keepLocalMainUpdated', !preferences.keepLocalMainUpdated)"
+            >
+              <span />
+            </button>
+          </div>
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
           <div class="setting-row">

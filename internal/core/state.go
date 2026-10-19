@@ -68,8 +68,10 @@ type Project struct {
 	ScratchpadMode string `json:"scratchpadMode,omitempty"`
 	Repository     string `json:"repository,omitempty"`
 	// ProfileID is the profile new sessions use; empty is Default.
-	ProfileID string     `json:"profileID,omitempty"`
-	Sessions  []*Session `json:"sessions"`
+	ProfileID string `json:"profileID,omitempty"`
+	// LocalMainNoticeDismissed hides the notice that local main is behind origin.
+	LocalMainNoticeDismissed bool       `json:"localMainNoticeDismissed,omitempty"`
+	Sessions                 []*Session `json:"sessions"`
 }
 type Preferences struct {
 	TelemetryEnabled    bool   `json:"telemetryEnabled"`
@@ -111,6 +113,9 @@ type Preferences struct {
 	OpenInApp string `json:"openInApp,omitempty"`
 	// HideOpenInButton hides the session view's Open in button; the zero value shows it.
 	HideOpenInButton bool `json:"hideOpenInButton"`
+	// KeepLocalMainUpdated fetches origin and fast-forwards local main, when safe, before a
+	// session worktree is created.
+	KeepLocalMainUpdated bool `json:"keepLocalMainUpdated"`
 }
 type State struct {
 	Version           int         `json:"version"`
@@ -831,11 +836,80 @@ func clampSessionName(name string) string {
 // CreateSession names the session sessionName when given, otherwise "<Agent name> <n>".
 // gitHubItem records the issue or pull request a Work on or Review session came from.
 // profileID chooses the session's agent accounts; empty is Default.
+// With a worktree, it first keeps local main up to date when the preference is on, and
+// otherwise emits "local-main-behind" when local main lags origin.
 func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID string) (State, error) {
+	s.mu.Lock()
+	directory, keepUpdated, notice := "", false, false
+	if p, err := s.projectLocked(projectID); err == nil && createWorktree && agent != terminalAgent {
+		directory, keepUpdated = p.Directory, s.state.Preferences.KeepLocalMainUpdated
+		notice = !keepUpdated && !p.LocalMainNoticeDismissed
+	}
+	s.mu.Unlock()
+	// Fetching can be slow, so it runs outside the lock and never blocks creating the session.
+	if keepUpdated {
+		if branch, err := updateLocalMain(directory); err != nil {
+			s.log.Info("local main not updated", "project", projectID, "branch", branch, "error", err)
+		}
+	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
+	state, err := s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "")
+	s.mu.Unlock()
+	if err == nil && notice {
+		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
+			s.emit("local-main-behind", LocalMainBehind{projectID, branch, behind})
+		}
+	}
+	return state, err
+}
+
+// LocalMainBehind tells the user that local main lags origin by Behind commits.
+type LocalMainBehind struct {
+	ProjectID string `json:"projectID"`
+	Branch    string `json:"branch"`
+	Behind    int    `json:"behind"`
+}
+
+// KeepLocalMainUpToDate turns on Keep Local Main Up to Date and updates the project's local
+// main now. The preference stays on when this update is skipped, and the error explains why.
+func (s *Store) KeepLocalMainUpToDate(projectID string) (State, error) {
+	s.mu.Lock()
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		s.mu.Unlock()
+		return State{}, err
+	}
+	directory, previous := p.Directory, s.state.Preferences.KeepLocalMainUpdated
+	s.state.Preferences.KeepLocalMainUpdated = true
+	if err = s.saveLocked(); err != nil {
+		s.state.Preferences.KeepLocalMainUpdated = previous
+		s.mu.Unlock()
+		return State{}, err
+	}
+	s.changedLocked()
+	s.mu.Unlock()
+	if _, err = updateLocalMain(directory); err != nil {
+		return State{}, err
+	}
+	return s.Snapshot(), nil
+}
+
+// DismissLocalMainNotice stops the project's local-main-behind notice.
+func (s *Store) DismissLocalMainNotice(projectID string) (State, error) {
+	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "")
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		return State{}, err
+	}
+	p.LocalMainNoticeDismissed = true
+	if err = s.saveLocked(); err != nil {
+		p.LocalMainNoticeDismissed = false
+		return State{}, err
+	}
+	s.changedLocked()
+	return s.snapshotLocked(), nil
 }
 func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent string) (State, error) {
 	p, err := s.projectLocked(projectID)

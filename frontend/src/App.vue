@@ -73,11 +73,17 @@ const workspace = ref({
     attentionSound: false,
     openInApp: '',
     hideOpenInButton: false,
+    keepLocalMainUpdated: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
 const updateStatus = ref(null)
 const update = computed(() => pendingUpdate(updateStatus.value, preferences.value))
+// Shown when a new session worktree finds local main behind origin: { projectID, branch, behind }.
+const localMainNotice = ref(null)
+// Where Settings opens, when something other than General is asked for.
+const settingsSection = ref(''),
+  settingsFocus = ref('')
 const loading = ref(true),
   error = ref(''),
   modal = ref(''),
@@ -335,7 +341,25 @@ function toggleDiff() {
   if (!closing) track('feature_used', { feature: 'diff_view' })
   if (closing && inPane) closeModal()
 }
+async function keepLocalMainUpToDate() {
+  const { projectID } = localMainNotice.value
+  localMainNotice.value = null
+  await action('KeepLocalMainUpToDate', projectID)
+}
+function dismissLocalMainNotice() {
+  const { projectID } = localMainNotice.value
+  localMainNotice.value = null
+  action('DismissLocalMainNotice', projectID)
+}
+function openGitSettings() {
+  localMainNotice.value = null
+  settingsSection.value = 'Git & Source Control'
+  settingsFocus.value = 'keepLocalMainUpdated'
+  openModal('settings')
+}
 function closeModal() {
+  settingsSection.value = ''
+  settingsFocus.value = ''
   modal.value = ''
   formError.value = ''
   nextTick(() => document.querySelector('.terminal-pane:not([style*="display: none"]) .xterm-helper-textarea')?.focus())
@@ -800,6 +824,7 @@ onMounted(async () => {
     on('command', command),
     on('quit-request', requestQuit),
     on('update', (status) => (updateStatus.value = status)),
+    on('local-main-behind', (notice) => (localMainNotice.value = notice)),
   ]
   addEventListener('keydown', keys)
   addEventListener('focus', loadCustomThemes)
@@ -1347,14 +1372,29 @@ onBeforeUnmount(() => {
         </button></template
       >
     </div>
-    <div v-if="error || workspace.error" class="error-toast" role="alert">
-      <span>{{ error || workspace.error }}</span><!-- prettier-ignore-attribute @click --><button
-        class="icon-button"
-        aria-label="Dismiss error"
-        @click="error='';workspace.error=''"
-      >
-        <Icon name="xmark" :size="12" />
-      </button>
+    <div class="toasts">
+      <div v-if="localMainNotice" class="notice-toast" role="status">
+        <span
+          >Local <code>{{ localMainNotice.branch }}</code> is {{ localMainNotice.behind }}
+          {{ localMainNotice.behind === 1 ? 'commit' : 'commits' }} behind
+          <code>origin/{{ localMainNotice.branch }}</code
+          >.</span
+        >
+        <button class="text-link" @click="openGitSettings">Settings</button>
+        <button class="standard-button primary" @click="keepLocalMainUpToDate">Keep Up to Date</button>
+        <button class="icon-button" aria-label="Dismiss notice" @click="dismissLocalMainNotice">
+          <Icon name="xmark" :size="12" />
+        </button>
+      </div>
+      <div v-if="error || workspace.error" class="error-toast" role="alert">
+        <span>{{ error || workspace.error }}</span><!-- prettier-ignore-attribute @click --><button
+          class="icon-button"
+          aria-label="Dismiss error"
+          @click="error='';workspace.error=''"
+        >
+          <Icon name="xmark" :size="12" />
+        </button>
+      </div>
     </div>
     <Modal v-if="modal === 'settings'" kind="settings" label="Settings" @close="closeModal"
       ><Settings
@@ -1365,6 +1405,8 @@ onBeforeUnmount(() => {
         :profiles="workspace.profiles"
         :project="project"
         :usage-profile-id="(session || project)?.profileID || ''"
+        :initial-section="settingsSection"
+        :initial-focus="settingsFocus"
         @change="changePreferences"
         @state="apply"
         @login="loggingIn"

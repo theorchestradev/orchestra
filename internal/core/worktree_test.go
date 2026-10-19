@@ -253,3 +253,96 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	}
 	gitWorktreeFixture(t, p.Directory, "show-ref", "--verify", "refs/heads/"+unmerged.WorktreeBranch)
 }
+
+// localMainFixture clones a fresh origin into the project, then adds a commit to origin that
+// the project's local main does not have yet.
+func localMainFixture(t *testing.T, s *Store) (*Project, string) {
+	t.Helper()
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	commit := []string{"-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m"}
+	origin, upstream := filepath.Join(t.TempDir(), "origin.git"), filepath.Join(t.TempDir(), "upstream")
+	gitWorktreeFixture(t, t.TempDir(), "init", "--bare", "-b", "main", origin)
+	gitWorktreeFixture(t, t.TempDir(), "clone", "--quiet", origin, upstream)
+	gitWorktreeFixture(t, upstream, append(commit, "First")...)
+	gitWorktreeFixture(t, upstream, "push", "--quiet", "origin", "main")
+	p := projectFixture(t, s)
+	if err := os.Remove(p.Directory); err != nil {
+		t.Fatal(err)
+	}
+	gitWorktreeFixture(t, t.TempDir(), "clone", "--quiet", origin, p.Directory)
+	gitWorktreeFixture(t, upstream, append(commit, "Second")...)
+	gitWorktreeFixture(t, upstream, "push", "--quiet", "origin", "main")
+	return p, gitWorktreeFixture(t, upstream, "rev-parse", "HEAD")
+}
+
+// Keep Local Main Up to Date fast-forwards only when nothing local would be lost.
+func TestUpdateLocalMain(t *testing.T) {
+	commit := []string{"-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m"}
+	for _, kind := range []string{"checked-out", "not-checked-out", "local-commits", "uncommitted", "no-remote"} {
+		t.Run(kind, func(t *testing.T) {
+			p, latest := localMainFixture(t, fixtureStore(t))
+			before := gitWorktreeFixture(t, p.Directory, "rev-parse", "main")
+			switch kind {
+			case "not-checked-out":
+				gitWorktreeFixture(t, p.Directory, "switch", "--quiet", "-c", "feature")
+			case "local-commits":
+				gitWorktreeFixture(t, p.Directory, append(commit, "Local")...)
+				before = gitWorktreeFixture(t, p.Directory, "rev-parse", "main")
+			case "uncommitted":
+				if err := os.WriteFile(filepath.Join(p.Directory, "tracked.txt"), []byte("committed"), 0600); err != nil {
+					t.Fatal(err)
+				}
+				gitWorktreeFixture(t, p.Directory, "add", ".")
+			case "no-remote":
+				gitWorktreeFixture(t, p.Directory, "remote", "remove", "origin")
+			}
+			_, err := updateLocalMain(p.Directory)
+			after := gitWorktreeFixture(t, p.Directory, "rev-parse", "main")
+			if kind == "checked-out" || kind == "not-checked-out" {
+				if err != nil || after != latest {
+					t.Fatalf("local main was not fast-forwarded: %v", err)
+				}
+				return
+			}
+			if err == nil || after != before {
+				t.Fatalf("unsafe update was not skipped: %v", err)
+			}
+		})
+	}
+}
+
+// Creating a worktree session tells the user when local main is behind, unless they dismissed
+// the notice or keep local main up to date.
+func TestCreateSessionLocalMainBehind(t *testing.T) {
+	s := fixtureStore(t)
+	var notices []LocalMainBehind
+	s.emit = func(name string, value any) {
+		if name == "local-main-behind" {
+			notices = append(notices, value.(LocalMainBehind))
+		}
+	}
+	p, latest := localMainFixture(t, s)
+	gitWorktreeFixture(t, p.Directory, "fetch", "--quiet", "origin")
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if len(notices) != 1 || notices[0] != (LocalMainBehind{p.ID, "main", 1}) {
+		t.Fatalf("unexpected notices: %+v", notices)
+	}
+	if _, err := s.DismissLocalMainNotice(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil || len(notices) != 1 {
+		t.Fatalf("dismissed notice shown again: %v %+v", err, notices)
+	}
+	state, err := s.KeepLocalMainUpToDate(p.ID)
+	if err != nil || !state.Preferences.KeepLocalMainUpdated || gitWorktreeFixture(t, p.Directory, "rev-parse", "main") != latest {
+		t.Fatalf("Keep Up to Date did not turn the preference on and update main: %v", err)
+	}
+	// A failed fetch never blocks creating the session.
+	gitWorktreeFixture(t, p.Directory, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing.git"))
+	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil || len(notices) != 1 {
+		t.Fatalf("session creation failed with an unreachable origin: %v %+v", err, notices)
+	}
+}

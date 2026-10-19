@@ -390,6 +390,21 @@ func (a *App) CreateSession(project, agent, name, prompt string, createWorktree 
 	return state, err
 }
 
+// KeepLocalMainUpToDate and DismissLocalMainNotice back the notice shown when a new session
+// worktree finds local main behind origin.
+func (a *App) KeepLocalMainUpToDate(projectID string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.KeepLocalMainUpToDate(projectID)
+}
+func (a *App) DismissLocalMainNotice(projectID string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.DismissLocalMainNotice(projectID)
+}
+
 // AgentModels lists the models and efforts Work on and Review can start an agent with.
 func (a *App) AgentModels(agent string) ([]core.AgentModel, error) {
 	return core.AgentModels(a.ctx, agent)
