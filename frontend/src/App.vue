@@ -448,7 +448,8 @@ async function initializeGit() {
     formError.value = ''
     offerGitInit.value = false
     gitInitialized.value = true
-    checkWorktree(modalProject.value.id)
+    // Initializing here means the user wants a worktree, so offer it again as the note describes.
+    worktreeAvailable.value = newWorktree.value = true
     // The button goes away, so keep keyboard focus inside the dialog.
     nextTick(() => document.querySelector('.session-dialog .agent-options :is([autofocus], button)')?.focus())
   } catch (e) {
