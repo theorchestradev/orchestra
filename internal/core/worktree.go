@@ -57,6 +57,21 @@ func (s *Store) InitializeGitRepository(projectID string) (State, error) {
 	return s.snapshotLocked(), nil
 }
 
+// CanCreateWorktree reports whether New Session can offer a worktree. Only a folder outside
+// any repository is ruled out; other Git failures still surface when the session starts.
+func (s *Store) CanCreateWorktree(projectID string) (bool, error) {
+	s.mu.Lock()
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		s.mu.Unlock()
+		return false, err
+	}
+	directory := p.Directory
+	s.mu.Unlock()
+	_, err = gitTopLevel(directory)
+	return !isNotGitRepository(err), nil
+}
+
 // Worktrees share Git history but never copy uncommitted project changes.
 // It returns the working folder and the commit the session branch starts from.
 func createSessionWorktree(directory, destination, branch string) (string, string, error) {

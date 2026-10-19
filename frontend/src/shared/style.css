@@ -3247,6 +3247,9 @@ h2 {
 .worktree-option input:disabled {
   opacity: 0.5;
 }
+.modal.sheet label.worktree-option:has(input:disabled) {
+  cursor: default;
+}
 .worktree-option span {
   min-width: 0;
 }

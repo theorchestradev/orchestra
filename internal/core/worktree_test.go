@@ -322,3 +322,33 @@ func TestInitializeGitRepository(t *testing.T) {
 		t.Fatalf("unrelated Git failure allowed initialization: %v", err)
 	}
 }
+
+// A folder that only holds cloned repositories is not a Git work tree, but a subfolder of one is.
+func TestCanCreateWorktree(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	s := fixtureStore(t)
+	parent := projectFixture(t, s)
+	clone := filepath.Join(parent.Directory, "api")
+	writeFixture(t, filepath.Join(clone, "keep.txt"), "kept\n")
+	gitWorktreeFixture(t, clone, "init", "-b", "main")
+	if ok, err := s.CanCreateWorktree(parent.ID); err != nil || ok {
+		t.Fatalf("folder of repositories offered worktrees: %v %v", ok, err)
+	}
+	repository := repositoryFixture(t, s)
+	subfolder := filepath.Join(repository.Directory, "nested")
+	writeFixture(t, filepath.Join(subfolder, "keep.txt"), "kept\n")
+	state, err := s.CreateProject("Nested", subfolder, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := state.Projects[len(state.Projects)-1]
+	for _, p := range []*Project{repository, nested} {
+		if ok, err := s.CanCreateWorktree(p.ID); err != nil || !ok {
+			t.Fatalf("repository folder %s did not offer worktrees: %v %v", p.Directory, ok, err)
+		}
+	}
+	if _, err := s.CanCreateWorktree("missing"); err == nil {
+		t.Fatal("missing project did not fail")
+	}
+}

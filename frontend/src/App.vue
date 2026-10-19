@@ -104,6 +104,8 @@ const visitedTerminals = ref(new Set()),
 const scratchpadView = ref(null),
   quitting = ref(false),
   newWorktree = ref(true),
+  // False when the New Session project folder is not in a Git repository, so it cannot have worktrees.
+  worktreeAvailable = ref(true),
   removeWorktree = ref(false),
   initializingGit = ref(false),
   gitInitialized = ref(false),
@@ -258,9 +260,20 @@ function openModal(kind, p = project.value) {
   if (kind === 'session') {
     newWorktree.value = true
     gitInitialized.value = offerGitInit.value = false
+    worktreeAvailable.value = true
     if (p) sessionProjectID.value = p.id
     sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
+    checkWorktree(modalProject.value?.id)
   }
+}
+async function checkWorktree(id) {
+  if (!id) return
+  const available = await call('CanCreateWorktree', id).catch(() => true)
+  if (modal.value !== 'session' || modalProject.value?.id !== id) return
+  worktreeAvailable.value = available
+  // Initialize Git Repository stays reachable now that the worktree error no longer appears.
+  offerGitInit.value = !available
+  if (!available) newWorktree.value = false
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -421,7 +434,7 @@ async function createSession(
     closeModal()
   } catch (e) {
     formError.value = String(e)
-    offerGitInit.value = needsGitRepository(e)
+    offerGitInit.value = needsGitRepository(e) || !worktreeAvailable.value
   } finally {
     busy.value = false
   }
@@ -435,6 +448,8 @@ async function initializeGit() {
     formError.value = ''
     offerGitInit.value = false
     gitInitialized.value = true
+    // Initializing here means the user wants a worktree, so offer it again as the note describes.
+    worktreeAvailable.value = newWorktree.value = true
     // The button goes away, so keep keyboard focus inside the dialog.
     nextTick(() => document.querySelector('.session-dialog .agent-options :is([autofocus], button)')?.focus())
   } catch (e) {
@@ -1450,12 +1465,14 @@ onBeforeUnmount(() => {
             id="new-worktree"
             v-model="newWorktree"
             type="checkbox"
-            :disabled="busy"
+            :disabled="busy || !worktreeAvailable"
             aria-label="Create a new worktree"
             aria-describedby="worktree-description"
           /><span
             ><strong>Create a new worktree</strong
-            ><small id="worktree-description" class="muted"
+            ><small v-if="!worktreeAvailable" id="worktree-description" class="muted"
+              >Worktrees require a Git repository. This folder isn’t one, so the session starts in it.</small
+            ><small v-else id="worktree-description" class="muted"
               >Start on a new branch from the current commit. Uncommitted changes stay in the original folder. Closing
               the session removes the worktree unless you choose to keep it.</small
             ></span

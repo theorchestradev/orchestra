@@ -394,6 +394,14 @@ func (a *App) CreateSession(project, agent, name, prompt string, createWorktree 
 	return state, err
 }
 
+// CanCreateWorktree reports whether new sessions in the project can start in a worktree.
+func (a *App) CanCreateWorktree(project string) (bool, error) {
+	if err := a.ready(); err != nil {
+		return false, err
+	}
+	return a.store.CanCreateWorktree(project)
+}
+
 // AgentModels lists the models and efforts Work on and Review can start an agent with.
 func (a *App) AgentModels(agent string) ([]core.AgentModel, error) {
 	return core.AgentModels(a.ctx, agent)
