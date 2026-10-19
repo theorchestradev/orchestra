@@ -1,5 +1,5 @@
 <script setup>
-import { computed, nextTick, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { themeOptions, themeSource, agents, windowOpacityRange, effectiveAppearance } from '../shared/appearance'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
@@ -29,6 +29,10 @@ const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
 const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
 const section = ref(props.initialSection || 'General')
+watch(
+  () => props.initialSection,
+  (value) => value && (section.value = value),
+)
 const sections = {
   General: 'gearshape',
   Agents: 'person.2',
@@ -52,6 +56,11 @@ const modes = [
   { id: 'system', name: 'System', icon: 'circle.lefthalf.filled' },
   { id: 'light', name: 'Light', icon: 'sun.max' },
   { id: 'dark', name: 'Dark', icon: 'moon' },
+]
+const appIcons = [
+  { id: 'color', name: 'Color' },
+  { id: 'white', name: 'White' },
+  { id: 'black', name: 'Black' },
 ]
 const choose = (key, value) => emit('change', { ...props.preferences, [key]: value })
 // Duplicate as Custom Theme writes the selected theme's colors through Go; App then reloads the
@@ -339,6 +348,27 @@ if (!mac)
           </div>
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
+          <template v-if="mac">
+            <div class="setting-row app-icon-setting">
+              <div>
+                <span>App Icon</span>
+                <p class="muted caption">Choose the icon shown in the Dock.</p>
+              </div>
+              <div class="app-icon-options" role="group" aria-label="App Icon">
+                <button
+                  v-for="icon in appIcons"
+                  :key="icon.id"
+                  :aria-pressed="(preferences.appIcon || 'color') === icon.id"
+                  :class="{ selected: (preferences.appIcon || 'color') === icon.id }"
+                  @click="choose('appIcon', icon.id)"
+                >
+                  <img :src="`/app-icons/${icon.id}.png`" alt="" width="64" height="64" />
+                  <span>{{ icon.name }}</span>
+                </button>
+              </div>
+            </div>
+            <hr />
+          </template>
           <div class="setting-row">
             <div>
               <span>Mode</span>
@@ -661,7 +691,30 @@ if (!mac)
           @state="emit('state', $event)"
           @login="emit('login', $event)"
         />
-        <AgentUsage v-else :appearance="shownAppearance" :profiles="profiles" :profile-id="usageProfileID" />
+        <template v-else
+          ><div class="settings-card general-settings usage-status-setting">
+            <div class="setting-row">
+              <div>
+                <label for="usage-status">Show Usage in Status Bar</label>
+                <p class="muted caption">
+                  Show how much of the session agent's limit is used and when it resets. Click it for every agent.
+                </p>
+              </div>
+              <button
+                id="usage-status"
+                class="switch"
+                :class="{ on: !preferences.hideUsageStatus }"
+                role="switch"
+                :aria-checked="!preferences.hideUsageStatus"
+                aria-label="Show Usage in Status Bar"
+                @click="choose('hideUsageStatus', !preferences.hideUsageStatus)"
+              >
+                <span />
+              </button>
+            </div>
+          </div>
+          <AgentUsage :appearance="shownAppearance" :profiles="profiles" :profile-id="usageProfileId"
+        /></template>
       </div>
     </main>
     <button class="settings-close icon-button" aria-label="Close Settings" @click="emit('close')">

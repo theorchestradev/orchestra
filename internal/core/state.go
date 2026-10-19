@@ -79,6 +79,7 @@ type Preferences struct {
 	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
 	ArcMode             bool   `json:"arcMode"`
 	Appearance          string `json:"appearance"`
+	AppIcon             string `json:"appIcon"`
 	Theme               string `json:"theme"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
@@ -113,6 +114,10 @@ type Preferences struct {
 	OpenInApp string `json:"openInApp,omitempty"`
 	// HideOpenInButton hides the session view's Open in button; the zero value shows it.
 	HideOpenInButton bool `json:"hideOpenInButton"`
+	// HideUsageStatus hides the status bar's agent usage; the zero value shows it.
+	HideUsageStatus bool `json:"hideUsageStatus"`
+	// UsageDetailed shows every limit window in the status bar's usage popover instead of one row per agent.
+	UsageDetailed bool `json:"usageDetailed"`
 	// KeepLocalMainUpdated fetches origin and fast-forwards local main, when safe, before a
 	// session worktree is created.
 	KeepLocalMainUpdated bool `json:"keepLocalMainUpdated"`
@@ -750,9 +755,14 @@ const minDiffPaneWidth, maxDiffPaneWidth = 280, 900
 const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 40, 95, 78
 
 func defaultPreferences() Preferences {
-	return Preferences{Appearance: "system", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
+	return Preferences{Appearance: "system", AppIcon: "color", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}
 }
 func normalizeGeneralPreferences(p Preferences) Preferences {
+	switch p.AppIcon {
+	case "color", "white", "black":
+	default:
+		p.AppIcon = "color"
+	}
 	// Older workspaces and bridge callers have no general preferences.
 	if p.DefaultAgent == "" {
 		p.DefaultAgent = "claude"
@@ -774,6 +784,9 @@ func normalizeGeneralPreferences(p Preferences) Preferences {
 func (s *Store) SetPreferences(p Preferences) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if p.AppIcon != "" && p.AppIcon != "color" && p.AppIcon != "white" && p.AppIcon != "black" {
+		return State{}, errors.New("Invalid app icon.")
+	}
 	p = normalizeGeneralPreferences(p)
 	if p.Appearance != "system" && p.Appearance != "dark" && p.Appearance != "light" {
 		return State{}, errors.New("Invalid appearance.")
@@ -785,7 +798,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	if len(p.TerminalFontFamily) > 200 || strings.ContainsAny(p.TerminalFontFamily, "\"\\") || strings.IndexFunc(p.TerminalFontFamily, unicode.IsControl) >= 0 {
 		return State{}, errors.New("Invalid terminal font.")
 	}
-	if _, ok := agentNames[p.DefaultAgent]; !ok {
+	if _, ok := agentSpecs[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")
 	}
 	if p.StartupView != "last" && p.StartupView != "scratchpad" && p.StartupView != "github" {
@@ -942,7 +955,7 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
 	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent}
-	if agent == "claude" || agent == "pi" || agent == "grok" {
+	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID
 	}
 	worktreeRoot := ""

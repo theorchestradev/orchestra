@@ -368,9 +368,13 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
+	previousIcon := a.store.Snapshot().Preferences.AppIcon
 	state, err := a.store.SetPreferences(p)
 	if err == nil {
 		a.applyAppearance(state.Preferences.Appearance)
+		if state.Preferences.AppIcon != previousIcon {
+			a.applyAppIcon(state.Preferences.AppIcon)
+		}
 	}
 	return state, err
 }
@@ -388,6 +392,14 @@ func (a *App) CreateSession(project, agent, name, prompt string, createWorktree 
 		a.Track("github_action", map[string]any{"action": action})
 	}
 	return state, err
+}
+
+// CanCreateWorktree reports whether new sessions in the project can start in a worktree.
+func (a *App) CanCreateWorktree(project string) (bool, error) {
+	if err := a.ready(); err != nil {
+		return false, err
+	}
+	return a.store.CanCreateWorktree(project)
 }
 
 // KeepLocalMainUpToDate and DismissLocalMainNotice back the notice shown when a new session
@@ -529,6 +541,12 @@ func (a *App) ResizeTerminal(id string, cols, rows int) error {
 	}
 
 	return a.store.ResizeTerminal(id, cols, rows)
+}
+func (a *App) InitializeGitRepository(project string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.InitializeGitRepository(project)
 }
 func (a *App) DetectRepository(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -680,11 +698,23 @@ func (a *App) ConfirmQuit() {
 	runtime.Quit(a.ctx)
 }
 func (a *App) domReady(context.Context) {
+	moveAppMenuItems()
 	a.frontendReady.Store(true)
 	if a.ready() != nil {
 		return
 	}
-	a.applyAppearance(a.store.Snapshot().Preferences.Appearance)
+	p := a.store.Snapshot().Preferences
+	a.applyAppearance(p.Appearance)
+	a.applyAppIcon(p.AppIcon)
+}
+
+func (a *App) applyAppIcon(name string) {
+	data, err := appIcons.ReadFile("frontend/public/app-icons/" + name + ".png")
+	if err != nil {
+		a.log.Error("app icon unavailable", "icon", name, "error", err)
+		return
+	}
+	appearance.SetAppIcon(data)
 }
 
 // applyAppearance sets the native window chrome. With "system" the window follows the OS, and so
@@ -707,4 +737,19 @@ func (a *App) SessionDiff(id string) (core.SessionDiff, error) {
 		return core.SessionDiff{}, err
 	}
 	return a.store.SessionDiff(id)
+}
+
+// ProjectIcons maps project IDs to the favicon or app icon found in their folders, as data URLs.
+// Projects without one are left out.
+func (a *App) ProjectIcons() map[string]string {
+	result := map[string]string{}
+	if a.ready() != nil {
+		return result
+	}
+	for _, p := range a.store.Snapshot().Projects {
+		if icon := core.ProjectIcon(p.Directory); icon != "" {
+			result[p.ID] = icon
+		}
+	}
+	return result
 }

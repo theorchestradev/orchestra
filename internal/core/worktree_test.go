@@ -254,6 +254,107 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	gitWorktreeFixture(t, p.Directory, "show-ref", "--verify", "refs/heads/"+unmerged.WorktreeBranch)
 }
 
+}
+
+// Initializing Git from New Session must keep files, never commit, and never reinitialize a repository.
+func TestInitializeGitRepository(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("LANG", "pt_BR.UTF-8")
+	s := fixtureStore(t)
+	p := projectFixture(t, s)
+	file := filepath.Join(p.Directory, "keep.txt")
+	if err := os.WriteFile(file, []byte("existing"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
+		t.Fatalf("non-repository error was not recognized: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(p.Directory, ".git")); !os.IsNotExist(err) {
+		t.Fatal("Git was initialized before it was requested")
+	}
+	if _, err := s.InitializeGitRepository(p.ID); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(file); err != nil || string(data) != "existing" {
+		t.Fatal("initialization changed existing files")
+	}
+	if _, err := runCommand(p.Directory, "git", "rev-parse", "--verify", "HEAD"); err == nil {
+		t.Fatal("initialization created a commit")
+	}
+	if _, err := s.InitializeGitRepository(p.ID); err == nil || !strings.Contains(err.Error(), "already") {
+		t.Fatalf("existing repository was reinitialized: %v", err)
+	}
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "Commit the repository") {
+		t.Fatalf("missing initial commit was not explained: %v", err)
+	}
+	gitWorktreeFixture(t, p.Directory, "add", "keep.txt")
+	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "Fixture")
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// A project folder inside a parent repository is left alone.
+	sub := filepath.Join(p.Directory, "nested")
+	if err := os.Mkdir(sub, 0700); err != nil {
+		t.Fatal(err)
+	}
+	state, err := s.CreateProject("Nested", sub, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.InitializeGitRepository(state.SelectedProjectID); err == nil {
+		t.Fatal("folder inside a repository was reinitialized")
+	}
+	if _, err = os.Stat(filepath.Join(sub, ".git")); !os.IsNotExist(err) {
+		t.Fatal("nested repository was created")
+	}
+
+	// Other Git failures do not offer initialization.
+	other := projectFixture(t, s)
+	fixture := t.TempDir()
+	if err = os.WriteFile(filepath.Join(fixture, "git"), []byte("#!/bin/sh\necho \"fatal: cannot change to '$PWD': Permission denied\" >&2\nexit 128\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
+	if _, err = s.CreateSession(other.ID, "claude", "", "", true, nil, "", "", ""); err == nil || strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
+		t.Fatalf("unrelated Git failure offered initialization: %v", err)
+	}
+	if _, err = s.InitializeGitRepository(other.ID); err == nil || !strings.HasPrefix(err.Error(), "Could not check") {
+		t.Fatalf("unrelated Git failure allowed initialization: %v", err)
+	}
+}
+
+// A folder that only holds cloned repositories is not a Git work tree, but a subfolder of one is.
+func TestCanCreateWorktree(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	s := fixtureStore(t)
+	parent := projectFixture(t, s)
+	clone := filepath.Join(parent.Directory, "api")
+	writeFixture(t, filepath.Join(clone, "keep.txt"), "kept\n")
+	gitWorktreeFixture(t, clone, "init", "-b", "main")
+	if ok, err := s.CanCreateWorktree(parent.ID); err != nil || ok {
+		t.Fatalf("folder of repositories offered worktrees: %v %v", ok, err)
+	}
+	repository := repositoryFixture(t, s)
+	subfolder := filepath.Join(repository.Directory, "nested")
+	writeFixture(t, filepath.Join(subfolder, "keep.txt"), "kept\n")
+	state, err := s.CreateProject("Nested", subfolder, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := state.Projects[len(state.Projects)-1]
+	for _, p := range []*Project{repository, nested} {
+		if ok, err := s.CanCreateWorktree(p.ID); err != nil || !ok {
+			t.Fatalf("repository folder %s did not offer worktrees: %v %v", p.Directory, ok, err)
+		}
+	}
+	if _, err := s.CanCreateWorktree("missing"); err == nil {
+		t.Fatal("missing project did not fail")
+	}
+}
+
 // localMainFixture clones a fresh origin into the project, then adds a commit to origin that
 // the project's local main does not have yet.
 func localMainFixture(t *testing.T, s *Store) (*Project, string) {

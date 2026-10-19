@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { ref, computed, reactive } from 'vue'
 import { arcScrollDelta } from '../src/shared/appearance.js'
 
 test('Arc scroll follows the gesture to one neighbor and settles through Store selection', async () => {
@@ -16,7 +17,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
     hit = 'sidebar',
     listener,
     resolveSelection
-  const props = {
+  const props = reactive({
     items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
     selectedId: 'a',
     selectProject: (p) => {
@@ -25,7 +26,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
         resolveSelection = resolve
       })
     },
-  }
+  })
   const el = { clientWidth: 280, scrollLeft: 0, contains: (node) => node === 'sidebar' }
   const pager = new Function(
     'ref',
@@ -42,12 +43,8 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
     'document',
     source + '\nreturn {viewport,wheel,activeIndex,visualIndex,gesture,createProgress,settingsProgress}',
   )(
-    (value) => ({ value }),
-    (fn) => ({
-      get value() {
-        return fn()
-      },
-    }),
+    ref,
+    computed,
     (_fn, callback) => watchers.push(callback),
     (fn) => fn(),
     (fn) => {
@@ -155,7 +152,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   props.items.reverse()
   watchers[1]()
   assert.equal(pager.visualIndex.value, 0)
-  el.clientWidth = 400
+  pager.viewport.value.clientWidth = 400
   wheel(-90)
   assert.equal(pager.visualIndex.value, 0)
   idle()
@@ -232,8 +229,10 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   props.openSettings = undefined
   // Momentum after a switch is ignored, but the next pan responds without waiting for a quiet period.
   hit = 'sidebar'
-  let time = 0
-  const pan = (deltaX, gap = 16) => listener({ ...stationaryWheel, deltaX, timeStamp: (time += gap) })
+  const pan = (deltaX, gap = 16) => {
+    tick(gap)
+    listener({ ...stationaryWheel, deltaX, timeStamp: now })
+  }
   pan(200)
   pan(200)
   assert.deepEqual(requests.slice(-1), ['c'])
@@ -253,6 +252,36 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   idle()
   assert.deepEqual(requests.slice(-1), ['c'])
   await acknowledge()
+  // Same-direction strokes can overlap the preceding momentum without any 50ms pause.
+  props.items.reverse()
+  props.selectedId = 'a'
+  watchers[1]()
+  watchers[0]()
+  idle()
+  pan(200)
+  pan(200)
+  await acknowledge()
+  assert.equal(props.selectedId, 'b')
+  let previousDirection = 1
+  for (const [id, direction] of [
+    ['c', 1],
+    ['d', 1],
+    ['c', -1],
+    ['b', -1],
+    ['a', -1],
+  ]) {
+    // A decaying tail (including small fluctuations) must never select another space.
+    const count = requests.length
+    for (const delta of [160, 80, 20, 3, 4, 2]) pan(delta * previousDirection)
+    assert.equal(requests.length, count)
+    // The renewed impulse belongs to the next stroke, even at normal frame intervals.
+    for (const delta of [2, 8, 24, 70, 150, 180]) pan(delta * direction)
+    assert.equal(requests.length, count + 1)
+    assert.equal(requests.at(-1), id)
+    await acknowledge()
+    assert.equal(pager.visualIndex.value, pager.activeIndex.value)
+    previousDirection = direction
+  }
   wheel(-45)
   cleanup()
   assert.equal(timers.size, 0)

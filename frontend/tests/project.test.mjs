@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { projectTitle, spaceSymbol } from '../src/shared/project.js'
+import { needsGitRepository, projectTitle, spaceSymbol } from '../src/shared/project.js'
 import { emojiGroupIndex, emojiGroups, searchEmoji } from '../src/shared/emoji.js'
 
 test('project titles show the emoji before the name', () => {
@@ -33,4 +33,12 @@ test('the emoji picker groups and searches emoji by name', () => {
   assert.ok(searchEmoji('womans hat').some((e) => e.emoji === '👒'))
   assert.equal(emojiGroups[emojiGroupIndex('🇧🇷')].name, 'Flags')
   assert.equal(emojiGroupIndex('x'), 0)
+})
+
+test('only the non-repository worktree error offers Git initialization', () => {
+  assert.ok(needsGitRepository('A worktree requires a Git repository: git: fatal: not a git repository'))
+  assert.ok(needsGitRepository(new Error('A worktree requires a Git repository: git: fatal')))
+  assert.ok(!needsGitRepository('Commit the repository before creating a worktree: git: fatal'))
+  assert.ok(!needsGitRepository("Could not read the project's Git repository: git: Permission denied"))
+  assert.ok(!needsGitRepository(null))
 })

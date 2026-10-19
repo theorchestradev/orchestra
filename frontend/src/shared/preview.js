@@ -55,6 +55,8 @@ let state = {
     windowOpacity: 78,
     updateChecksOff: false,
     hideOpenInButton: false,
+    hideUsageStatus: false,
+    usageDetailed: false,
     keepLocalMainUpdated: false,
     betaUpdates: false,
   },
@@ -297,6 +299,7 @@ export const backend = {
   },
   SystemPalettes: () => null,
   // Illustrative apps with long names and no system icons, as on Linux.
+  ProjectIcons: () => ({}),
   OpenInApps: () => [
     { id: 'vscode', name: 'VS Code', kind: 'editor' },
     { id: 'zed', name: 'Zed', kind: 'editor' },
@@ -429,6 +432,7 @@ export const backend = {
     state.preferences = structuredClone(preferences)
     return changed()
   },
+  CanCreateWorktree: (pid) => !/no-git/.test(project(pid).directory) || !!project(pid).gitInitialized,
   DetectRepository: (pid) => {
     const p = project(pid)
     if (!p.repository) p.repository = 'example/' + p.name.toLowerCase().replace(/\W+/g, '-')
@@ -551,7 +555,22 @@ export const backend = {
       (agent === 'pi' ? Promise.reject('Could not list models. Check that Pi is installed and signed in.') : [])
     )
   },
+  // Preview folders named *no-git* disable worktrees in New Session and offer Initialize Git.
+  InitializeGitRepository: async (pid) => {
+    await new Promise((r) => setTimeout(r, 600))
+    const p = project(pid)
+    if (p.gitInitialized || !/no-git/.test(p.directory))
+      return Promise.reject('The project folder is already in the Git repository at ' + p.directory + '.')
+    p.gitInitialized = true
+    return changed()
+  },
   CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID = '') => {
+    if (createWorktree && agent !== 'terminal' && /no-git/.test(project(pid).directory))
+      return Promise.reject(
+        project(pid).gitInitialized
+          ? 'Commit the repository before creating a worktree: git: fatal: Needed a single revision'
+          : 'A worktree requires a Git repository: git: fatal: not a git repository (or any of the parent directories): .git',
+      )
     const p = project(pid),
       sess = {
         id: id(),

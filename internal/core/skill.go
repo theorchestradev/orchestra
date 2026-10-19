@@ -14,19 +14,12 @@ import (
 
 const (
 	// skillsCLI pins the community skills CLI. A bare npx skills can reuse a stale
-	// cached copy; update the pin deliberately after checking skillAgentKeys against it.
+	// cached copy; update the pin deliberately after checking each agent SkillKey against it.
 	skillsCLI = "skills@1.7.2"
 	// skillSource is the repository holding skills/orchestra/SKILL.md. Pin it to the
 	// build's release tag once releases exist; the stub does not depend on the app version.
 	skillSource = "https://github.com/theorchestradev/orchestra"
 )
-
-// skillAgentKeys maps Orchestra agent IDs to the agent keys of the pinned skills CLI.
-// Agents without a confirmed key are left out and never installed to.
-var skillAgentKeys = map[string]string{"claude": "claude-code", "codex": "codex", "pi": "pi", "opencode": "opencode", "grok": "grok", "antigravity": "antigravity-cli", "vibe": "mistral-vibe"}
-
-// agentExecutables names the CLI each agent runs, for detecting installed agents.
-var agentExecutables = map[string]string{"claude": "claude", "codex": "codex", "pi": "pi", "opencode": "opencode", "grok": "grok", "antigravity": "agy", "vibe": "vibe"}
 
 // SkillStatus lists the agents the skill can be installed for and whether npx is available.
 type SkillStatus struct {
@@ -51,7 +44,8 @@ func skillArgs(agents []string) ([]string, error) {
 	args := []string{"npx", "--yes", skillsCLI, "add", skillSource, "--skill", "orchestra", "--global", "--yes"}
 	seen := map[string]bool{}
 	for _, agent := range agents {
-		if key, ok := skillAgentKeys[agent]; ok && !seen[key] {
+		if spec, ok := agentSpecs[agent]; ok && spec.SkillKey != "" && !seen[spec.SkillKey] {
+			key := spec.SkillKey
 			seen[key] = true
 			args = append(args, "--agent", key)
 		}
@@ -108,7 +102,7 @@ func AgentSkillStatus(ctx context.Context) SkillStatus {
 	status := SkillStatus{Agents: []SkillAgent{}}
 	names := []string{"npx"}
 	for _, agent := range skillAgentOrder() {
-		names = append(names, agentExecutables[agent])
+		names = append(names, agentSpecs[agent].Executable)
 	}
 	// Login shells may print before the list, so only marked lines count.
 	output, code, err := cliShell(ctx, `for c in `+strings.Join(names, " ")+`; do command -v "$c" >/dev/null 2>&1 && printf 'orchestra-found:%s\n' "$c"; done; exit 0`)
@@ -123,17 +117,18 @@ func AgentSkillStatus(ctx context.Context) SkillStatus {
 	}
 	status.Node = found["npx"]
 	for _, agent := range skillAgentOrder() {
-		status.Agents = append(status.Agents, SkillAgent{ID: agent, Installed: found[agentExecutables[agent]]})
+		status.Agents = append(status.Agents, SkillAgent{ID: agent, Installed: found[agentSpecs[agent].Executable]})
 	}
 	return status
 }
 
-// skillAgentOrder lists the supported agents in the app's agent order.
+// skillAgentOrder lists the agents with a skills CLI key, in the app's agent order.
+// Agents without a confirmed key are left out and never installed to.
 func skillAgentOrder() []string {
 	order := []string{}
-	for _, agent := range []string{"codex", "claude", "pi", "vibe", "opencode", "antigravity", "grok"} {
-		if _, ok := skillAgentKeys[agent]; ok {
-			order = append(order, agent)
+	for _, spec := range agentOrder {
+		if spec.SkillKey != "" {
+			order = append(order, spec.ID)
 		}
 	}
 	return order
@@ -142,11 +137,6 @@ func skillAgentOrder() []string {
 const missingNode = "orchestra-missing-npx"
 
 var ansiPattern = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*\x07`)
-
-// profileSkillAgents are the agents whose global skills live in their config folder, so each
-// profile needs its own install. The pinned skills CLI puts Codex skills in ~/.agents/skills,
-// which every profile shares.
-var profileSkillAgents = map[string]bool{"claude": true}
 
 // InstallAgentSkill runs the pinned skills CLI for the chosen agents, then again for each
 // profile's own config folders. It runs only when the user asks, never edits agent settings
@@ -186,7 +176,7 @@ func InstallProfileSkill(ctx context.Context, p *Profile) (SkillInstall, error) 
 		if agentConfigEnv[agent] == "" || profileSkillInstalled(p, agent) {
 			continue
 		}
-		if _, ok := profileFolders(p)[agentConfigEnv[agent]]; ok && profileSkillAgents[agent] {
+		if _, ok := profileFolders(p)[agentConfigEnv[agent]]; ok && profileSkillDirs[agent] != "" {
 			own = append(own, agent)
 		} else {
 			shared = append(shared, agent)
@@ -213,7 +203,7 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 	exports, chosen := "", []string{}
 	for _, agent := range agents {
 		folder, ok := p.Folders[agent]
-		if !ok || !profileSkillAgents[agent] {
+		if !ok || profileSkillDirs[agent] == "" {
 			continue
 		}
 		path, err := expandFolder(folder)
@@ -223,7 +213,7 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 		if err != nil {
 			return SkillInstall{}, true, err
 		}
-		// The skills CLI installs into CLAUDE_CONFIG_DIR when it is set.
+		// The skills CLI installs into the agent's config folder when its variable is set.
 		exports += "export " + agentConfigEnv[agent] + "=" + shellQuote(path) + "; "
 		chosen = append(chosen, agent)
 	}
@@ -241,10 +231,10 @@ func profileSkillInstalled(p *Profile, agent string) bool {
 	home, _ := os.UserHomeDir()
 	folder := profileFolders(p)[agentConfigEnv[agent]]
 	switch {
-	case folder != "" && profileSkillAgents[agent]:
-	case agent == "claude":
-		if folder = os.Getenv("CLAUDE_CONFIG_DIR"); folder == "" {
-			folder = filepath.Join(home, ".claude")
+	case folder != "" && profileSkillDirs[agent] != "":
+	case profileSkillDirs[agent] != "":
+		if folder = os.Getenv(agentConfigEnv[agent]); folder == "" {
+			folder = filepath.Join(home, profileSkillDirs[agent])
 		}
 	default:
 		folder = filepath.Join(home, ".agents")

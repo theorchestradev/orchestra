@@ -4,10 +4,12 @@ import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTermin
 import { shortcutLabel } from '../shared/platform'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import Icon from './Icon.vue'
+import UsageStatus from './UsageStatus.vue'
 const props = defineProps({
   projects: Array,
   runs: Array,
   project: Object,
+  projectIcon: String,
   session: Object,
   profiles: Array,
   destination: String,
@@ -16,7 +18,7 @@ const props = defineProps({
   update: Object,
   updateReady: Boolean,
 })
-const emit = defineEmits(['inbox', 'appearance', 'diff', 'update'])
+const emit = defineEmits(['inbox', 'appearance', 'diff', 'update', 'settings', 'change'])
 const summary = computed(() => statusSummary(props.projects, props.runs))
 const agentName = computed(() =>
   isTerminal(props.session) ? 'Terminal' : agents.find((a) => a.id === props.session?.agent)?.name || 'Agent',
@@ -39,6 +41,11 @@ const profile = computed(() =>
       }
     : null,
 )
+// Usage follows the account Settings → Usage shows first: the session's profile, or else the project's.
+const usageProfileID = computed(() => {
+  const id = (props.session || props.project)?.profileID || ''
+  return findProfile(props.profiles, id) ? id : ''
+})
 const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
 const inbox = computed(() =>
   [
@@ -55,7 +62,11 @@ const inbox = computed(() =>
       <template v-if="project"
         ><span class="status-item truncate" :title="project.directory"
           ><span v-if="project.emoji" class="status-emoji" aria-hidden="true">{{ project.emoji }}</span
-          ><Icon v-else name="folder" :size="12" /><span class="truncate">{{ project.name }}</span></span
+          ><img v-else-if="projectIcon" class="status-project-icon" :src="projectIcon" alt="" /><Icon
+            v-else
+            name="folder"
+            :size="12"
+          /><span class="truncate">{{ project.name }}</span></span
         ><span
           v-if="project.repository"
           class="status-item status-optional truncate"
@@ -147,6 +158,16 @@ const inbox = computed(() =>
           summary.queued + summary.attention
         }}</span>
       </button>
+      <UsageStatus
+        v-if="!preferences.hideUsageStatus"
+        :appearance="preferences.appearance"
+        :agent="session?.agent"
+        :profile-id="usageProfileID"
+        :profile-name="profileName(profiles, usageProfileID)"
+        :detailed="preferences.usageDetailed"
+        @detailed="emit('change', { usageDetailed: $event })"
+        @settings="emit('settings', $event)"
+      />
       <button
         class="status-item status-button"
         :aria-label="

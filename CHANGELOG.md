@@ -4,6 +4,48 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.5.0 — 2026-10-19
+
+### New
+
+- **See agent usage in the status bar.** Check the current session agent's usage
+  and reset time, or the agent closest to its limit when no agent is selected.
+  Click to see every agent in Detailed or Compact view. Hide it in Settings → Usage.
+  ([#29](https://github.com/theorchestradev/orchestra/pull/29))
+- **Choose a profile when starting from GitHub.** The **Work on** and **Review**
+  popups now let you pick the profile for the new session.
+  ([#25](https://github.com/theorchestradev/orchestra/pull/25))
+- **Recognize projects by their icon.** The sidebar now shows favicons and app
+  icons found in the project folder.
+  ([#31](https://github.com/theorchestradev/orchestra/pull/31))
+
+### Changed
+
+- On macOS, **Settings** and **Check for Updates** are now in the Orchestra menu.
+
+### Fixed
+
+- Worktree options are only offered for project folders inside a Git repository.
+  ([#27](https://github.com/theorchestradev/orchestra/pull/27))
+- Settings → Usage now opens with the selected profile instead of always using Default.
+  ([#29](https://github.com/theorchestradev/orchestra/pull/29))
+
+## 0.4.0 — 2026-10-18
+
+### New
+
+- **Choose your Dock icon.** Settings → Appearance now offers Color, White and Black
+  app icons on macOS. The Dock updates as soon as you choose one.
+  ([#23](https://github.com/theorchestradev/orchestra/pull/23))
+- **Initialize Git when creating a session.** If a worktree session cannot start
+  because the project folder is not a Git repository, the error now offers
+  **Initialize Git Repository** and explains that a first commit is still needed.
+
+### Fixed
+
+- **Switch spaces with consecutive trackpad swipes.** A new swipe now works even
+  while momentum from the previous gesture is still settling.
+
 ## 0.3.1 — 2026-10-15
 
 ### Changed

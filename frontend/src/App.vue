@@ -6,7 +6,7 @@ import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { gitHubItem } from './shared/github'
-import { projectTitle } from './shared/project'
+import { projectTitle, needsGitRepository } from './shared/project'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
   palette,
@@ -54,6 +54,7 @@ const workspace = ref({
   runs: [],
   preferences: {
     appearance: 'system',
+    appIcon: 'color',
     theme: 'system',
     terminalFontFamily: '',
     terminalFontSize: 14,
@@ -73,6 +74,8 @@ const workspace = ref({
     attentionSound: false,
     openInApp: '',
     hideOpenInButton: false,
+    hideUsageStatus: false,
+    usageDetailed: false,
     keepLocalMainUpdated: false,
   },
 })
@@ -109,7 +112,12 @@ const visitedTerminals = ref(new Set()),
 const scratchpadView = ref(null),
   quitting = ref(false),
   newWorktree = ref(true),
-  removeWorktree = ref(false)
+  // False when the New Session project folder is not in a Git repository, so it cannot have worktrees.
+  worktreeAvailable = ref(true),
+  removeWorktree = ref(false),
+  initializingGit = ref(false),
+  gitInitialized = ref(false),
+  offerGitInit = ref(false)
 const activeSessionCount = computed(
   () => workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running).length,
 )
@@ -209,6 +217,7 @@ const appearance = computed(() => {
     '--status-open': dark ? '#4ade80' : '#15803d',
     '--status-merged': dark ? '#c4a0ff' : '#8250df',
     '--status-deleted': dark ? '#f87171' : '#cf222e',
+    '--status-warning': dark ? '#fbbf24' : '#9a6700',
   }
 })
 const sidebarProjects = computed(() =>
@@ -247,7 +256,9 @@ async function action(method, ...args) {
     return null
   }
 }
+const settingsSection = ref('General')
 function openModal(kind, p = project.value) {
+  if (kind === 'settings') settingsSection.value = 'General'
   if (kind === 'command' && modal.value !== kind) track('feature_used', { feature: 'command_bar' })
   menu.value = null
   formError.value = ''
@@ -259,9 +270,26 @@ function openModal(kind, p = project.value) {
   }
   if (kind === 'session') {
     newWorktree.value = true
+    gitInitialized.value = offerGitInit.value = false
+    worktreeAvailable.value = true
     if (p) sessionProjectID.value = p.id
     sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
+    checkWorktree(modalProject.value?.id)
   }
+}
+// The status bar's usage popover opens Settings at Usage or Profiles; other entry points start at General.
+function openSettings(section) {
+  openModal('settings')
+  settingsSection.value = section
+}
+async function checkWorktree(id) {
+  if (!id) return
+  const available = await call('CanCreateWorktree', id).catch(() => true)
+  if (modal.value !== 'session' || modalProject.value?.id !== id) return
+  worktreeAvailable.value = available
+  // Initialize Git Repository stays reachable now that the worktree error no longer appears.
+  offerGitInit.value = !available
+  if (!available) newWorktree.value = false
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -440,8 +468,28 @@ async function createSession(
     closeModal()
   } catch (e) {
     formError.value = String(e)
+    offerGitInit.value = needsGitRepository(e) || !worktreeAvailable.value
   } finally {
     busy.value = false
+  }
+}
+// Only on request: the session options stay as chosen, and the worktree still needs a first commit.
+async function initializeGit() {
+  if (busy.value) return
+  busy.value = initializingGit.value = true
+  try {
+    apply(await call('InitializeGitRepository', modalProject.value.id))
+    formError.value = ''
+    offerGitInit.value = false
+    gitInitialized.value = true
+    // Initializing here means the user wants a worktree, so offer it again as the note describes.
+    worktreeAvailable.value = newWorktree.value = true
+    // The button goes away, so keep keyboard focus inside the dialog.
+    nextTick(() => document.querySelector('.session-dialog .agent-options :is([autofocus], button)')?.focus())
+  } catch (e) {
+    formError.value = String(e)
+  } finally {
+    busy.value = initializingGit.value = false
   }
 }
 async function newTerminal(p) {
@@ -468,6 +516,7 @@ async function workOn(item, choice = {}) {
     gitHubItem(item),
     choice.model,
     choice.effort,
+    choice.profileID,
   )
   if (formError.value) {
     error.value = formError.value
@@ -739,6 +788,23 @@ async function loadOpenInApps() {
     console.warn('Could not list apps: ' + e)
   }
 }
+// Favicons in project folders replace the folder symbol when a project has no emoji. They are read
+// when projects are added or moved to another folder, and on focus at most every 30 seconds.
+const projectIcons = ref({})
+let projectIconsRead = 0
+async function loadProjectIcons(force) {
+  if (force !== true && Date.now() - projectIconsRead < 30000) return
+  projectIconsRead = Date.now()
+  try {
+    projectIcons.value = (await call('ProjectIcons')) || {}
+  } catch (e) {
+    console.warn('Could not read project icons: ' + e)
+  }
+}
+watch(
+  () => workspace.value.projects?.map((p) => p.id + '\0' + p.directory).join('\n'),
+  () => loadProjectIcons(true),
+)
 // Go resolves the folder from the session; the app used becomes the Open in button's default.
 async function openIn(sess, app) {
   menu.value = null
@@ -830,6 +896,7 @@ onMounted(async () => {
   addEventListener('focus', loadCustomThemes)
   addEventListener('focus', applyTranslucency)
   addEventListener('focus', loadOpenInApps)
+  addEventListener('focus', loadProjectIcons)
   loadOpenInApps()
   try {
     setSystemPalettes(await call('SystemPalettes'))
@@ -857,6 +924,7 @@ onBeforeUnmount(() => {
   removeEventListener('focus', loadCustomThemes)
   removeEventListener('focus', applyTranslucency)
   removeEventListener('focus', loadOpenInApps)
+  removeEventListener('focus', loadProjectIcons)
   resizeCleanup?.()
 })
 </script>
@@ -912,9 +980,11 @@ onBeforeUnmount(() => {
                   @click="select(p, 'project')"
                 >
                   <span v-if="p.emoji" class="project-emoji" aria-hidden="true">{{ p.emoji }}</span
-                  ><Icon v-else :name="p.isExpanded ? 'folder' : 'folder.fill'" :size="16" /><span>{{
-                    p.name
-                  }}</span></button
+                  ><img v-else-if="projectIcons[p.id]" class="project-icon" :src="projectIcons[p.id]" alt="" /><Icon
+                    v-else
+                    :name="p.isExpanded ? 'folder' : 'folder.fill'"
+                    :size="16"
+                  /><span>{{ p.name }}</span></button
                 ><button
                   v-if="!preferences.arcMode"
                   class="icon-button hover-control"
@@ -1086,6 +1156,7 @@ onBeforeUnmount(() => {
                 :project="p"
                 :refresh-interval="preferences.gitHubRefreshInterval"
                 :default-agent="preferences.defaultAgent"
+                :profiles="workspace.profiles"
                 :visible="project?.id === p.id && currentDestination === 'github' && !modal"
                 @work="workOn"
                 @session="(sess) => select(p, sess.id)"
@@ -1199,6 +1270,7 @@ onBeforeUnmount(() => {
       :projects="workspace.projects"
       :runs="workspace.runs"
       :project="project"
+      :project-icon="projectIcons[project?.id]"
       :session="session"
       :profiles="workspace.profiles"
       :destination="currentDestination"
@@ -1210,6 +1282,8 @@ onBeforeUnmount(() => {
       @inbox="openInbox"
       @diff="toggleDiff"
       @appearance="toggleAppearance"
+      @settings="openSettings"
+      @change="changePreferences({ ...preferences, ...$event })"
     />
     <div
       v-if="menu"
@@ -1469,12 +1543,14 @@ onBeforeUnmount(() => {
             id="new-worktree"
             v-model="newWorktree"
             type="checkbox"
-            :disabled="busy"
+            :disabled="busy || !worktreeAvailable"
             aria-label="Create a new worktree"
             aria-describedby="worktree-description"
           /><span
             ><strong>Create a new worktree</strong
-            ><small id="worktree-description" class="muted"
+            ><small v-if="!worktreeAvailable" id="worktree-description" class="muted"
+              >Worktrees require a Git repository. This folder isn’t one, so the session starts in it.</small
+            ><small v-else id="worktree-description" class="muted"
               >Start on a new branch from the current commit. Uncommitted changes stay in the original folder. Closing
               the session removes the worktree unless you choose to keep it.</small
             ></span
@@ -1504,8 +1580,26 @@ onBeforeUnmount(() => {
             ><small v-if="agent.id === preferences.defaultAgent" class="muted caption">Default</small>
           </button>
         </div>
-        <p v-if="busy && newWorktree" class="muted caption" role="status">Creating worktree…</p>
+        <p v-if="busy && newWorktree && !initializingGit" class="muted caption" role="status">Creating worktree…</p>
+        <p v-if="initializingGit" class="muted caption" role="status">Initializing Git…</p>
+        <p v-if="gitInitialized" class="muted caption" role="status">
+          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then choose an agent
+          again.
+        </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
+        <div v-if="offerGitInit" class="git-init">
+          <p class="muted caption" id="git-init-description">
+            Runs git init in this project folder. Files stay as they are, and nothing is staged or committed.
+          </p>
+          <button
+            class="standard-button"
+            :disabled="busy"
+            aria-describedby="git-init-description"
+            @click="initializeGit"
+          >
+            Initialize Git Repository
+          </button>
+        </div>
         <footer><button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button></footer>
       </div></Modal
     >
