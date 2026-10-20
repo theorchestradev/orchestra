@@ -36,7 +36,7 @@ watch(
 const sections = {
   General: 'gearshape',
   Agents: 'person.2',
-  'Git & Source Control': 'arrow.triangle.branch',
+  'Source Control': 'arrow.triangle.branch',
   Profiles: 'person.crop.circle',
   Appearance: 'paintpalette',
   Terminal: 'terminal',
@@ -323,7 +323,7 @@ if (!mac)
           <hr />
           <AgentSkill :appearance="shownAppearance" />
         </div>
-        <div v-else-if="section === 'Git & Source Control'" class="settings-card general-settings">
+        <div v-else-if="section === 'Source Control'" class="settings-card general-settings">
           <div class="setting-row">
             <div>
               <label for="keepLocalMainUpdated">Keep Local Main Up to Date</label>

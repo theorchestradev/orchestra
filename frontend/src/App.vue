@@ -382,7 +382,7 @@ function dismissLocalMainNotice() {
 function openGitSettings() {
   localMainNotice.value = null
   openModal('settings')
-  settingsSection.value = 'Git & Source Control'
+  settingsSection.value = 'Source Control'
   settingsFocus.value = 'keepLocalMainUpdated'
 }
 function closeModal() {
@@ -1446,29 +1446,36 @@ onBeforeUnmount(() => {
         </button></template
       >
     </div>
-    <div class="toasts">
-      <div v-if="localMainNotice" class="notice-toast" role="status">
-        <span
-          >Local <code>{{ localMainNotice.branch }}</code> is {{ localMainNotice.behind }}
-          {{ localMainNotice.behind === 1 ? 'commit' : 'commits' }} behind
-          <code>origin/{{ localMainNotice.branch }}</code
-          >.</span
-        >
-        <button class="text-link" @click="openGitSettings">Settings</button>
-        <button class="standard-button primary" @click="keepLocalMainUpToDate">Keep Up to Date</button>
-        <button class="icon-button" aria-label="Dismiss notice" @click="dismissLocalMainNotice">
-          <Icon name="xmark" :size="12" />
-        </button>
+    <section v-if="localMainNotice" class="local-main-notice" role="status" aria-labelledby="local-main-notice-title">
+      <button class="notice-close" aria-label="Dismiss notice" @click="dismissLocalMainNotice">
+        <Icon name="xmark" :size="10" />
+      </button>
+      <Icon name="info.circle" :size="18" />
+      <div>
+        <h3 id="local-main-notice-title">
+          Local {{ localMainNotice.branch }} is behind origin/{{ localMainNotice.branch }}
+        </h3>
+        <p>
+          Local {{ localMainNotice.branch }} is {{ localMainNotice.behind }}
+          {{ localMainNotice.behind === 1 ? 'commit' : 'commits' }} behind, so new worktrees and diffs against it may
+          use stale history. Let Orchestra keep it up to date automatically. Change this anytime in
+          <button class="notice-link" @click="openGitSettings">Settings › Keep Local Main Up to Date</button>
+        </p>
+        <footer>
+          <button class="standard-button primary" @click="keepLocalMainUpToDate">
+            Keep {{ localMainNotice.branch }} Up to Date
+          </button>
+        </footer>
       </div>
-      <div v-if="error || workspace.error" class="error-toast" role="alert">
-        <span>{{ error || workspace.error }}</span><!-- prettier-ignore-attribute @click --><button
-          class="icon-button"
-          aria-label="Dismiss error"
-          @click="error='';workspace.error=''"
-        >
-          <Icon name="xmark" :size="12" />
-        </button>
-      </div>
+    </section>
+    <div v-if="error || workspace.error" class="error-toast" role="alert">
+      <span>{{ error || workspace.error }}</span><!-- prettier-ignore-attribute @click --><button
+        class="icon-button"
+        aria-label="Dismiss error"
+        @click="error='';workspace.error=''"
+      >
+        <Icon name="xmark" :size="12" />
+      </button>
     </div>
     <Modal v-if="modal === 'settings'" kind="settings" label="Settings" @close="closeModal"
       ><Settings

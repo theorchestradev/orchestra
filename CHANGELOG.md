@@ -4,6 +4,15 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### Changed
+
+- **A clearer local branch notice.** When local main is behind origin, the
+  notice now appears as a card in the bottom-right corner that explains why it
+  matters, links to the setting and offers to keep main up to date. The
+  Settings section is now called Source Control.
+
 ## 0.7.0 — 2026-10-19
 
 ### New
