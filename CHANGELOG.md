@@ -4,6 +4,26 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### New
+
+- **Run Cline, omp and Kilo.** Start sessions with three more agent CLIs. Each
+  session shows when the agent is working or waiting for you, and continues its
+  conversation when reopened.
+  - **Cline** starts with tool approvals on; press Shift+Tab in Cline to approve
+    everything. Orchestra adds status hooks to Cline's `hooks` folder that do
+    nothing outside Orchestra and never replace hooks of your own.
+  - **omp** (oh-my-pi) auto-approves reads and edits and asks before running
+    commands. Choose its model and thinking level in New Session.
+  - **Kilo** keeps its own permissions, which ask before risky commands.
+    Choose its model in New Session.
+
+### Changed
+
+- **OpenCode sessions show their status.** The sidebar now shows when OpenCode
+  is working or waiting for you, including while a permission prompt is open.
+
 ## 0.6.0 — 2026-10-19
 
 ### New
