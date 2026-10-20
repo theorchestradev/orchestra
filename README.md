@@ -9,7 +9,7 @@
 </p>
 
 - **Any agent:** Claude Code, Codex, OpenCode, Pi, Mistral Vibe, Antigravity CLI, Grok
-  Build, Cline, omp, or a plain shell, each in its own session.
+  Build, Cline, omp, Kilo, or a plain shell, each in its own session.
 - **Worktrees:** every session can run in its own Git worktree and branch, so agents
   don't step on each other.
 - **Sessions talk to each other:** agents send requests between sessions and share a

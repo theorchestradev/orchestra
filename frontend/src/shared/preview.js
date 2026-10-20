@@ -444,10 +444,12 @@ export const backend = {
     return {
       node: true,
       detected: true,
-      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp'].map((id) => ({
-        id,
-        installed: found.includes(id),
-      })),
+      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp', 'kilo'].map(
+        (id) => ({
+          id,
+          installed: found.includes(id),
+        }),
+      ),
     }
   },
   AgentSkillCommand: (ids) => {
@@ -550,6 +552,7 @@ export const backend = {
         ],
         opencode: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
         grok: [{ id: 'grok-4.7', name: 'grok-4.7', efforts: [] }],
+        kilo: [{ id: 'kilo/kilo-auto/free', name: 'kilo/kilo-auto/free', efforts: [] }],
         omp: [
           {
             id: 'openrouter/~anthropic/claude-opus-latest',
@@ -594,6 +597,7 @@ export const backend = {
             grok: 'Grok Build',
             cline: 'Cline',
             omp: 'omp',
+            kilo: 'Kilo',
             opencode: 'OpenCode',
             pi: 'Pi',
             codex: 'Codex',

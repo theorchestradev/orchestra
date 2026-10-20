@@ -10,12 +10,12 @@
     "has_github_repository": { "type": "boolean" }
   },
   "session_started": {
-    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "cline", "omp", "terminal"] },
+    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "cline", "omp", "kilo", "terminal"] },
     "worktree": { "type": "boolean" },
     "from_github_item": { "type": "boolean" }
   },
   "session_ended": {
-    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "cline", "omp", "terminal"] },
+    "agent": { "values": ["claude", "codex", "pi", "vibe", "opencode", "antigravity", "grok", "cline", "omp", "kilo", "terminal"] },
     "exit_kind": { "values": ["normal", "error", "killed"] },
     "duration_bucket": { "values": ["under_1m", "1-5m", "5-30m", "30m+"] }
   },

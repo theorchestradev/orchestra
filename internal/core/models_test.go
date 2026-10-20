@@ -13,13 +13,14 @@ func TestLaunchPassesModelAndEffortFlags(t *testing.T) {
 		"codex":       {"gpt-6.1-sol", ` -m 'gpt-6.1-sol' -c 'model_reasoning_effort="high"'`},
 		"pi":          {"openrouter/~anthropic/claude-opus-latest", " --model 'openrouter/~anthropic/claude-opus-latest' --thinking 'high'"},
 		"opencode":    {"opencode/big-pickle", " --model 'opencode/big-pickle'"},
+		"kilo":        {"kilo/kilo-auto/free", " --model 'kilo/kilo-auto/free'"},
 		"grok":        {"grok-4.7", " --model 'grok-4.7'"},
 		"antigravity": {"gemini-3.8-flash-high", " --model 'gemini-3.8-flash-high'"},
 		"omp":         {"openrouter/~anthropic/claude-opus-latest", " --model 'openrouter/~anthropic/claude-opus-latest' --thinking 'high'"},
 	}
 	for agent, tc := range cases {
 		effort := "high"
-		if agent == "opencode" || agent == "grok" || agent == "antigravity" {
+		if agent == "opencode" || agent == "kilo" || agent == "grok" || agent == "antigravity" {
 			effort = ""
 		}
 		if err := validateLaunch(agent, tc[0], effort); err != nil {
