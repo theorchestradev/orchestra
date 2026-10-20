@@ -2,10 +2,13 @@ package core
 
 import (
 	"encoding/base64"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Saved sessions must keep their original launch and resume location.
@@ -252,6 +255,63 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 		t.Fatal("worktree session was not closed")
 	}
 	gitWorktreeFixture(t, p.Directory, "show-ref", "--verify", "refs/heads/"+unmerged.WorktreeBranch)
+}
+
+// Removing a worktree runs without the Store lock, so the stopped agent is reaped and other
+// sessions keep working while Git removes it.
+func TestCloseSessionReleasesLockDuringWorktreeRemoval(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	git, err := exec.LookPath("git")
+	if err != nil {
+		t.Skip("git is not installed")
+	}
+	fakeAgents(t)
+	slow := t.TempDir()
+	script := "#!/bin/sh\nif [ \"$1 $2\" = \"worktree remove\" ]; then sleep 2; fi\nexec " + shellQuote(git) + " \"$@\"\n"
+	if err = os.WriteFile(filepath.Join(slow, "git"), []byte(script), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", slow+":"+os.Getenv("PATH"))
+	s := fixtureStore(t)
+	p := projectFixture(t, s)
+	gitWorktreeFixture(t, p.Directory, "init", "-b", "main")
+	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := state.Projects[0].Sessions[0]
+	if _, err = s.StartSession(sess.ID, false, 80, 24); err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(5 * time.Second); !strings.Contains(terminalText(s, sess.ID), "claude args="); time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("fake agent did not start")
+		}
+	}
+	s.mu.Lock()
+	terminal := s.terminals[sess.ID]
+	s.mu.Unlock()
+	closed := make(chan error, 1)
+	go func() {
+		_, err := s.CloseSession(sess.ID, true)
+		closed <- err
+	}()
+	select {
+	case <-terminal.done:
+	case <-time.After(1500 * time.Millisecond):
+		t.Fatal("stopped agent was not reaped while the worktree was removed")
+	}
+	if _, err = s.StartSession(sess.ID, false, 80, 24); !errors.Is(err, errSessionClosing) {
+		t.Fatalf("closing session start error = %v", err)
+	}
+	if err = <-closed; err != nil {
+		t.Fatal(err)
+	}
+	if _, err = os.Stat(sess.WorktreeDirectory); !os.IsNotExist(err) || len(s.Snapshot().Projects[0].Sessions) != 0 {
+		t.Fatal("worktree session was not closed")
+	}
 }
 
 // Initializing Git from New Session must keep files, never commit, and never reinitialize a repository.
