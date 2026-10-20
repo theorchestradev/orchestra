@@ -17,8 +17,8 @@ import (
 // Agents start in their auto mode: routine approvals are skipped while a safety layer
 // still reviews risky actions. Full bypass flags are never used. Vibe and OpenCode only
 // offer approve-all modes, so they keep their default prompts; Pi has no tool approval
-// prompts. Antigravity has no reviewed auto mode, so it only auto-approves edits. Cline
-// approves every tool by default, so it starts with approvals turned back on.
+// prompts. Antigravity and omp have no reviewed auto mode, so they only auto-approve
+// edits. Cline approves every tool by default, so it starts with approvals turned back on.
 type agentSpec struct {
 	ID, Name string
 	// Executable is the CLI on the login-shell PATH, for detection and launch errors.
@@ -73,7 +73,7 @@ type launch struct {
 }
 
 // agentOrder is the app's agent order; frontend/src/shared/appearance.js lists the same agents.
-var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent}
+var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent, ompAgent}
 
 var agentSpecs = func() map[string]*agentSpec {
 	m := map[string]*agentSpec{}

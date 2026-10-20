@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -167,5 +168,50 @@ func TestInstallClineHooksKeepsUserHooks(t *testing.T) {
 		if info, _ := os.Stat(path); info.Mode()&0100 == 0 {
 			t.Fatalf("%s hook is not executable", event)
 		}
+	}
+}
+
+// Simulates omp lifecycle events; never contacts a model service.
+func TestOmpExtensionReportsMainSessionStatus(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Fatal("Node.js is required for the omp extension check")
+	}
+	dir := t.TempDir()
+	extension := filepath.Join(dir, "OmpStatusExtension.js")
+	if err = os.WriteFile(extension, resources["OmpStatusExtension.js"], 0600); err != nil {
+		t.Fatal(err)
+	}
+	harness := filepath.Join(dir, "omp.mjs")
+	code := `import {readFileSync} from 'node:fs';
+const {default: register} = await import(process.argv[2]);
+const handlers = {};
+register({on: (event, handler) => (handlers[event] ||= []).push(handler)});
+const main = {agent: {kind: 'main'}, sessionManager: {getSessionId: () => 'main-id'}};
+const sub = {agent: {kind: 'sub'}, sessionManager: {getSessionId: () => 'sub-id'}};
+const seen = [];
+const emit = (event, ctx) => {
+  for (const handler of handlers[event] || []) handler({}, ctx);
+  seen.push(readFileSync(process.env.ORCHESTRA_STATUS_FILE, 'utf8'));
+};
+emit('session_start', main);
+emit('before_agent_start', main);
+emit('agent_end', sub);
+emit('tool_approval_requested', main);
+emit('tool_approval_resolved', main);
+emit('agent_end', main);
+emit('auto_compaction_start', main);
+emit('auto_compaction_end', main);
+console.log(seen.join(' ') + ' ' + readFileSync(process.env.ORCHESTRA_AGENT_ID_FILE, 'utf8'));
+`
+	if err = os.WriteFile(harness, []byte(code), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(node, harness, "file://"+extension)
+	cmd.Env = append(os.Environ(), "ORCHESTRA_STATUS_FILE="+filepath.Join(dir, "status"), "ORCHESTRA_AGENT_ID_FILE="+filepath.Join(dir, "id"))
+	out, err := cmd.CombinedOutput()
+	want := "waiting working working waiting working waiting working waiting main-id"
+	if err != nil || strings.TrimSpace(string(out)) != want {
+		t.Fatalf("got %q (%v), want %q", out, err, want)
 	}
 }

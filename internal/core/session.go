@@ -28,7 +28,7 @@ import (
 var resourceFS embed.FS
 var resources = func() map[string][]byte {
 	m := map[string][]byte{}
-	for _, name := range []string{"PiStatusExtension.js", "OpenCodeSessionPlugin.js"} {
+	for _, name := range []string{"PiStatusExtension.js", "OpenCodeSessionPlugin.js", "OmpStatusExtension.js"} {
 		m[name], _ = resourceFS.ReadFile("resources/" + name)
 	}
 	return m

@@ -538,6 +538,7 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		"vibe":        "",
 		"pi":          "",
 		"cline":       " --auto-approve false",
+		"omp":         "omp --approval-mode write ",
 	}
 	for agent := range agentSpecs {
 		mode, ok := modes[agent]

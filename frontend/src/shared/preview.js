@@ -444,7 +444,7 @@ export const backend = {
     return {
       node: true,
       detected: true,
-      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline'].map((id) => ({
+      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp'].map((id) => ({
         id,
         installed: found.includes(id),
       })),
@@ -550,6 +550,13 @@ export const backend = {
         ],
         opencode: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
         grok: [{ id: 'grok-4.7', name: 'grok-4.7', efforts: [] }],
+        omp: [
+          {
+            id: 'openrouter/~anthropic/claude-opus-latest',
+            name: 'Claude Opus Latest',
+            efforts: ['low', 'medium', 'high', 'xhigh', 'max'],
+          },
+        ],
         antigravity: [{ id: 'gemini-3.8-flash-high', name: 'Gemini 3.8 Flash (High)', efforts: [] }],
       }[agent] ||
       (agent === 'pi' ? Promise.reject('Could not list models. Check that Pi is installed and signed in.') : [])
@@ -586,6 +593,7 @@ export const backend = {
             antigravity: 'Antigravity CLI',
             grok: 'Grok Build',
             cline: 'Cline',
+            omp: 'omp',
             opencode: 'OpenCode',
             pi: 'Pi',
             codex: 'Codex',

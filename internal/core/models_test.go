@@ -15,6 +15,7 @@ func TestLaunchPassesModelAndEffortFlags(t *testing.T) {
 		"opencode":    {"opencode/big-pickle", " --model 'opencode/big-pickle'"},
 		"grok":        {"grok-4.7", " --model 'grok-4.7'"},
 		"antigravity": {"gemini-3.8-flash-high", " --model 'gemini-3.8-flash-high'"},
+		"omp":         {"openrouter/~anthropic/claude-opus-latest", " --model 'openrouter/~anthropic/claude-opus-latest' --thinking 'high'"},
 	}
 	for agent, tc := range cases {
 		effort := "high"
@@ -66,6 +67,7 @@ func TestParseAgentModels(t *testing.T) {
 	pi := []byte("provider    model                          context  max-out  thinking  images\nopenrouter  ~anthropic/claude-opus-latest  1M       128K     yes       yes\nopenrouter  ~deepseek/deepseek-pro-latest  1.0M     384K     no        no\n")
 	grok := []byte("You are not authenticated.\n\nDefault model: grok-4.7\n\nAvailable models:\n  * grok-4.7 (default)\n  grok-4.6\n")
 	agy := []byte("Fetching available models...\ngemini-3.8-flash-high\tGemini 3.8 Flash (High)\n")
+	omp := []byte("shell banner\n" + `{"models":[{"kind":"chat","selector":"openrouter/~anthropic/claude-opus-latest","name":"Claude Opus Latest","thinking":["low","high","Turbo"]},{"kind":"image","selector":"openai/gpt-image"},{"kind":"chat","selector":"ollama/gemma4:latest","thinking":[]}]}` + "\n")
 	opencode := []byte("opencode/big-pickle\nopenrouter/~anthropic/claude-haiku-latest\n")
 	cases := map[string]struct {
 		output []byte
@@ -75,6 +77,7 @@ func TestParseAgentModels(t *testing.T) {
 		"pi":          {pi, []AgentModel{{"openrouter/~anthropic/claude-opus-latest", "openrouter/~anthropic/claude-opus-latest", piEfforts}, {"openrouter/~deepseek/deepseek-pro-latest", "openrouter/~deepseek/deepseek-pro-latest", []string{}}}},
 		"grok":        {grok, []AgentModel{{"grok-4.7", "grok-4.7", []string{}}, {"grok-4.6", "grok-4.6", []string{}}}},
 		"antigravity": {agy, []AgentModel{{"gemini-3.8-flash-high", "Gemini 3.8 Flash (High)", []string{}}}},
+		"omp":         {omp, []AgentModel{{"openrouter/~anthropic/claude-opus-latest", "Claude Opus Latest", []string{"low", "high"}}, {"ollama/gemma4:latest", "ollama/gemma4:latest", []string{}}}},
 		"opencode":    {opencode, []AgentModel{{"opencode/big-pickle", "opencode/big-pickle", []string{}}, {"openrouter/~anthropic/claude-haiku-latest", "openrouter/~anthropic/claude-haiku-latest", []string{}}}},
 	}
 	for agent, tc := range cases {
