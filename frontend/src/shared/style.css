@@ -4225,10 +4225,7 @@ h2 {
 .usage-meter.critical > span {
   background: var(--status-deleted);
 }
-.usage-status-refresh {
-  margin: 0 -6px 0 -4px;
-}
-:is(.usage-status-refresh, .usage-popover-heading button).spinning .symbol {
+.usage-popover-heading button.spinning .symbol {
   animation: spin 1s linear infinite;
 }
 .usage-popover {

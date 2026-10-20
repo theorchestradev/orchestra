@@ -155,16 +155,7 @@ onBeforeUnmount(() => {
         }}</span></template
       ><template v-else
         ><Icon name="circle.dotted" :size="12" />{{ loading && !providers.length ? 'Usage…' : 'Usage' }}</template
-      ></button
-    ><button
-      class="status-item status-button usage-status-refresh"
-      :class="{ spinning: loading }"
-      :disabled="loading"
-      aria-label="Refresh Usage"
-      title="Refresh Usage"
-      @click="refresh(true)"
-    >
-      <Icon name="arrow.clockwise" :size="11" />
+      >
     </button>
     <!-- The status bar mounts with the app, before .app-shell is in the document. -->
     <Teleport defer to=".app-shell"
