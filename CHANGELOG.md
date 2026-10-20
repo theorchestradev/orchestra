@@ -13,6 +13,12 @@ let Orchestra update itself when you ask it to.
   matters, links to the setting and offers to keep main up to date. The
   Settings section is now called Source Control.
 
+### Fixed
+
+- **Claude Code sessions with no saved conversation.** When Claude Code cannot
+  find the conversation it is asked to resume, the session now says so and
+  offers Start New Conversation instead of only reporting exit code 1.
+
 ## 0.7.0 — 2026-10-19
 
 ### New

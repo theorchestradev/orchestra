@@ -1,6 +1,9 @@
 package core
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"regexp"
+)
 
 var claudeEfforts = []string{"low", "medium", "high", "xhigh", "max"}
 
@@ -28,11 +31,14 @@ var claudeAgent = &agentSpec{
 		}
 		return command
 	},
-	PresetID:   true,
-	ModelFlag:  "--model",
-	Models:     []AgentModel{{"fable", "Fable", claudeEfforts}, {"opus", "Opus", claudeEfforts}, {"sonnet", "Sonnet", claudeEfforts}, {"haiku", "Haiku", []string{}}},
-	EffortFlag: quotedFlag("--effort"),
-	Efforts:    claudeEfforts,
+	PresetID: true,
+	// Claude Code keeps no transcript for a conversation that never received a prompt, or
+	// one it cleaned up, so --resume can fail for an ID Orchestra preset.
+	ResumeFailed: regexp.MustCompile(`No conversation found with session ID`),
+	ModelFlag:    "--model",
+	Models:       []AgentModel{{"fable", "Fable", claudeEfforts}, {"opus", "Opus", claudeEfforts}, {"sonnet", "Sonnet", claudeEfforts}, {"haiku", "Haiku", []string{}}},
+	EffortFlag:   quotedFlag("--effort"),
+	Efforts:      claudeEfforts,
 
 	ConfigEnv:          "CLAUDE_CONFIG_DIR",
 	LoginCommand:       "claude auth login",

@@ -1216,3 +1216,44 @@ func TestLoginShellFallback(t *testing.T) {
 		t.Fatalf("unusable fallback shell %q", shell)
 	}
 }
+
+func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
+	s := fixtureStore(t)
+	p := projectFixture(t, s)
+	agent := sessionFixture(t, s, p, "claude")
+	fixture := t.TempDir()
+	shell := filepath.Join(fixture, "shell")
+	_ = os.WriteFile(shell, []byte("#!/bin/sh\nexec /bin/sh -c \"$4\"\n"), 0700)
+	// Like Claude Code, the fake has no transcript to resume and exits with code 1.
+	_ = os.WriteFile(filepath.Join(fixture, "claude"), []byte("#!/bin/sh\nif [ \"$1\" = --resume ]; then printf 'No conversation found with session ID: %s\\r\\n' \"$2\"; exit 1; fi\nprintf 'started %s\\r\\n' \"$1\"\n"), 0700)
+	t.Setenv("SHELL", shell)
+	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
+	run := func(newConversation bool) Session {
+		t.Helper()
+		if _, err := s.StartSession(agent.ID, newConversation, 80, 24); err != nil {
+			t.Fatal(err)
+		}
+		var sess Session
+		waitUntil(t, func() bool {
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			_, current, _ := s.sessionLocked(agent.ID)
+			sess = *current
+			return !current.Running
+		})
+		return sess
+	}
+	if sess := run(false); sess.AgentSessionID != agent.ID {
+		t.Fatalf("first launch lost the preset conversation ID: %+v", sess)
+	}
+	sess := run(false)
+	if sess.AgentSessionID != "" || !strings.Contains(sess.ExitMessage, "no saved conversation") {
+		t.Fatalf("failed resume kept a dead conversation: %q %q", sess.AgentSessionID, sess.ExitMessage)
+	}
+	if _, err := s.StartSession(agent.ID, false, 80, 24); err == nil {
+		t.Fatal("resumed without a conversation ID")
+	}
+	if sess = run(true); sess.AgentSessionID != agent.ID || sess.ExitMessage != "Claude Code exited (code 0)." {
+		t.Fatalf("new conversation did not start: %q %q", sess.AgentSessionID, sess.ExitMessage)
+	}
+}
