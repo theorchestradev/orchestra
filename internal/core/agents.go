@@ -36,6 +36,9 @@ type agentSpec struct {
 	// CaptureID reads the current conversation ID while the agent runs; empty means none yet.
 	// The generic ORCHESTRA_AGENT_ID_FILE needs no CaptureID.
 	CaptureID func(t *TerminalSession) string
+	// ResumeFailed matches the output of a resume that exited because the agent has no
+	// conversation with the saved ID, so the session offers a new conversation instead.
+	ResumeFailed *regexp.Regexp
 	// StatusSetup agents report status only after the user enables their hooks, so a
 	// silent status file shows a setup hint.
 	StatusSetup bool

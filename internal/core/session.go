@@ -124,6 +124,8 @@ type TerminalSession struct {
 	buffer         []byte
 	offset         int64
 	bracketedPaste bool
+	// resumed is true when the launch continued a saved conversation.
+	resumed        bool
 	stopped        bool
 	telemetryEnded bool
 	// draft approximates how many characters the user has typed without submitting them.
@@ -249,7 +251,8 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 		t.log.Warn("session start failed", "agent", sess.Agent, "error", err)
 		return TerminalOutput{}, err
 	}
-	t.log.Info("session started", "agent", sess.Agent, "worktree", sess.WorktreeDirectory != "", "resume", sess.HasLaunched && sess.AgentSessionID != "")
+	t.resumed = sess.Agent != terminalAgent && sess.HasLaunched && sess.AgentSessionID != ""
+	t.log.Info("session started", "agent", sess.Agent, "worktree", sess.WorktreeDirectory != "", "resume", t.resumed)
 	s.terminals[id] = t
 	sess.HasLaunched = true
 	sess.LoginAgent = ""
@@ -340,6 +343,11 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 	sess.ExitMessage = fmt.Sprintf("%s exited (code %d).", name, code)
 	if code == 127 && spec != nil {
 		sess.ExitMessage = fmt.Sprintf("Could not start %s. Check that the %s CLI is in your shell’s PATH.", spec.Name, spec.Executable)
+	} else if code != 0 && t.resumed && spec != nil && spec.ResumeFailed != nil && spec.ResumeFailed.MatchString(text) {
+		// Resuming again would fail the same way; without the ID the session offers a new conversation.
+		t.log.Info("saved conversation not found", "agent", sess.Agent)
+		sess.AgentSessionID = ""
+		sess.ExitMessage = fmt.Sprintf("%s has no saved conversation for this session. Start a new conversation to continue.", spec.Name)
 	} else if err != nil && code < 0 {
 		sess.ExitMessage = "The terminal connection was closed."
 	}
