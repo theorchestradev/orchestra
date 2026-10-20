@@ -1255,6 +1255,7 @@ onBeforeUnmount(() => {
         v-if="showsDiff"
         :session="session"
         :runs="workspace.runs"
+        :appearance="shownPreferences.appearance"
         :width="preferences.diffPaneWidth || 440"
         @state="apply"
         @close="toggleDiff"

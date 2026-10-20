@@ -25,10 +25,17 @@ import {
   reviewStatus,
   sessionReviews,
 } from '../shared/review'
-import { relativeDate } from '../shared/appearance'
+import { agentIcon, relativeDate } from '../shared/appearance'
+import { openURL } from '../shared/api'
+import { renderMarkdown } from '../shared/markdown'
 import Icon from './Icon.vue'
 import ReviewThread from './ReviewThread.vue'
-const props = defineProps({ session: Object, width: Number, runs: { type: Array, default: () => [] } })
+const props = defineProps({
+  session: Object,
+  width: Number,
+  runs: { type: Array, default: () => [] },
+  appearance: String,
+})
 const emit = defineEmits(['close', 'resize', 'resized', 'state'])
 const markers = { add: '+', del: '-', context: ' ', note: '' }
 const diff = ref(null),
@@ -213,6 +220,14 @@ const composerKeys = (event) => {
     event.preventDefault()
     saveComment(event.shiftKey)
   }
+}
+
+// Links in a reply open in the external browser and never navigate the webview.
+function linkClick(event) {
+  const link = event.target.closest('a')
+  if (!link) return
+  event.preventDefault()
+  openURL(link.href)
 }
 
 let request = 0,
@@ -424,11 +439,25 @@ onBeforeUnmount(() => {
                 <span class="review-item-place truncate"
                   >{{ index + 1 }}. {{ comment.path.split('/').pop() }} · {{ rangeLabel(comment) }}</span
                 ><span class="review-item-text">{{ comment.text }}</span
-                ><span v-if="comment.reply" class="review-item-reply">{{ comment.reply }}</span>
+                ><span v-if="comment.reply" class="review-item-reply"
+                  ><img :src="agentIcon(session.agent, appearance)" alt="" /><span>{{ comment.reply }}</span></span
+                >
               </button>
             </li>
           </ol>
-          <p v-if="run.response" class="review-item-reply">{{ run.response }}</p>
+          <section v-if="run.response" class="review-reply" :aria-label="'Reply from ' + session.name">
+            <header class="review-author">
+              <img :src="agentIcon(session.agent, appearance)" alt="" /><strong class="truncate">{{
+                session.name
+              }}</strong>
+            </header>
+            <div
+              class="markdown review-markdown"
+              @click="linkClick"
+              @auxclick.prevent
+              v-html="renderMarkdown(run.response)"
+            />
+          </section>
           <p v-if="run.detail" class="muted caption">{{ run.detail }}</p>
           <footer>
             <button
@@ -503,6 +532,8 @@ onBeforeUnmount(() => {
               :key="(item.run?.id || '') + item.comment.id"
               v-bind="item"
               :busy="reviewBusy"
+              :session="session"
+              :appearance="appearance"
               @edit="edit"
               @delete="review('DeleteReviewComment', session.id, $event.id)"
             />
@@ -545,6 +576,8 @@ onBeforeUnmount(() => {
                       :key="(item.run?.id || '') + item.comment.id"
                       v-bind="item"
                       :busy="reviewBusy"
+                      :session="session"
+                      :appearance="appearance"
                       @edit="edit"
                       @delete="review('DeleteReviewComment', session.id, $event.id)"
                     />
