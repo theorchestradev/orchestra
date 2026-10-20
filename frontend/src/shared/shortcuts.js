@@ -16,6 +16,7 @@ export const shortcuts = [
   { id: 'contextMenu', group: 'Navigation', name: 'Open Context Menu', keys: '⇧F10' },
   { id: 'sidebar', group: 'View', name: 'Toggle Sidebar', keys: '⌘B', terminal: null, app: true },
   { id: 'diff', group: 'View', name: 'Toggle Changes', keys: '⇧⌘B', app: true },
+  { id: 'files', group: 'View', name: 'Toggle Files', keys: '⇧⌘E', app: true },
   { id: 'copy', group: 'Terminal', name: 'Copy', keys: '⌘C', terminal: '⇧⌘C', inTerminal: true },
   { id: 'paste', group: 'Terminal', name: 'Paste', keys: '⌘V', terminal: '⇧⌘V', inTerminal: true },
   { id: 'scratchpadMode', group: 'Scratchpad', name: 'Switch Between Edit and Read', keys: '⌘E' },
@@ -55,6 +56,7 @@ export function appCommand(event) {
   if (event.shiftKey && ['BracketLeft', 'BracketRight'].includes(event.code))
     return event.code === 'BracketRight' ? 'next' : 'previous'
   if (event.shiftKey && event.code === 'KeyB') return 'diff'
+  if (event.shiftKey && event.code === 'KeyE') return 'files'
   const key = event.key.toLowerCase()
   if (key === 'b' && !event.shiftKey) return 'sidebar'
   if (key === 'k') return 'command'
@@ -70,9 +72,9 @@ export function terminalKeeps(e, isMac = mac) {
     return !(
       e.metaKey &&
       (['n', 'k', ',', 'b'].includes(e.key.toLowerCase()) ||
-        (e.shiftKey && ['KeyB', 'BracketLeft', 'BracketRight'].includes(e.code)))
+        (e.shiftKey && ['KeyB', 'KeyE', 'BracketLeft', 'BracketRight'].includes(e.code)))
     )
   if (!e.ctrlKey) return true
   if (!e.shiftKey) return e.key !== ','
-  return !['KeyN', 'KeyK', 'KeyB', 'BracketLeft', 'BracketRight'].includes(e.code)
+  return !['KeyN', 'KeyK', 'KeyB', 'KeyE', 'BracketLeft', 'BracketRight'].includes(e.code)
 }

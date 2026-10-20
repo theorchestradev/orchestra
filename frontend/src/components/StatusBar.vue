@@ -128,12 +128,12 @@ const inbox = computed(() =>
         v-if="session"
         class="status-item status-button"
         :class="{ selected: diffOpen }"
-        aria-label="Changes"
+        aria-label="Changes and Files"
         :aria-pressed="diffOpen"
-        :title="(diffOpen ? 'Hide' : 'Show') + ` Changes (${shortcutLabel('⇧⌘B')})`"
+        :title="(diffOpen ? 'Hide' : 'Show') + ` Changes and Files (${shortcutLabel('⇧⌘B')})`"
         @click="emit('diff')"
       >
-        <Icon name="sidebar.right" :size="12" /><span class="status-optional">Changes</span>
+        <Icon name="sidebar.right" :size="12" /><span class="status-optional">Changes / Files</span>
       </button>
       <button
         v-if="update"

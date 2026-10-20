@@ -22,6 +22,7 @@ import {
   missingCustomTheme,
   accentForeground,
   diffTokens,
+  syntaxTokens,
   translucencyTokens,
   activityLabel,
   visibleSidebarProjects,
@@ -44,6 +45,7 @@ import SidebarList from './components/SidebarList.vue'
 import ArcSpaces from './components/ArcSpaces.vue'
 import ArcProjectPager from './components/ArcProjectPager.vue'
 import SessionDiff from './components/SessionDiff.vue'
+import FileView from './components/FileView.vue'
 import OpenInButton from './components/OpenInButton.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
@@ -131,8 +133,52 @@ const scratchpadProject = computed(() => workspace.value.projects.find((p) => p.
 const removalProjectID = ref('')
 const removalProject = computed(() => workspace.value.projects.find((p) => p.id === removalProjectID.value))
 const project = computed(() => workspace.value.projects.find((p) => p.id === workspace.value.selectedProjectID))
-const currentDestination = computed(() => destination(project.value))
-const session = computed(() => project.value?.sessions.find((s) => s.id === currentDestination.value))
+// Open file views are temporary UI state, scoped to the session folder that owns them.
+const openedFiles = ref([]),
+  activeFileID = ref(''),
+  sidebarTab = ref('Changes')
+const activeFile = computed(() =>
+  openedFiles.value.find(
+    (file) =>
+      file.id === activeFileID.value &&
+      file.projectID === project.value?.id &&
+      project.value.sessions.some((s) => s.id === file.sessionID),
+  ),
+)
+const currentDestination = computed(() => activeFile.value?.id || destination(project.value))
+const session = computed(() =>
+  project.value?.sessions.find((s) => s.id === (activeFile.value?.sessionID || currentDestination.value)),
+)
+watch(
+  () => [workspace.value.selectedProjectID, destination(project.value)].join(':'),
+  () => {
+    activeFileID.value = ''
+  },
+  { flush: 'sync' },
+)
+watch(
+  () => workspace.value.projects,
+  (projects) => {
+    openedFiles.value = openedFiles.value.filter((file) =>
+      projects.some((p) => p.id === file.projectID && p.sessions.some((s) => s.id === file.sessionID)),
+    )
+  },
+)
+function openFile(path) {
+  if (!session.value || !project.value) return
+  const id = 'file:' + JSON.stringify([session.value.id, path])
+  if (!openedFiles.value.some((file) => file.id === id))
+    openedFiles.value.push({ id, projectID: project.value.id, sessionID: session.value.id, path })
+  activeFileID.value = id
+}
+async function selectFile(file) {
+  if (await action('Select', file.projectID, file.sessionID)) activeFileID.value = file.id
+}
+function closeFile(file) {
+  openedFiles.value = openedFiles.value.filter((item) => item.id !== file.id)
+  if (activeFileID.value === file.id) activeFileID.value = ''
+  nextTick(() => document.querySelector('.sidebar .session-row.selected')?.focus())
+}
 const modalSession = computed(() =>
   workspace.value.projects.flatMap((p) => p.sessions).find((s) => s.id === sessionID.value),
 )
@@ -211,6 +257,7 @@ const appearance = computed(() => {
   return {
     ...Object.fromEntries(Object.entries(colors).map(([key, value]) => ['--' + key, value])),
     ...diffTokens(shownPreferences.value),
+    ...syntaxTokens(shownPreferences.value),
     ...translucencyTokens(preferences.value.windowOpacity),
     '--on-accent': accentForeground(colors.accent),
     '--control-thumb': palette({ theme: 'system', appearance: 'light' }).canvas,
@@ -310,6 +357,10 @@ function command(kind) {
     toggleSidebar()
     return
   }
+  if (kind === 'files') {
+    toggleFiles()
+    return
+  }
   if (kind === 'diff') {
     toggleDiff()
     return
@@ -346,7 +397,11 @@ async function runCommand({ command: kind, item }) {
 function navigate(step) {
   if (modal.value) return
   const item = adjacentItem(
-    preferences.value.arcMode ? sidebarProjects.value.map((p) => ({ ...p, isExpanded: true })) : sidebarProjects.value,
+    sidebarProjects.value.map((p) => ({
+      ...p,
+      isExpanded: preferences.value.arcMode || p.isExpanded,
+      sessions: [...p.sessions, ...openedFiles.value.filter((file) => file.projectID === p.id)],
+    })),
     project.value?.id,
     currentDestination.value,
     step,
@@ -361,6 +416,15 @@ function toggleSidebar() {
   if (hiding && inSidebar) nextTick(() => document.querySelector('.show-sidebar')?.focus())
 }
 // The pane's open state is a preference, so it follows the user across sessions and restarts.
+function toggleFiles() {
+  if (modal.value || !session.value) return
+  if (showsDiff.value && sidebarTab.value === 'Files') {
+    toggleDiff()
+    return
+  }
+  sidebarTab.value = 'Files'
+  if (!showsDiff.value) toggleDiff()
+}
 function toggleDiff() {
   if (modal.value) return
   const closing = preferences.value.diffPaneOpen,
@@ -394,6 +458,9 @@ function closeModal() {
 }
 async function select(p, dest) {
   menu.value = null
+  const file = openedFiles.value.find((file) => file.id === dest && file.projectID === p.id)
+  if (file) return selectFile(file)
+  activeFileID.value = ''
   const state = await action('Select', p.id, dest)
   if (dest === 'github') visitedGitHub.value.add(p.id)
   const sess = p.sessions.find((s) => s.id === dest)
@@ -1094,10 +1161,32 @@ onBeforeUnmount(() => {
                     ></template
                   ></SidebarList
                 >
-              </div>
-            </section></template
-          ></component
-        >
+                <div
+                  v-for="file in openedFiles.filter((file) => file.projectID === p.id)"
+                  :key="file.id"
+                  class="sidebar-file-row"
+                  :class="{ selected: activeFile?.id === file.id }"
+                >
+                  <button
+                    class="sidebar-row"
+                    :class="{ selected: activeFile?.id === file.id }"
+                    :title="file.path + ' — ' + p.sessions.find((s) => s.id === file.sessionID)?.name"
+                    :aria-current="activeFile?.id === file.id ? 'page' : undefined"
+                    @click="selectFile(file)"
+                  >
+                    <Icon name="note.text" :size="15" /><span class="session-name"
+                      ><span class="truncate">{{ file.path.split('/').at(-1) }}</span
+                      ><small class="truncate"
+                        >{{ p.sessions.find((s) => s.id === file.sessionID)?.name }} · {{ file.path }}</small
+                      ></span
+                    >
+                  </button>
+                  <button class="icon-button" :aria-label="'Close ' + file.path" @click="closeFile(file)">
+                    <Icon name="xmark" :size="10" />
+                  </button>
+                </div>
+              </div></section></template
+        ></component>
       </div>
       <ArcSpaces
         v-if="preferences.arcMode"
@@ -1169,7 +1258,8 @@ onBeforeUnmount(() => {
             <p>Choose an agent to start a session in this project’s folder.</p>
             <button class="standard-button" @click="openModal('session')">New Session</button>
           </div>
-          <div v-if="session?.restored" class="empty-state">
+          <FileView v-if="activeFile" :file="activeFile" :session="session" @close="closeFile(activeFile)" />
+          <div v-if="session?.restored && !activeFile" class="empty-state">
             <OpenInButton
               v-if="!preferences.hideOpenInButton"
               :apps="openInApps"
@@ -1254,6 +1344,10 @@ onBeforeUnmount(() => {
       <SessionDiff
         v-if="showsDiff"
         :session="session"
+        :selected-path="activeFile?.path"
+        :tab="sidebarTab"
+        @tab="sidebarTab = $event"
+        @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"
         @close="toggleDiff"
         @resize="workspace.preferences.diffPaneWidth = $event"
