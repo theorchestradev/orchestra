@@ -3,7 +3,7 @@ import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { call } from '../shared/api'
 import { agentIcon } from '../shared/appearance'
 import { findProfile } from '../shared/profiles'
-import { resetLabel, remainingLabel, usageLevel, usedPercent } from '../shared/usage'
+import { resetLabel, remainingLabel } from '../shared/usage'
 import Icon from './Icon.vue'
 import OpenRouterUsage from './OpenRouterUsage.vue'
 const props = defineProps({ appearance: String, profiles: Array, profileId: String })
@@ -82,20 +82,22 @@ const date = (value) => new Date(value * 1000).toLocaleString()
           ><strong :class="{ muted: window.resetsAt && window.resetsAt * 1000 <= now }">{{
             window.resetsAt && window.resetsAt * 1000 <= now
               ? 'Awaiting refresh'
-              : remainingLabel(usedPercent(window)) + ' used'
+              : remainingLabel(window.remaining) + ' left'
           }}</strong>
         </div>
         <div
           class="usage-meter"
           role="progressbar"
-          :aria-label="(provider.agent === 'codex' ? 'Codex' : 'Claude Code') + ' ' + window.label + ' allowance used'"
-          :aria-valuenow="usedPercent(window)"
+          :aria-label="
+            (provider.agent === 'codex' ? 'Codex' : 'Claude Code') + ' ' + window.label + ' remaining allowance'
+          "
+          :aria-valuenow="window.remaining"
           :aria-valuemin="0"
           :aria-valuemax="100"
-          :aria-valuetext="remainingLabel(usedPercent(window)) + ' used at last check'"
-          :class="[window.resetsAt && window.resetsAt * 1000 <= now ? 'expired' : usageLevel(usedPercent(window))]"
+          :aria-valuetext="remainingLabel(window.remaining) + ' remaining at last check'"
+          :class="{ expired: window.resetsAt && window.resetsAt * 1000 <= now }"
         >
-          <span :style="{ width: usedPercent(window) + '%' }" />
+          <span :style="{ width: window.remaining + '%' }" />
         </div>
         <p class="muted caption usage-reset" :title="window.resetsAt ? date(window.resetsAt) : ''">
           {{ resetLabel(window.resetsAt, now) }}

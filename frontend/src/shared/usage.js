@@ -30,7 +30,7 @@ export function resetLabel(epoch, now = Date.now()) {
   const duration = durationLabel(epoch, now)
   return duration ? `Resets in ${duration}` : 'Reset time passed · refresh to update'
 }
-// Windows report the allowance left; the status bar shows how much is used.
+// Windows report the allowance left; warning levels follow how much is used.
 export const usedPercent = (window) => Math.min(100, Math.max(0, 100 - window.remaining))
 export const usageLevel = (used) => (used >= 95 ? 'critical' : used >= 80 ? 'warning' : '')
 // A window whose reset has passed no longer limits the account until the next reading.
