@@ -6,6 +6,8 @@ let Orchestra update itself when you ask it to.
 
 ## Unreleased
 
+## 0.7.0 — 2026-10-19
+
 ### New
 
 - **Run Cline, omp and Kilo.** Start sessions with three more agent CLIs. Each
@@ -18,11 +20,15 @@ let Orchestra update itself when you ask it to.
     commands. Choose its model and thinking level in New Session.
   - **Kilo** keeps its own permissions, which ask before risky commands.
     Choose its model in New Session.
+- **Close the current session from the command bar.** Search for Close Current
+  Session to close the session you're viewing.
 
 ### Changed
 
 - **OpenCode sessions show their status.** The sidebar now shows when OpenCode
   is working or waiting for you, including while a permission prompt is open.
+- **Fit more project spaces in the sidebar.** Crowded spaces use compact dots
+  that scroll, keeping every space within reach.
 
 ## 0.6.0 — 2026-10-19
 
