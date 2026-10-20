@@ -1216,6 +1216,7 @@ func TestLoginShellFallback(t *testing.T) {
 		t.Fatalf("unusable fallback shell %q", shell)
 	}
 }
+
 func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
 	s := fixtureStore(t)
 	p := projectFixture(t, s)
