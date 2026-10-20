@@ -27,7 +27,7 @@ Runs (one request and its reply):
 ```sh
 orchestra run read REQUEST_ID
 orchestra run wait REQUEST_ID [--timeout 120s]
-orchestra run reply REQUEST_ID (--text TEXT | --file PATH)
+orchestra run reply REQUEST_ID [--comment N] (--text TEXT | --file PATH)
 orchestra run cancel REQUEST_ID
 ```
 
@@ -68,6 +68,18 @@ orchestra run reply REQUEST_ID --file reply.md
 `session inbox` prints `null` when nothing is waiting. When the user runs **Execute
 Request**, the request arrives as your input and names its request ID; reply to it the
 same way. Reply once, with the complete answer.
+
+Answer the user's review comments:
+
+When the user sends comments from the Changes pane, the request lists them by number
+with their file, lines and excerpt. Address each one, then reply to it by number:
+
+```sh
+orchestra run reply REQUEST_ID --comment 1 --text "Renamed the helper and updated its tests."
+orchestra run reply REQUEST_ID --comment 2 --text "Kept the check: the API can return null here."
+```
+
+The review completes when every comment has a reply.
 
 Use the Scratchpad for project notes:
 

@@ -39,6 +39,8 @@ type Session struct {
 	ProfileID string `json:"profileID,omitempty"`
 	// LoginAgent makes a terminal session run that agent's login command when it first starts.
 	LoginAgent string `json:"loginAgent,omitempty"`
+	// ReviewComments are the user's pending comments on the session's diff.
+	ReviewComments []*ReviewComment `json:"reviewComments,omitempty"`
 }
 
 // GitHubItem identifies an issue or pull request in the project's repository.

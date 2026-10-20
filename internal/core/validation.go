@@ -81,6 +81,11 @@ func validateState(state State) error {
 			if sess.LoginAgent != "" && (sess.Agent != terminalAgent || loginCommands[sess.LoginAgent] == "") {
 				return errors.New("Invalid saved login session.")
 			}
+			for _, c := range sess.ReviewComments {
+				if validReviewComment(c) != nil {
+					return errors.New("Invalid saved review comment.")
+				}
+			}
 		}
 		if p.SelectedSessionID != "" && !local[p.SelectedSessionID] {
 			return errors.New("Selected session is unavailable.")

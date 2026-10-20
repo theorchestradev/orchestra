@@ -1254,7 +1254,9 @@ onBeforeUnmount(() => {
       <SessionDiff
         v-if="showsDiff"
         :session="session"
+        :runs="workspace.runs"
         :width="preferences.diffPaneWidth || 440"
+        @state="apply"
         @close="toggleDiff"
         @resize="workspace.preferences.diffPaneWidth = $event"
         @resized="changePreferences({ ...preferences })"

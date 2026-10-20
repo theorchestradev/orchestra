@@ -592,6 +592,34 @@ func (a *App) SendRequest(from, to, text string) (core.State, error) {
 	return a.store.SendRequest(from, to, text)
 }
 func (a *App) CancelRequest(id string) (core.State, error) { return a.store.CancelRequest(id) }
+
+// SaveReviewComment adds or replaces a pending comment on a session's diff.
+func (a *App) SaveReviewComment(session string, comment core.ReviewComment) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SaveReviewComment(session, comment)
+}
+func (a *App) DeleteReviewComment(session, comment string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.DeleteReviewComment(session, comment)
+}
+
+// SendReview sends pending comments to the session, or all of them when ids is empty.
+func (a *App) SendReview(session string, ids []string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SendReview(session, ids)
+}
+func (a *App) DismissReview(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.DismissReview(id)
+}
 func (a *App) ExecuteRequest(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err

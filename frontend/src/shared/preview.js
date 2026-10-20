@@ -748,6 +748,41 @@ export const backend = {
     state.runs.find((r) => r.id === target).status = 'cancelled'
     return changed()
   },
+  SaveReviewComment: (target, comment) => {
+    const s = session(target)
+    s.reviewComments ||= []
+    const saved = { ...comment, id: comment.id || id(), text: comment.text.trim() }
+    const i = s.reviewComments.findIndex((c) => c.id === saved.id)
+    if (i >= 0) s.reviewComments[i] = saved
+    else s.reviewComments.push(saved)
+    return changed()
+  },
+  DeleteReviewComment: (target, comment) => {
+    const s = session(target)
+    s.reviewComments = (s.reviewComments || []).filter((c) => c.id !== comment)
+    return changed()
+  },
+  SendReview: (target, ids) => {
+    const s = session(target)
+    const comments = (s.reviewComments || []).filter((c) => !ids.length || ids.includes(c.id))
+    s.reviewComments = s.reviewComments.filter((c) => !comments.includes(c))
+    state.runs.push({
+      id: id(),
+      projectID: state.selectedProjectID,
+      toSessionID: target,
+      kind: 'review',
+      comments,
+      prompt: comments.map((c, i) => `${i + 1}. ${c.path}:${c.start}\n   ${c.text}`).join('\n\n'),
+      status: 'running',
+      response: '',
+      createdAt: Date.now() / 1000 - 978307200,
+    })
+    return changed()
+  },
+  DismissReview: (target) => {
+    state.runs.find((r) => r.id === target).dismissed = true
+    return changed()
+  },
   ExecuteRequest: (target) => {
     const run = state.runs.find((r) => r.id === target)
     run.status = 'running'

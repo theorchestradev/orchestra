@@ -34,11 +34,14 @@ orchestra session read SESSION_ID [--before REQUEST_ID]
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
 orchestra run read REQUEST_ID
 orchestra run wait REQUEST_ID [--timeout 120s]
-orchestra run reply REQUEST_ID (--text TEXT | --file PATH)
+orchestra run reply REQUEST_ID [--comment N] (--text TEXT | --file PATH)
 orchestra run cancel REQUEST_ID
 orchestra scratchpad read [--json]
 orchestra scratchpad write (--text TEXT | --file PATH | --stdin) [--if-revision REV]
 orchestra scratchpad append (--text TEXT | --file PATH | --stdin)
+
+Review requests carry the user's numbered diff comments. Answer each with
+run reply --comment N; the review completes when every comment has a reply.
 
 The Scratchpad belongs to the session's project. read --json includes the revision
 that write --if-revision expects. append adds the text on a new line.
@@ -215,6 +218,15 @@ func runCLI(args []string, out io.Writer) error {
 				return errors.New("The revision must be a non-negative number.")
 			}
 			request.Revision = &revision
+		case "--comment":
+			if method != "run.reply" {
+				return fmt.Errorf("Unknown option %s.", flag)
+			}
+			comment, err := strconv.Atoi(value)
+			if err != nil || comment < 1 {
+				return errors.New("The comment must be a number from 1.")
+			}
+			request.Comment = comment
 		case "--request-id":
 			request.RequestID = value
 		case "--before":

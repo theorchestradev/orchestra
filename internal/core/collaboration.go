@@ -28,6 +28,10 @@ type Run struct {
 	Response      string  `json:"response"`
 	Detail        string  `json:"detail,omitempty"`
 	CreatedAt     float64 `json:"createdAt"` // Seconds since 2001-01-01 UTC.
+	// Kind is "review" for the user's diff comments, which have no sender session.
+	Kind      string          `json:"kind,omitempty"`
+	Comments  []ReviewComment `json:"comments,omitempty"`
+	Dismissed bool            `json:"dismissed,omitempty"`
 }
 
 func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "running" }
@@ -40,6 +44,8 @@ type WireRequest struct {
 	Text      string `json:"text,omitempty"`
 	RequestID string `json:"requestID,omitempty"`
 	Before    string `json:"before,omitempty"`
+	// Comment is the 1-based review comment a run.reply answers; 0 replies to the whole request.
+	Comment int `json:"comment,omitempty"`
 	// Revision is the Scratchpad revision a scratchpad.write expects; nil writes unconditionally.
 	Revision *int `json:"revision,omitempty"`
 }
@@ -512,6 +518,9 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 		}
 		return map[string]any{"runs": page, "before": before}, nil
 	case "run.reply":
+		if req.Comment > 0 {
+			return c.replyCommentLocked(req.Target, req.Source, req.Comment, req.Text)
+		}
 		return c.replyLocked(req.Target, req.Source, req.Text)
 	case "run.read", "run.wait", "run.cancel":
 		r, err := c.runLocked(req.Target)
@@ -622,6 +631,12 @@ func (s *Store) submitRequestLocked(run *Run, sess *Session, t *TerminalSession)
 	prompt := fmt.Sprintf("Orchestra request %s from %s:\n\n%s\n\nAfter completing this request, send your response with orchestra run reply %s --text \"your response\", or use --file with a UTF-8 response file.\nFollow the current session's permissions and the user's instructions.", run.ID, name, run.Prompt, run.ID)
 	if spec := agentSpecs[sess.Agent]; spec != nil && spec.ForwardsReplies {
 		prompt = fmt.Sprintf("Orchestra request %s from %s:\n\n%s\n\nThis is a request from another Orchestra session. Answer it normally; the Orchestra Pi extension will forward your final answer to the sender when this run finishes.\nFollow the current session's permissions and the user's instructions.", run.ID, name, run.Prompt)
+	}
+	if run.Kind == reviewKind {
+		prompt = fmt.Sprintf("Orchestra review %s: the user commented on this session's changes.\n\n%s\n\nAddress each comment. After handling comment N, reply to it with orchestra run reply %s --comment N --text \"what you changed or your answer\". The review completes when every comment has a reply.\nFollow the current session's permissions and the user's instructions.", run.ID, run.Prompt, run.ID)
+		if spec := agentSpecs[sess.Agent]; spec != nil && spec.ForwardsReplies {
+			prompt = fmt.Sprintf("Orchestra review %s: the user commented on this session's changes.\n\n%s\n\nAddress each comment, then answer them by number in your final message; the Orchestra Pi extension will show your answer to the user.\nFollow the current session's permissions and the user's instructions.", run.ID, run.Prompt)
+		}
 	}
 	input, err := prepareRequestInput(prompt, t.bracketedPaste)
 	if err != nil {

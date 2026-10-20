@@ -20,7 +20,7 @@
     "duration_bucket": { "values": ["under_1m", "1-5m", "5-30m", "30m+"] }
   },
   "feature_used": {
-    "feature": { "values": ["scratchpad_read", "scratchpad_cli", "inbox_execute", "inbox_auto_delivery", "diff_view", "command_bar", "emoji_picker"] }
+    "feature": { "values": ["scratchpad_read", "scratchpad_cli", "inbox_execute", "inbox_auto_delivery", "diff_view", "diff_review", "command_bar", "emoji_picker"] }
   },
   "github_action": {
     "action": { "values": ["work_on", "review", "edit_metadata"] }

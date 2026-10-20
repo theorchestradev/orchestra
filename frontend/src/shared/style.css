@@ -926,6 +926,244 @@ input::placeholder {
   font-style: italic;
   padding-left: 102px;
 }
+.diff-body {
+  container-type: inline-size;
+}
+.diff-line[tabindex] {
+  cursor: default;
+}
+.diff-line[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.diff-line .diff-number + .diff-number {
+  position: relative;
+}
+.diff-comment-button {
+  position: absolute;
+  top: 1px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: var(--accent);
+  color: var(--on-accent);
+  opacity: 0;
+  cursor: pointer;
+}
+.diff-line:hover .diff-comment-button,
+.diff-line:focus-visible .diff-comment-button,
+.diff-line.selected .diff-comment-button {
+  opacity: 1;
+}
+.diff-line.selected,
+.diff-line.selected .diff-number {
+  background: color-mix(in srgb, var(--accent) 22%, var(--sidebar));
+}
+.diff-line.selected {
+  box-shadow: inset 2px 0 var(--accent);
+}
+.diff-comment-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  color: var(--accent);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+/* Threads and the composer sit between diff lines but stay as wide as the pane while code scrolls. */
+.review-composer,
+.review-thread {
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font:
+    12px/1.45 -apple-system,
+    BlinkMacSystemFont,
+    'Helvetica Neue',
+    sans-serif;
+  white-space: normal;
+  background: var(--surface);
+  border-block: 1px solid var(--rule);
+}
+.review-outdated .review-thread {
+  width: auto;
+  position: static;
+}
+.review-composer header,
+.review-thread header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  min-width: 0;
+}
+.review-composer strong,
+.review-thread strong {
+  font-weight: 600;
+}
+.review-composer textarea {
+  width: 100%;
+  min-height: 60px;
+  resize: vertical;
+  box-sizing: border-box;
+  padding: 7px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  background: var(--canvas);
+  color: var(--text);
+  font: inherit;
+}
+.review-composer textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+.review-composer footer,
+.review-thread footer,
+.review-sent footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.review-thread.outdated {
+  border-left: 2px solid var(--muted);
+}
+.review-badge {
+  padding: 0 6px;
+  border-radius: 8px;
+  border: 1px solid var(--rule);
+  color: var(--muted);
+  font-size: 10.5px;
+  line-height: 16px;
+}
+.review-badge.pending {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--rule));
+  color: var(--accent);
+}
+.review-text,
+.review-excerpt,
+.review-item-text,
+.review-item-reply {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.review-excerpt {
+  max-height: 72px;
+  overflow: hidden;
+  padding-left: 8px;
+  border-left: 2px solid var(--rule);
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+.review-reply {
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+}
+.review-bar {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 45%;
+  padding: 6px 8px 8px 12px;
+  border-top: 1px solid var(--rule);
+  min-width: 0;
+}
+.review-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.review-bar-toggle {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 4px;
+  border-radius: 5px;
+  font-weight: 500;
+  text-align: left;
+}
+.review-bar-toggle:hover {
+  background: color-mix(in srgb, var(--selection) 50%, transparent);
+}
+.review-list {
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.review-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.review-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  text-align: left;
+  font-size: 12px;
+  min-width: 0;
+}
+.review-item:hover {
+  background: color-mix(in srgb, var(--selection) 50%, transparent);
+}
+.review-item-place {
+  color: var(--muted);
+  font-size: 11px;
+  max-width: 100%;
+}
+.review-item-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.review-item-reply {
+  padding-left: 8px;
+  border-left: 2px solid var(--accent);
+  font-size: 12px;
+}
+.review-sent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.review-sent header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
 .status-button.selected {
   background: var(--selection);
   color: var(--text);

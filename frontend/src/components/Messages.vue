@@ -57,10 +57,16 @@ async function action(method, ...args) {
       <p v-if="!history.length" class="muted no-messages">No messages yet.</p>
       <article v-for="run in history" :key="run.id" class="message-card">
         <header>
-          <strong>{{ name(run.fromSessionID) }} → {{ name(run.toSessionID) }}</strong
+          <strong
+            >{{ run.kind === 'review' ? 'Your review' : name(run.fromSessionID) }} → {{ name(run.toSessionID) }}</strong
           ><span class="muted caption">{{ runLabel(run.status) }}</span>
         </header>
         <p class="message-text">{{ run.prompt }}</p>
+        <template v-for="comment in (run.comments || []).filter((c) => c.reply)" :key="comment.id"
+          ><hr />
+          <h3 class="muted caption">Reply to comment {{ (run.comments || []).indexOf(comment) + 1 }}</h3>
+          <p class="message-text">{{ comment.reply }}</p></template
+        >
         <template v-if="run.response"
           ><hr />
           <h3 class="muted caption">Reply</h3>
