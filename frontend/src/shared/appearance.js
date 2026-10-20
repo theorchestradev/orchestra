@@ -105,6 +105,7 @@ export const agents = [
   { id: 'opencode', name: 'OpenCode', icon: 'OpenCodeIcon', dark: true },
   { id: 'antigravity', name: 'Antigravity CLI', icon: 'AntigravityIcon' },
   { id: 'grok', name: 'Grok Build', icon: 'GrokIcon', dark: true },
+  { id: 'cline', name: 'Cline', icon: 'ClineIcon', dark: true },
 ]
 // Plain terminal sessions run the login shell; they are not agents and stay out of `agents`.
 export const isTerminal = (session) => session?.agent === 'terminal'

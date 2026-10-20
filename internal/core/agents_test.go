@@ -135,3 +135,37 @@ func TestCaptureVibeID(t *testing.T) {
 		t.Fatal("captured a log from before launch")
 	}
 }
+
+func TestInstallClineHooksKeepsUserHooks(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "hooks")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	own := []byte("#!/bin/sh\necho mine\n")
+	if err := os.WriteFile(filepath.Join(dir, "TaskStart.sh"), own, 0755); err != nil {
+		t.Fatal(err)
+	}
+	stale := []byte("#!/bin/sh\n" + clineHookMarker + "\nold\n")
+	if err := os.WriteFile(filepath.Join(dir, "TaskComplete.sh"), stale, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := installClineHooks(dir); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "TaskStart.sh")); string(got) != string(own) {
+		t.Fatal("replaced the user's hook")
+	}
+	for event, state := range clineHooks {
+		if event == "TaskStart" {
+			continue
+		}
+		path := filepath.Join(dir, event+".sh")
+		data, err := os.ReadFile(path)
+		if err != nil || !strings.Contains(string(data), "$ORCHESTRA_CLINE") || !strings.Contains(string(data), statusCommand(state)) {
+			t.Fatalf("%s hook is %q", event, data)
+		}
+		if info, _ := os.Stat(path); info.Mode()&0100 == 0 {
+			t.Fatalf("%s hook is not executable", event)
+		}
+	}
+}

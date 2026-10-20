@@ -444,7 +444,7 @@ export const backend = {
     return {
       node: true,
       detected: true,
-      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok'].map((id) => ({
+      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline'].map((id) => ({
         id,
         installed: found.includes(id),
       })),
@@ -585,6 +585,7 @@ export const backend = {
             vibe: 'Mistral Vibe',
             antigravity: 'Antigravity CLI',
             grok: 'Grok Build',
+            cline: 'Cline',
             opencode: 'OpenCode',
             pi: 'Pi',
             codex: 'Codex',

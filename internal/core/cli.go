@@ -107,9 +107,16 @@ func saveAgentID(in io.Reader, path string) error {
 	defer io.Copy(io.Discard, in)
 	var payload struct {
 		SessionID string `json:"session_id"`
+		// Cline names its conversation in sessionContext.rootSessionId.
+		SessionContext struct {
+			RootSessionID string `json:"rootSessionId"`
+		} `json:"sessionContext"`
 	}
 	if err := json.NewDecoder(io.LimitReader(in, 16*1024*1024)).Decode(&payload); err != nil {
 		return err
+	}
+	if payload.SessionID == "" {
+		payload.SessionID = payload.SessionContext.RootSessionID
 	}
 	if path == "" || payload.SessionID == "" {
 		return errors.New("Missing agent session ID.")

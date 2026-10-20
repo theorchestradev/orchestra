@@ -537,6 +537,7 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		"opencode":    "",
 		"vibe":        "",
 		"pi":          "",
+		"cline":       " --auto-approve false",
 	}
 	for agent := range agentSpecs {
 		mode, ok := modes[agent]
@@ -552,8 +553,9 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 			if !strings.Contains(command, mode) {
 				t.Fatalf("%s (resume %v) missing %q: %s", agent, launched, mode, command)
 			}
-			for _, flag := range []string{"--auto", "--dangerously", "bypassPermissions", "--always-approve"} {
-				if strings.Contains(command, flag) {
+			for _, flag := range []string{"--auto", "--dangerously", "bypassPermissions", "--always-approve", "--yolo"} {
+				// Turning Cline's auto-approval off is not a bypass.
+				if strings.Contains(strings.ReplaceAll(command, "--auto-approve false", ""), flag) {
 					t.Fatalf("%s (resume %v) uses %s: %s", agent, launched, flag, command)
 				}
 			}
@@ -1195,6 +1197,12 @@ func TestSaveAgentIDReadsHookPayload(t *testing.T) {
 	}
 	if got, _ := os.ReadFile(path); string(got) != "abc-123" {
 		t.Fatal("invalid payload replaced the saved ID")
+	}
+	if err := saveAgentID(strings.NewReader(`{"taskId":"conv_1","sessionContext":{"rootSessionId":"1792454132274_9mr36"}}`), path); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(path); string(got) != "1792454132274_9mr36" {
+		t.Fatalf("saved %q from a Cline payload", got)
 	}
 	if strings.Contains(statusCommand("waiting"), "plutil") {
 		t.Fatal("hooks depend on macOS tools")
