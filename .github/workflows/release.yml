@@ -143,9 +143,17 @@ jobs:
           cat SHA256SUMS
           prerelease=
           case "$GITHUB_REF_NAME" in *-*) prerelease=--prerelease ;; esac
-          notes=
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          awk -v version="${GITHUB_REF_NAME#v}" '
+            /^## / { if (found) exit; found = ($2 == version); next }
+            found { print }
+          ' ../CHANGELOG.md > "$notes_file"
+          if ! grep -q '[^[:space:]]' "$notes_file"; then
+            echo "Missing changelog notes for $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
           if [ "$SIGNED" != true ]; then
             prerelease=--prerelease
-            notes='The macOS app in this release is not signed or notarized. After copying it to Applications, run `xattr -dr com.apple.quarantine /Applications/Orchestra.app` before opening it.'
+            printf '\n%s\n' 'The macOS app in this release is not signed or notarized. After copying it to Applications, run `xattr -dr com.apple.quarantine /Applications/Orchestra.app` before opening it.' >> "$notes_file"
           fi
-          gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --notes "$notes" --title "Orchestra ${GITHUB_REF_NAME#v}" $prerelease Orchestra-* SHA256SUMS
+          gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file "$notes_file" --title "Orchestra ${GITHUB_REF_NAME#v}" $prerelease Orchestra-* SHA256SUMS
