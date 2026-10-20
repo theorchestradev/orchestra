@@ -6,7 +6,7 @@ const source = readFileSync(new URL("../internal/core/resources/OpenCodeSessionP
 const { OrchestraSessionPlugin } = await import(`data:text/javascript;base64,${Buffer.from(source).toString("base64")}`);
 
 const root = mkdtempSync(join(tmpdir(), "orchestra-opencode-"));
-const saved = ["ORCHESTRA_AGENT_ID_FILE", "ORCHESTRA_RESUME_ID"].map(key => [key, process.env[key]]);
+const saved = ["ORCHESTRA_AGENT_ID_FILE", "ORCHESTRA_RESUME_ID", "ORCHESTRA_STATUS_FILE"].map(key => [key, process.env[key]]);
 try {
   delete process.env.ORCHESTRA_RESUME_ID;
   process.env.ORCHESTRA_AGENT_ID_FILE = join(root, "first");
@@ -28,7 +28,23 @@ try {
   const resumed = await OrchestraSessionPlugin({ directory: root });
   await resumed.event(event("session.updated", "ses_unrelated"));
   assert.equal(readFileSync(join(root, "resumed"), "utf8"), "ses_previous");
-  console.log("PASS: OpenCode root IDs, resume, new conversation, child/project filtering and concurrent session isolation");
+
+  process.env.ORCHESTRA_STATUS_FILE = join(root, "status");
+  const tracked = await OrchestraSessionPlugin({ directory: root });
+  const status = () => readFileSync(join(root, "status"), "utf8");
+  assert.equal(status(), "waiting");
+  const signal = (type, properties) => tracked.event({ event: { type, properties } });
+  await signal("session.status", { sessionID: "ses_previous", status: { type: "busy" } });
+  assert.equal(status(), "working");
+  await signal("session.status", { sessionID: "ses_child", status: { type: "idle" } });
+  assert.equal(status(), "working");
+  await signal("permission.asked", { id: "per_1", sessionID: "ses_child" });
+  assert.equal(status(), "waiting");
+  await signal("permission.replied", { requestID: "per_1", sessionID: "ses_child", reply: "once" });
+  assert.equal(status(), "working");
+  await signal("session.status", { sessionID: "ses_previous", status: { type: "idle" } });
+  assert.equal(status(), "waiting");
+  console.log("PASS: OpenCode root IDs, resume, new conversation, child/project filtering, concurrent session isolation and status");
 } finally {
   for (const [key, value] of saved) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
