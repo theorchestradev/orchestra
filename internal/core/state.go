@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 
 	"github.com/google/uuid"
@@ -146,6 +147,8 @@ type Store struct {
 	emit          func(string, any)
 	log           *slog.Logger
 	track         func(string, map[string]any)
+	// closing holds sessions whose worktree CloseSession is removing without the lock.
+	closing map[string]bool
 }
 
 // SetTracker connects Store's usage signals to the App-owned analytics client.
@@ -229,7 +232,7 @@ func NewStore(path, executable string, emit func(string, any), logger *slog.Logg
 	if logger == nil {
 		logger = slog.New(slog.DiscardHandler)
 	}
-	s := &Store{path: path, worktreesDir: filepath.Join(filepath.Dir(path), "Worktrees"), executable: executable, canSave: true, terminals: map[string]*TerminalSession{}, emit: emit, log: logger}
+	s := &Store{path: path, worktreesDir: filepath.Join(filepath.Dir(path), "Worktrees"), executable: executable, canSave: true, terminals: map[string]*TerminalSession{}, closing: map[string]bool{}, emit: emit, log: logger}
 	s.state = State{Version: 1, Projects: []*Project{}, Preferences: defaultPreferences()}
 	if data, err := os.ReadFile(path); err == nil {
 		if err = json.Unmarshal(data, &s.state); err == nil {
@@ -659,6 +662,7 @@ func (s *Store) SaveScratchpad(id, text string, revision int) (int, error) {
 	return s.setScratchpadTextLocked(p, text, false)
 }
 
+var errSessionClosing = errors.New("This session is closing.")
 var errScratchpadChanged = errors.New("The Scratchpad changed since it was read. Read it again before writing.")
 
 // setScratchpadTextLocked saves new Scratchpad text under a new revision. CLI writes
@@ -996,12 +1000,17 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 }
 
 // CloseSession keeps the session worktree unless removeWorktree asks to discard a clean checkout.
+// Removing a worktree can take seconds, so it runs without the lock. Holding the lock would
+// stall every session's output and leave the stopped agent unreaped until it finished.
 func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, sess, err := s.sessionLocked(id)
 	if err != nil {
 		return State{}, err
+	}
+	if s.closing[id] {
+		return State{}, errSessionClosing
 	}
 	worktreeRoot := ""
 	if removeWorktree && sess.WorktreeDirectory != "" {
@@ -1013,18 +1022,39 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 	if err = s.collaboration.closeLocked(id); err != nil {
 		return State{}, err
 	}
+	var done chan struct{}
 	if t := s.terminals[id]; t != nil {
 		if !t.stopped {
 			s.trackSessionEndLocked(sess, t, "killed")
 		}
 		t.terminate()
 		delete(s.terminals, id)
+		done = t.done
 	}
 	if worktreeRoot != "" {
-		if err = discardSessionWorktree(p.Directory, worktreeRoot, sess.WorktreeBranch, s.log); err != nil {
+		directory, branch := p.Directory, sess.WorktreeBranch
+		s.closing[id] = true
+		s.mu.Unlock()
+		// Let the agent finish its shutdown first, so it cannot write into the worktree while Git
+		// removes it. terminate sends SIGKILL after a second, so this wait stays short.
+		if done != nil {
+			select {
+			case <-done:
+			case <-time.After(3 * time.Second):
+			}
+		}
+		err = discardSessionWorktree(directory, worktreeRoot, branch, s.log)
+		s.mu.Lock()
+		delete(s.closing, id)
+		if err != nil {
 			s.log.Warn("worktree remove failed", "session", id, "error", err)
 			s.changedLocked()
 			return s.snapshotLocked(), err
+		}
+		// The project may have been removed while the lock was released.
+		if p, _, err = s.sessionLocked(id); err != nil {
+			s.changedLocked()
+			return s.snapshotLocked(), nil
 		}
 	}
 	for i, sess := range p.Sessions {

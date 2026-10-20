@@ -161,8 +161,10 @@ func (t *TerminalSession) terminate() {
 }
 
 // signal sends sig to the session's process group. A group that already exited is expected.
+// macOS returns EPERM instead of ESRCH when the group's only member is an exited leader that
+// readTerminal has not reaped yet.
 func (t *TerminalSession) signal(sig syscall.Signal) {
-	if err := syscall.Kill(-t.cmd.Process.Pid, sig); errors.Is(err, syscall.ESRCH) {
+	if err := syscall.Kill(-t.cmd.Process.Pid, sig); errors.Is(err, syscall.ESRCH) || runtime.GOOS == "darwin" && errors.Is(err, syscall.EPERM) {
 		t.log.Debug("session signal failed", "signal", sig.String(), "error", err)
 	} else if err != nil {
 		t.log.Warn("session signal failed", "signal", sig.String(), "error", err)
@@ -174,6 +176,9 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	p, sess, err := s.sessionLocked(id)
 	if err != nil {
 		return TerminalOutput{}, err
+	}
+	if s.closing[id] {
+		return TerminalOutput{}, errSessionClosing
 	}
 	if t := s.terminals[id]; t != nil && !t.stopped && sess.Running {
 		return t.output(id), nil
