@@ -66,14 +66,14 @@ watch(
   },
 )
 const agentName = (id) => agents.find((a) => a.id === id)?.name || id
-const percent = (window) => remainingLabel(usedPercent(window))
+const percent = (window) => remainingLabel(100 - usedPercent(window))
 const summary = computed(() => usageSummary(providers.value, props.agent, now.value))
 const level = computed(() => (summary.value ? usageLevel(usedPercent(summary.value.window)) : ''))
 const label = computed(() => {
   if (!summary.value) return loading.value && !providers.value.length ? 'Checking usage' : 'Usage unavailable'
   const { agent, window } = summary.value,
     duration = durationLabel(window.resetsAt, now.value)
-  return `Usage: ${agentName(agent)} ${percent(window)} used${duration ? ', resets in ' + duration : ''}`
+  return `Usage: ${agentName(agent)} ${percent(window)} left${duration ? ', resets in ' + duration : ''}`
 })
 const rows = computed(() =>
   providers.value.map((provider) => ({ ...provider, window: constrainedWindow(provider, now.value) })),
@@ -147,7 +147,7 @@ onBeforeUnmount(() => {
       @click="open ? close() : show()"
     >
       <template v-if="summary"
-        ><span class="status-optional">Used</span><img :src="agentIcon(summary.agent, appearance)" alt="" /><span
+        ><span class="status-optional">Left</span><img :src="agentIcon(summary.agent, appearance)" alt="" /><span
           class="usage-status-value"
           >{{ percent(summary.window) }}</span
         ><span v-if="durationLabel(summary.window.resetsAt, now)" class="status-optional usage-status-value">{{
@@ -155,16 +155,7 @@ onBeforeUnmount(() => {
         }}</span></template
       ><template v-else
         ><Icon name="circle.dotted" :size="12" />{{ loading && !providers.length ? 'Usage…' : 'Usage' }}</template
-      ></button
-    ><button
-      class="status-item status-button usage-status-refresh"
-      :class="{ spinning: loading }"
-      :disabled="loading"
-      aria-label="Refresh Usage"
-      title="Refresh Usage"
-      @click="refresh(true)"
-    >
-      <Icon name="arrow.clockwise" :size="11" />
+      >
     </button>
     <!-- The status bar mounts with the app, before .app-shell is in the document. -->
     <Teleport defer to=".app-shell"
@@ -238,20 +229,20 @@ onBeforeUnmount(() => {
               <div class="usage-window-heading">
                 <span class="truncate">{{ window.label }}</span
                 ><strong :class="expired(window) ? 'muted' : usageLevel(usedPercent(window))">{{
-                  expired(window) ? 'Awaiting refresh' : percent(window) + ' used'
+                  expired(window) ? 'Awaiting refresh' : percent(window) + ' left'
                 }}</strong>
               </div>
               <div
                 class="usage-meter"
                 role="progressbar"
-                :aria-label="agentName(row.agent) + ' ' + window.label + ' allowance used'"
-                :aria-valuenow="usedPercent(window)"
+                :aria-label="agentName(row.agent) + ' ' + window.label + ' remaining allowance'"
+                :aria-valuenow="100 - usedPercent(window)"
                 :aria-valuemin="0"
                 :aria-valuemax="100"
-                :aria-valuetext="percent(window) + ' used at last check'"
+                :aria-valuetext="percent(window) + ' remaining at last check'"
                 :class="[expired(window) ? 'expired' : usageLevel(usedPercent(window))]"
               >
-                <span :style="{ width: usedPercent(window) + '%' }" />
+                <span :style="{ width: 100 - usedPercent(window) + '%' }" />
               </div>
               <p class="muted caption">{{ resetLabel(window.resetsAt, now) }}</p>
             </div>

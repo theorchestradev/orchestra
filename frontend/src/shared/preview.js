@@ -654,6 +654,26 @@ export const backend = {
     const bytes = new TextEncoder().encode(text)
     return { id: target, start: 0, end: bytes.length, data: btoa(String.fromCharCode(...bytes)) }
   },
+  SessionFiles: (target, path) => {
+    session(target)
+    const tree = {
+      '': [
+        { name: 'frontend', path: 'frontend', directory: true },
+        { name: 'README.md', path: 'README.md', directory: false },
+      ],
+      frontend: [{ name: 'src', path: 'frontend/src', directory: true }],
+      'frontend/src': [{ name: 'App.vue', path: 'frontend/src/App.vue', directory: false }],
+    }
+    return tree[path]
+      ? { directory: true, entries: tree[path] }
+      : {
+          directory: false,
+          entries: [],
+          content: path.endsWith('.md')
+            ? '# Orchestra\n\nYour workspace for coding agents.\n'
+            : '<template>\n  <main>Orchestra</main>\n</template>\n',
+        }
+  },
   SessionDiff: (target) => {
     const s = session(target)
     if (s.agent === 'terminal')

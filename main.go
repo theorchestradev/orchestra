@@ -66,6 +66,7 @@ func main() {
 	view := appMenu.AddSubmenu("View")
 	view.AddText("Toggle Sidebar", keys.CmdOrCtrl("b"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "sidebar") })
 	view.AddText("Toggle Changes", keys.Combo("b", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "diff") })
+	view.AddText("Toggle Files", keys.Combo("e", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "files") })
 	nav := appMenu.AddSubmenu("Navigate")
 	nav.AddText("Command Bar…", keys.CmdOrCtrl("k"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "command") })
 	nav.AddText("Previous Item", keys.Combo("[", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previous") })

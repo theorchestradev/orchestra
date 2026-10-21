@@ -4225,10 +4225,7 @@ h2 {
 .usage-meter.critical > span {
   background: var(--status-deleted);
 }
-.usage-status-refresh {
-  margin: 0 -6px 0 -4px;
-}
-:is(.usage-status-refresh, .usage-popover-heading button).spinning .symbol {
+.usage-popover-heading button.spinning .symbol {
   animation: spin 1s linear infinite;
 }
 .usage-popover {
@@ -4622,4 +4619,160 @@ h2 {
 .profile-remove-dialog :is(h2, p) {
   overflow-wrap: anywhere;
   line-height: 1.45;
+}
+
+.session-pane-tabs {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  --wails-draggable: no-drag;
+}
+.session-pane-tabs button {
+  padding: 4px 8px;
+  border-radius: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.session-pane-tabs button[aria-selected='true'] {
+  color: var(--text);
+  background: var(--selection);
+}
+.session-changes,
+.session-files {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.session-file-tree {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border-top: 1px solid var(--rule);
+  padding: 6px 0;
+}
+.session-file-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 12px;
+  text-align: left;
+  color: var(--text);
+  font-size: 12px;
+}
+.session-file-row:hover {
+  background: var(--surface);
+}
+.session-file-row.selected {
+  background: var(--selection);
+}
+.session-file-preview {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  padding-top: 8px;
+}
+.session-file-preview header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+}
+.file-code-scroll {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  font: 13px/1.6 var(--font-mono, monospace);
+  background: var(--canvas);
+  color: var(--text);
+  tab-size: 4;
+}
+.file-line-numbers {
+  position: sticky;
+  left: 0;
+  flex-shrink: 0;
+  min-height: 100%;
+  padding: 12px 10px;
+  text-align: right;
+  color: var(--muted);
+  background: var(--canvas);
+  border-right: 1px solid var(--rule);
+  user-select: none;
+}
+.file-line-numbers span {
+  display: block;
+}
+.session-file-preview pre {
+  flex: 1;
+  padding: 12px;
+  margin: 0;
+  font: inherit;
+  user-select: text;
+}
+
+.session-file-preview code {
+  font: inherit;
+}
+.session-file-preview :is(.hljs-comment, .hljs-quote) {
+  color: var(--muted);
+}
+.session-file-preview :is(.hljs-keyword, .hljs-selector-tag, .hljs-type, .hljs-doctag) {
+  color: var(--syntax-keyword);
+}
+.session-file-preview :is(.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute) {
+  color: var(--syntax-string);
+}
+.session-file-preview :is(.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet) {
+  color: var(--syntax-number);
+}
+.session-file-preview :is(.hljs-title, .hljs-section, .hljs-selector-class, .hljs-selector-id, .hljs-name) {
+  color: var(--syntax-title);
+}
+.session-file-preview :is(.hljs-built_in, .hljs-attr, .hljs-meta, .hljs-variable) {
+  color: var(--syntax-builtin);
+}
+.session-file-preview .hljs-deletion {
+  color: var(--diff-removed);
+}
+.session-file-preview .hljs-strong {
+  font-weight: 700;
+}
+.session-file-preview .hljs-emphasis {
+  font-style: italic;
+}
+
+.file-view-title {
+  flex: 1;
+  min-width: 0;
+}
+.file-view-title h2 {
+  font-size: 13px;
+  line-height: 1.5;
+  user-select: text;
+}
+.sidebar-file-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 6px;
+}
+.sidebar-file-row.selected {
+  background: var(--selection);
+}
+.sidebar-file-row > .sidebar-row {
+  flex: 1;
+  min-width: 0;
+}
+.sidebar-file-row > .icon-button {
+  flex-shrink: 0;
+  margin-right: 6px;
 }

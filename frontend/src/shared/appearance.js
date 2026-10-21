@@ -97,6 +97,17 @@ export function diffTokens(preferences) {
   const { green, red } = terminalTheme(preferences)
   return { '--diff-added': green, '--diff-removed': red }
 }
+// Syntax colors share the terminal palette, including custom themes and light mode.
+export function syntaxTokens(preferences) {
+  const { magenta, green, yellow, blue, cyan } = terminalTheme(preferences)
+  return {
+    '--syntax-keyword': magenta,
+    '--syntax-string': green,
+    '--syntax-number': yellow,
+    '--syntax-title': blue,
+    '--syntax-builtin': cyan,
+  }
+}
 export const agents = [
   { id: 'codex', name: 'Codex', icon: 'CodexIcon', dark: true },
   { id: 'claude', name: 'Claude Code', icon: 'ClaudeIcon' },

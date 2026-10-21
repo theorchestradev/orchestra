@@ -78,6 +78,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       icon: 'sidebar.right',
       shortcut: shortcut('diff'),
     },
+    project && { id: 'files', group: 'App', name: 'Toggle Files', icon: 'folder', shortcut: shortcut('files') },
     {
       id: 'appearance',
       group: 'App',

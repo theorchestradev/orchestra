@@ -15,18 +15,37 @@ let Orchestra update itself when you ask it to.
   Orchestra is closed, Inbox requests are not delivered and the orchestra CLI
   is unavailable.
 
+## 0.8.0 — 2026-10-20
+
+### New
+
+- **Browse a session's files.** A Files tab beside Changes lists the session's
+  project folder or worktree. Select a file to read it with syntax highlighting
+  and line numbers in the center of the window; open files appear in the
+  sidebar until you close them. Toggle it from View → Toggle Files, the command
+  bar, or Shift+Cmd+E (Ctrl+Shift+E on Linux).
+  ([#44](https://github.com/theorchestradev/orchestra/pull/44))
+
 ### Changed
 
+- **Usage shows what is left.** The status bar and its popover now report the
+  allowance left in each window, matching Settings → Usage. Refresh usage from
+  the popover. ([#45](https://github.com/theorchestradev/orchestra/pull/45))
 - **A clearer local branch notice.** When local main is behind origin, the
   notice now appears as a card in the bottom-right corner that explains why it
   matters, links to the setting and offers to keep main up to date. The
   Settings section is now called Source Control.
+  ([#37](https://github.com/theorchestradev/orchestra/pull/37))
 
 ### Fixed
 
 - **Claude Code sessions with no saved conversation.** When Claude Code cannot
   find the conversation it is asked to resume, the session now says so and
   offers Start New Conversation instead of only reporting exit code 1.
+  ([#43](https://github.com/theorchestradev/orchestra/pull/43))
+- **Removing a worktree session no longer freezes the app.** Other sessions
+  and the interface keep responding while the worktree is deleted.
+  ([#41](https://github.com/theorchestradev/orchestra/pull/41))
 
 ## 0.7.0 — 2026-10-19
 

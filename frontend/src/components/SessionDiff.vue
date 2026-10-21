@@ -16,8 +16,21 @@ import {
 } from '../shared/diff'
 import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
-const props = defineProps({ session: Object, width: Number })
-const emit = defineEmits(['close', 'resize', 'resized'])
+import SessionFiles from './SessionFiles.vue'
+const props = defineProps({
+  session: Object,
+  width: Number,
+  selectedPath: String,
+  tab: { type: String, default: 'Changes' },
+})
+const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab'])
+const activeTab = computed({ get: () => props.tab, set: (tab) => emit('tab', tab) }),
+  fileBrowser = ref(null)
+function switchTab(event) {
+  const parent = event.currentTarget.parentElement
+  activeTab.value = activeTab.value === 'Changes' ? 'Files' : 'Changes'
+  nextTick(() => parent.querySelector('[aria-selected="true"]')?.focus())
+}
 const markers = { add: '+', del: '-', context: ' ', note: '' }
 const diff = ref(null),
   error = ref(''),
@@ -157,12 +170,12 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <aside class="diff-pane" aria-label="Changes" :style="{ '--diff-pane-width': width + 'px' }">
+  <aside class="diff-pane" :aria-label="activeTab" :style="{ '--diff-pane-width': width + 'px' }">
     <div
       class="diff-resizer"
       role="separator"
       tabindex="0"
-      aria-label="Resize Changes"
+      :aria-label="`Resize ${activeTab}`"
       aria-orientation="vertical"
       :aria-valuenow="width"
       :aria-valuemin="minDiffWidth"
@@ -172,97 +185,132 @@ onBeforeUnmount(() => {
     />
     <header class="diff-header">
       <div class="diff-title">
-        <h2>Changes</h2>
+        <div class="session-pane-tabs" role="tablist" aria-label="Session sidebar">
+          <button
+            v-for="tab in ['Changes', 'Files']"
+            :id="`session-tab-${tab}`"
+            :key="tab"
+            role="tab"
+            :aria-selected="activeTab === tab"
+            :aria-controls="`session-panel-${tab}`"
+            :tabindex="activeTab === tab ? 0 : -1"
+            @click="activeTab = tab"
+            @keydown.left.prevent="switchTab"
+            @keydown.right.prevent="switchTab"
+          >
+            {{ tab }}
+          </button>
+        </div>
         <span class="spacer" /><button
           class="icon-button"
-          :class="{ spinning: loading }"
-          aria-label="Refresh Changes"
-          title="Refresh Changes"
-          :disabled="loading"
-          @click="refresh"
+          :class="{ spinning: activeTab === 'Changes' ? loading : fileBrowser?.loading }"
+          :aria-label="`Refresh ${activeTab}`"
+          :title="`Refresh ${activeTab}`"
+          :disabled="activeTab === 'Changes' ? loading : fileBrowser?.loading"
+          @click="activeTab === 'Changes' ? refresh() : fileBrowser?.refresh()"
         >
           <Icon name="arrow.clockwise" :size="14" /></button
         ><button
           class="icon-button"
-          aria-label="Hide Changes"
-          :title="`Hide Changes (${shortcutLabel('⇧⌘B')})`"
+          aria-label="Hide sidebar"
+          :title="`Hide sidebar (${shortcutLabel('⇧⌘B')})`"
           @click="emit('close')"
         >
           <Icon name="xmark" :size="12" />
         </button>
       </div>
-      <p v-if="diff?.scope" class="muted caption truncate" :title="scopeDetail">{{ scopeLabel }}</p>
-      <p v-if="diff?.scope" class="diff-totals caption" aria-live="polite">
+      <p v-if="activeTab === 'Changes' && diff?.scope" class="muted caption truncate" :title="scopeDetail">
+        {{ scopeLabel }}
+      </p>
+      <p v-if="activeTab === 'Changes' && diff?.scope" class="diff-totals caption" aria-live="polite">
         {{ files.length }} {{ files.length === 1 ? 'file' : 'files' }}
         <span class="diff-additions">+{{ diff.additions }}</span>
         <span class="diff-deletions">−{{ diff.deletions }}</span>
         <span v-if="diff.truncated" class="muted">· Some changes are too large to show</span>
       </p>
     </header>
-    <div v-if="error" class="diff-empty" role="alert">
-      <Icon name="exclamationmark.triangle" :size="28" />
-      <p>{{ error }}</p>
-      <button class="standard-button" @click="refresh">Try Again</button>
-    </div>
-    <div v-else-if="!diff" class="diff-empty"><span class="spinner" /></div>
-    <div v-else-if="!diff.scope" class="diff-empty">
-      <Icon name="arrow.triangle.branch" :size="28" />
-      <p>{{ diff.message }}</p>
-    </div>
-    <div v-else-if="!files.length" class="diff-empty">
-      <Icon name="checkmark.circle" :size="28" />
-      <p>
-        {{
-          diff.scope === 'worktree'
-            ? 'No changes since the worktree started.'
-            : 'No uncommitted changes in the project folder.'
-        }}
-      </p>
-    </div>
-    <div v-else ref="scroller" class="diff-scroller" @keydown="navigate" @scroll.passive="saveScroll()">
-      <section v-for="file in files" :key="file.id" class="diff-file" :data-path="file.id">
-        <h3>
-          <button
-            class="diff-file-toggle"
-            :aria-expanded="!collapsed(file)"
-            :title="(file.oldPath ? file.oldPath + ' → ' : '') + file.path"
-            @click="toggle(file)"
-          >
-            <Icon :name="collapsed(file) ? 'chevron.right' : 'chevron.down'" :size="9" /><span
-              class="diff-status"
-              :class="'status-' + file.status"
-              aria-hidden="true"
-              >{{ file.status }}</span
-            ><span class="visually-hidden">{{ statusLabels[file.status] }}: </span
-            ><span class="diff-path"
-              ><span class="diff-folder">{{ file.folder }}</span
-              ><span class="diff-name">{{ file.name }}</span></span
-            ><span v-if="!file.binary" class="diff-counts"
-              ><span class="diff-additions">+{{ file.additions }}</span
-              ><span class="diff-deletions">−{{ file.deletions }}</span></span
+    <SessionFiles
+      v-if="activeTab === 'Files'"
+      id="session-panel-Files"
+      ref="fileBrowser"
+      role="tabpanel"
+      aria-labelledby="session-tab-Files"
+      :session="session"
+      :selected-path="selectedPath"
+      @open="emit('open-file', $event)"
+    />
+    <div
+      v-show="activeTab === 'Changes'"
+      id="session-panel-Changes"
+      class="session-changes"
+      role="tabpanel"
+      aria-labelledby="session-tab-Changes"
+    >
+      <div v-if="error" class="diff-empty" role="alert">
+        <Icon name="exclamationmark.triangle" :size="28" />
+        <p>{{ error }}</p>
+        <button class="standard-button" @click="refresh">Try Again</button>
+      </div>
+      <div v-else-if="!diff" class="diff-empty"><span class="spinner" /></div>
+      <div v-else-if="!diff.scope" class="diff-empty">
+        <Icon name="arrow.triangle.branch" :size="28" />
+        <p>{{ diff.message }}</p>
+      </div>
+      <div v-else-if="!files.length" class="diff-empty">
+        <Icon name="checkmark.circle" :size="28" />
+        <p>
+          {{
+            diff.scope === 'worktree'
+              ? 'No changes since the worktree started.'
+              : 'No uncommitted changes in the project folder.'
+          }}
+        </p>
+      </div>
+      <div v-else ref="scroller" class="diff-scroller" @keydown="navigate" @scroll.passive="saveScroll()">
+        <section v-for="file in files" :key="file.id" class="diff-file" :data-path="file.id">
+          <h3>
+            <button
+              class="diff-file-toggle"
+              :aria-expanded="!collapsed(file)"
+              :title="(file.oldPath ? file.oldPath + ' → ' : '') + file.path"
+              @click="toggle(file)"
             >
-          </button>
-        </h3>
-        <template v-if="!collapsed(file)">
-          <p v-if="!file.hunks.length" class="diff-placeholder muted">{{ diffPlaceholder(file) }}</p>
-          <div v-else class="diff-body">
-            <div class="diff-lines">
-              <template v-for="(hunk, index) in file.hunks" :key="index"
-                ><div class="diff-hunk-header" tabindex="0" :aria-label="'Hunk ' + hunk.header">
-                  {{ hunk.header }}
-                </div>
-                <div v-for="(line, n) in hunk.lines" :key="n" class="diff-line" :class="line.kind">
-                  <span class="diff-number">{{ line.old ?? '' }}</span
-                  ><span class="diff-number">{{ line.new ?? '' }}</span
-                  ><span class="diff-marker">{{ markers[line.kind] }}</span
-                  ><span class="diff-text">{{ line.text }}</span>
-                </div></template
+              <Icon :name="collapsed(file) ? 'chevron.right' : 'chevron.down'" :size="9" /><span
+                class="diff-status"
+                :class="'status-' + file.status"
+                aria-hidden="true"
+                >{{ file.status }}</span
+              ><span class="visually-hidden">{{ statusLabels[file.status] }}: </span
+              ><span class="diff-path"
+                ><span class="diff-folder">{{ file.folder }}</span
+                ><span class="diff-name">{{ file.name }}</span></span
+              ><span v-if="!file.binary" class="diff-counts"
+                ><span class="diff-additions">+{{ file.additions }}</span
+                ><span class="diff-deletions">−{{ file.deletions }}</span></span
               >
+            </button>
+          </h3>
+          <template v-if="!collapsed(file)">
+            <p v-if="!file.hunks.length" class="diff-placeholder muted">{{ diffPlaceholder(file) }}</p>
+            <div v-else class="diff-body">
+              <div class="diff-lines">
+                <template v-for="(hunk, index) in file.hunks" :key="index"
+                  ><div class="diff-hunk-header" tabindex="0" :aria-label="'Hunk ' + hunk.header">
+                    {{ hunk.header }}
+                  </div>
+                  <div v-for="(line, n) in hunk.lines" :key="n" class="diff-line" :class="line.kind">
+                    <span class="diff-number">{{ line.old ?? '' }}</span
+                    ><span class="diff-number">{{ line.new ?? '' }}</span
+                    ><span class="diff-marker">{{ markers[line.kind] }}</span
+                    ><span class="diff-text">{{ line.text }}</span>
+                  </div></template
+                >
+              </div>
             </div>
-          </div>
-        </template>
-        <p v-else-if="file.binary || file.truncated" class="diff-placeholder muted">{{ diffPlaceholder(file) }}</p>
-      </section>
+          </template>
+          <p v-else-if="file.binary || file.truncated" class="diff-placeholder muted">{{ diffPlaceholder(file) }}</p>
+        </section>
+      </div>
     </div>
   </aside>
 </template>

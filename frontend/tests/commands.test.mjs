@@ -32,6 +32,7 @@ test('command bar lists navigation, creation and app commands for the selected p
     'update',
     'sidebar',
     'diff',
+    'files',
     'appearance',
     'theme',
   ])

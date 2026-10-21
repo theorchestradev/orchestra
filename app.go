@@ -744,6 +744,14 @@ func (a *App) SessionDiff(id string) (core.SessionDiff, error) {
 	return a.store.SessionDiff(id)
 }
 
+// SessionFiles lists a folder or previews a text file inside the session folder.
+func (a *App) SessionFiles(id, path string) (core.SessionFiles, error) {
+	if err := a.ready(); err != nil {
+		return core.SessionFiles{}, err
+	}
+	return a.store.SessionFiles(id, path)
+}
+
 // ProjectIcons maps project IDs to the favicon or app icon found in their folders, as data URLs.
 // Projects without one are left out.
 func (a *App) ProjectIcons() map[string]string {
