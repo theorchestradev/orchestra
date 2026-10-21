@@ -74,8 +74,19 @@ codesign --timestamp --sign "$identity" "$dmg"
 
 # Notarizing the disk image also notarizes the app inside it, so both can be stapled.
 xcrun notarytool submit "$dmg" "$@" --wait
-xcrun stapler staple "$dmg"
-xcrun stapler staple "$app"
+staple() {
+	attempt=1
+	while :; do
+		if xcrun stapler staple "$1"; then return 0; else status=$?; fi
+		# Error 68 includes interrupted CloudKit connections after notarization succeeds.
+		if [ "$status" -ne 68 ] || [ "$attempt" -ge 3 ]; then return "$status"; fi
+		echo "Stapling failed with error 68; retrying in 10 seconds ($attempt/3)." >&2
+		sleep 10
+		attempt=$((attempt + 1))
+	done
+}
+staple "$dmg"
+staple "$app"
 spctl --assess --type execute --verbose=2 "$app"
 spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
 
