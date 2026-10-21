@@ -4,7 +4,7 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
-## Unreleased
+## 0.9.0 — 2026-10-21
 
 ### New
 
@@ -14,6 +14,14 @@ let Orchestra update itself when you ask it to.
   with their recent terminal output. The Quit dialog can still stop them. While
   Orchestra is closed, Inbox requests are not delivered and the orchestra CLI
   is unavailable.
+
+### Changed
+
+- **Identify opened files by worktree.** The sidebar and file viewer show the
+  worktree branch or folder name, making files from different worktrees easier
+  to tell apart.
+- **Circular project selection in Arc layout.** The selected project indicator
+  now follows the circular shape of its project icon.
 
 ## 0.8.0 — 2026-10-20
 
