@@ -63,6 +63,9 @@ type input struct {
 type client struct {
 	conn net.Conn
 	out  chan Message
+	// gone closes when the client disconnects. out is never closed, because the session
+	// goroutines may still be sending to it.
+	gone chan struct{}
 	once sync.Once
 }
 
@@ -148,7 +151,7 @@ func (s *server) exitWhenUnused(listener net.Listener) {
 }
 
 func (s *server) serve(conn net.Conn) {
-	c := &client{conn: conn, out: make(chan Message, 1024)}
+	c := &client{conn: conn, out: make(chan Message, 1024), gone: make(chan struct{})}
 	s.mu.Lock()
 	s.clients[c] = true
 	s.mu.Unlock()
@@ -177,13 +180,16 @@ func (s *server) serve(conn net.Conn) {
 
 func (c *client) write(log *slog.Logger) {
 	encoder := json.NewEncoder(c.conn)
-	for m := range c.out {
-		_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
-		if err := encoder.Encode(m); err != nil {
-			log.Debug("session host write failed", "error", err)
-			c.conn.Close()
-			for range c.out {
+	for {
+		select {
+		case m := <-c.out:
+			_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := encoder.Encode(m); err != nil {
+				log.Debug("session host write failed", "error", err)
+				c.close()
+				return
 			}
+		case <-c.gone:
 			return
 		}
 	}
@@ -191,15 +197,15 @@ func (c *client) write(log *slog.Logger) {
 func (c *client) close() {
 	c.once.Do(func() {
 		c.conn.Close()
-		close(c.out)
+		close(c.gone)
 	})
 }
 
 // send queues m without blocking; a client that stops reading is disconnected and
 // catches up from the buffer when it attaches again.
 func (s *server) send(c *client, m Message) {
-	defer func() { _ = recover() }() // The client closed while m was being queued.
 	select {
+	case <-c.gone:
 	case c.out <- m:
 	default:
 		s.log.Warn("session host client too slow; disconnecting")
