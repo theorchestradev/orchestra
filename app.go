@@ -66,7 +66,7 @@ func (a *App) startup(ctx context.Context) {
 		a.startupError = err
 		return
 	}
-	a.store, a.startupError = core.NewStore(path, exe, func(event string, data any) { runtime.EventsEmit(ctx, event, data) }, a.log)
+	a.store, a.startupError = core.OpenStore(path, exe, func(event string, data any) { runtime.EventsEmit(ctx, event, data) }, a.log, true)
 	if a.startupError != nil {
 		a.log.Error("workspace open failed", "error", a.startupError)
 	}
@@ -693,7 +693,12 @@ func (a *App) beforeClose(context.Context) bool {
 	runtime.EventsEmit(a.ctx, "quit-request", a.store.Snapshot())
 	return true
 }
-func (a *App) ConfirmQuit() {
+// ConfirmQuit quits after the Quit dialog. stopSessions also stops the sessions that would
+// keep running in the background.
+func (a *App) ConfirmQuit(stopSessions bool) {
+	if a.store != nil {
+		a.store.StopSessionsOnQuit(stopSessions)
+	}
 	a.quitConfirmed.Store(true)
 	runtime.Quit(a.ctx)
 }

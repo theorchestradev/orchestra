@@ -8,19 +8,16 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/creack/pty"
 	"github.com/theorchestradev/orchestra/internal/telemetry"
 )
 
@@ -114,8 +111,7 @@ func environmentList(m map[string]string) []string {
 }
 
 type TerminalSession struct {
-	cmd                *exec.Cmd
-	pty                *os.File
+	proc               terminalProcess
 	done               chan struct{}
 	statusFile, idFile string
 	// agentDirectory is a folder the agent's Prepare reserved for its own files.
@@ -128,6 +124,8 @@ type TerminalSession struct {
 	resumed        bool
 	stopped        bool
 	telemetryEnded bool
+	// background is true when the session host runs the process, so it can outlive the app.
+	background bool
 	// draft approximates how many characters the user has typed without submitting them.
 	draft int
 	log   *slog.Logger
@@ -147,30 +145,7 @@ func (t *TerminalSession) terminate() {
 		return
 	}
 	t.stopped = true
-	t.signal(syscall.SIGTERM)
-	if err := t.pty.Close(); err != nil {
-		t.log.Debug("terminal close failed", "error", err)
-	}
-	go func() {
-		select {
-		case <-t.done:
-			return
-		case <-time.After(time.Second):
-			t.log.Info("session did not stop after SIGTERM; sending SIGKILL")
-			t.signal(syscall.SIGKILL)
-		}
-	}()
-}
-
-// signal sends sig to the session's process group. A group that already exited is expected.
-// macOS returns EPERM instead of ESRCH when the group's only member is an exited leader that
-// readTerminal has not reaped yet.
-func (t *TerminalSession) signal(sig syscall.Signal) {
-	if err := syscall.Kill(-t.cmd.Process.Pid, sig); errors.Is(err, syscall.ESRCH) || runtime.GOOS == "darwin" && errors.Is(err, syscall.EPERM) {
-		t.log.Debug("session signal failed", "signal", sig.String(), "error", err)
-	} else if err != nil {
-		t.log.Warn("session signal failed", "signal", sig.String(), "error", err)
-	}
+	t.proc.Terminate()
 }
 func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (TerminalOutput, error) {
 	s.mu.Lock()
@@ -242,22 +217,18 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 		setup += "export " + k + "=" + shellQuote(folders[k]) + "; "
 	}
 	setup += "cd -- " + shellQuote(directory) + " && exec /usr/bin/env " + command
-	t.cmd = exec.Command(shell, "-l", "-i", "-c", setup)
-	t.cmd.Dir = directory
-	t.cmd.Env = environmentList(env)
 	if cols < 2 || cols > 1000 {
 		cols = 100
 	}
 	if rows < 2 || rows > 1000 {
 		rows = 32
 	}
-	t.pty, err = pty.StartWithSize(t.cmd, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
-	if err != nil {
+	t.resumed = sess.Agent != terminalAgent && sess.HasLaunched && sess.AgentSessionID != ""
+	if err = s.startProcessLocked(sess, t, []string{shell, "-l", "-i", "-c", setup}, directory, environmentList(env), cols, rows); err != nil {
 		t.log.Warn("session start failed", "agent", sess.Agent, "error", err)
 		return TerminalOutput{}, err
 	}
-	t.resumed = sess.Agent != terminalAgent && sess.HasLaunched && sess.AgentSessionID != ""
-	t.log.Info("session started", "agent", sess.Agent, "worktree", sess.WorktreeDirectory != "", "resume", t.resumed)
+	t.log.Info("session started", "agent", sess.Agent, "worktree", sess.WorktreeDirectory != "", "resume", t.resumed, "background", t.background)
 	s.terminals[id] = t
 	sess.HasLaunched = true
 	sess.LoginAgent = ""
@@ -266,6 +237,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	sess.Activity = "unknown"
 	sess.ExitMessage = ""
 	sess.StatusNeedsSetup = false
+	sess.Background = t.background
 	if err = s.saveLocked(); err != nil {
 		t.terminate()
 		return TerminalOutput{}, err
@@ -285,7 +257,7 @@ var ansiRE = regexp.MustCompile(`\x1b\[[0-?]*[ -/]*[@-~]`)
 func (s *Store) readTerminal(id string, t *TerminalSession) {
 	buf := make([]byte, 32768)
 	for {
-		n, err := t.pty.Read(buf)
+		n, err := t.proc.Read(buf)
 		if n > 0 {
 			s.mu.Lock()
 			if s.terminals[id] == t {
@@ -295,14 +267,7 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 				if len(t.buffer) > 4*1024*1024 {
 					t.buffer = append([]byte{}, t.buffer[len(t.buffer)-4*1024*1024:]...)
 				}
-				tail := t.buffer
-				if len(tail) > 4096 {
-					tail = tail[len(tail)-4096:]
-				}
-				on, off := strings.LastIndex(string(tail), "\x1b[?2004h"), strings.LastIndex(string(tail), "\x1b[?2004l")
-				if on >= 0 || off >= 0 {
-					t.bracketedPaste = on > off
-				}
+				t.updateBracketedPaste()
 				s.emit("terminal", TerminalOutput{id, base64.StdEncoding.EncodeToString(buf[:n]), start, t.offset})
 			}
 			s.mu.Unlock()
@@ -311,12 +276,13 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 			break
 		}
 	}
-	err := t.cmd.Wait()
+	exit := t.proc.Wait()
+	err := exit.err
 	// done closes after the exit has been saved, so waiting for it covers the final write.
 	defer close(t.done)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	logExit(t, err)
+	logExit(t, exit)
 	if s.terminals[id] != t {
 		return
 	}
@@ -328,7 +294,7 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 	kind := "normal"
 	if t.stopped {
 		kind = "killed"
-	} else if status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus); ok && status.Signaled() {
+	} else if exit.signal != "" {
 		kind = "killed"
 	} else if err != nil {
 		kind = "error"
@@ -343,10 +309,11 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 		}
 	}
 	sess.Running = false
+	sess.Background = false
 	sess.Activity = "ended"
 	sess.StatusNeedsSetup = false
 	t.stopped = true
-	code := t.cmd.ProcessState.ExitCode()
+	code := exit.code
 	name, _ := sessionKindName(sess.Agent)
 	sess.ExitMessage = fmt.Sprintf("%s exited (code %d).", name, code)
 	if code == 127 && spec != nil {
@@ -362,14 +329,24 @@ func (s *Store) readTerminal(id string, t *TerminalSession) {
 	}
 	_ = os.Remove(t.statusFile)
 	_ = os.Remove(t.idFile)
-	if err = t.pty.Close(); err != nil && !errors.Is(err, os.ErrClosed) {
-		t.log.Debug("terminal close failed", "error", err)
-	}
+	t.proc.Close()
 	if err = s.saveLocked(); err != nil {
 		t.log.Warn("workspace save failed", "error", err)
 		s.state.Error = err.Error()
 	}
 	s.changedLocked()
+}
+
+// updateBracketedPaste follows the last bracketed paste mode switch in recent output.
+func (t *TerminalSession) updateBracketedPaste() {
+	tail := t.buffer
+	if len(tail) > 4096 {
+		tail = tail[len(tail)-4096:]
+	}
+	on, off := strings.LastIndex(string(tail), "\x1b[?2004h"), strings.LastIndex(string(tail), "\x1b[?2004l")
+	if on >= 0 || off >= 0 {
+		t.bracketedPaste = on > off
+	}
 }
 
 func (s *Store) trackSessionEndLocked(sess *Session, t *TerminalSession, kind string) {
@@ -384,14 +361,14 @@ func (s *Store) trackSessionEndLocked(sess *Session, t *TerminalSession, kind st
 }
 
 // logExit records how a session's process ended: its exit code, or the signal that stopped it.
-func logExit(t *TerminalSession, err error) {
+func logExit(t *TerminalSession, exit processExit) {
 	attrs := []any{"stopped", t.stopped}
-	if state := t.cmd.ProcessState; state == nil {
-		attrs = append(attrs, "error", err)
-	} else if status, ok := state.Sys().(syscall.WaitStatus); ok && status.Signaled() {
-		attrs = append(attrs, "signal", status.Signal().String())
+	if exit.signal != "" {
+		attrs = append(attrs, "signal", exit.signal)
+	} else if exit.code < 0 {
+		attrs = append(attrs, "error", exit.err)
 	} else {
-		attrs = append(attrs, "code", state.ExitCode())
+		attrs = append(attrs, "code", exit.code)
 	}
 	t.log.Info("session exited", attrs...)
 }
@@ -489,7 +466,7 @@ func (s *Store) WriteTerminal(id, data string) error {
 	if len(data) > 1024*1024 {
 		return errors.New("Terminal input is too large.")
 	}
-	if _, err = t.pty.WriteString(data); err != nil {
+	if err = t.proc.Write([]byte(data)); err != nil {
 		return err
 	}
 	t.draft = draftLength(t.draft, data)
@@ -526,7 +503,7 @@ func (s *Store) ResizeTerminal(id string, cols, rows int) error {
 	if t == nil || t.stopped {
 		return nil
 	}
-	return pty.Setsize(t.pty, &pty.Winsize{Cols: uint16(cols), Rows: uint16(rows)})
+	return t.proc.Resize(cols, rows)
 }
 func prepareRequestInput(prompt string, bracketed bool) (string, error) {
 	for _, r := range prompt {

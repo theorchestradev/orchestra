@@ -58,6 +58,7 @@ let state = {
     hideUsageStatus: false,
     usageDetailed: false,
     keepLocalMainUpdated: false,
+    keepSessionsRunning: false,
     betaUpdates: false,
   },
   projects: [

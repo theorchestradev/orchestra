@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/theorchestradev/orchestra/internal/sessionhost"
 )
 
 type Run struct {
@@ -112,7 +113,10 @@ func pruneRuns(runs []*Run, now time.Time) []*Run {
 	}
 	return kept
 }
-func newCollaboration(path string, s *Store) (*Collaboration, string, error) {
+
+// newCollaboration loads the history. A running request whose recipient is still running
+// in the session host stays running, because that agent may still reply.
+func newCollaboration(path string, s *Store, live map[string]sessionhost.Info) (*Collaboration, string, error) {
 	runs, warning, err := loadRuns(path)
 	if err != nil {
 		return nil, "", err
@@ -120,7 +124,7 @@ func newCollaboration(path string, s *Store) (*Collaboration, string, error) {
 	c := &Collaboration{store: s, path: path, runs: runs, tokens: map[string]string{}, waits: map[string]WaitEdge{}}
 	interrupted := false
 	for _, run := range runs {
-		if run.Status == "running" {
+		if info, ok := live[run.ToSessionID]; run.Status == "running" && (!ok || info.Exit != nil) {
 			run.Status = "interrupted"
 			run.Detail = "Orchestra stopped before this request finished. It was not resent."
 			interrupted = true
@@ -135,6 +139,8 @@ func newCollaboration(path string, s *Store) (*Collaboration, string, error) {
 	if err = atomicWrite(filepath.Join(s.runtimeDir, "orchestra"), []byte(shim), 0700); err != nil {
 		return nil, "", err
 	}
+	// A runtime folder kept for the session host can hold the socket of an earlier launch.
+	_ = os.Remove(filepath.Join(s.runtimeDir, "broker.sock"))
 	listener, err := net.Listen("unix", filepath.Join(s.runtimeDir, "broker.sock"))
 	if err != nil {
 		return nil, "", err
@@ -234,6 +240,20 @@ func (c *Collaboration) environmentLocked(id string) (map[string]string, error) 
 	}
 	env["ORCHESTRA_CONTEXT"] = context
 	return env, nil
+}
+
+// restoreTokenLocked accepts again the credentials a session received before Orchestra
+// reopened, read from the context file that environmentLocked wrote.
+func (c *Collaboration) restoreTokenLocked(id string) {
+	data, err := os.ReadFile(filepath.Join(c.store.runtimeDir, id+".json"))
+	if err != nil {
+		c.store.log.Warn("session credentials unavailable", "session", id, "error", err)
+		return
+	}
+	var env map[string]string
+	if err = json.Unmarshal(data, &env); err == nil && env["ORCHESTRA_TOKEN"] != "" {
+		c.tokens[id] = env["ORCHESTRA_TOKEN"]
+	}
 }
 func (c *Collaboration) historyLocked() []*Run {
 	data, _ := json.Marshal(c.runs)
@@ -413,11 +433,13 @@ func (c *Collaboration) closeLocked(id string) error {
 	_ = os.Remove(filepath.Join(c.store.runtimeDir, id+".json"))
 	return nil
 }
-func (c *Collaboration) stopLocked() {
+
+// stopLocked closes the broker. Requests running in a kept session stay running.
+func (c *Collaboration) stopLocked(kept map[string]bool) {
 	c.stopping = true
 	_ = c.listener.Close()
 	for _, r := range c.runs {
-		if r.Status == "running" {
+		if r.Status == "running" && !kept[r.ToSessionID] {
 			copy := *r
 			copy.Status = "interrupted"
 			copy.Detail = "Orchestra closed before this request finished. It was not resent."
@@ -631,7 +653,7 @@ func (s *Store) submitRequestLocked(run *Run, sess *Session, t *TerminalSession)
 		return err
 	}
 	s.log.Info("request submitted", "request", run.ID, "session", sess.ID)
-	if _, err = t.pty.WriteString(input); err != nil {
+	if err = t.proc.Write([]byte(input)); err != nil {
 		copy := *run
 		copy.Status = "needsAttention"
 		copy.Detail = "Input submission failed: " + err.Error()
