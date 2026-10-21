@@ -263,3 +263,21 @@ func TestBlockedInputLeavesHostResponsive(t *testing.T) {
 	}
 	other.Terminate()
 }
+
+func TestResizeReachesTerminal(t *testing.T) {
+	dir := hostDir(t)
+	serveHost(t, dir, Options{})
+	c := connect(t, dir)
+	p, err := c.Spawn("size", []string{"/bin/sh", "-c", "stty -echo; printf 'ready\\r\\n'; read -r line; stty size"}, "/", os.Environ(), 80, 24, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readUntil(t, p, "ready")
+	if err = p.Resize(132, 43); err != nil {
+		t.Fatal(err)
+	}
+	if err = p.Write([]byte("\n")); err != nil {
+		t.Fatal(err)
+	}
+	readUntil(t, p, "43 132")
+}

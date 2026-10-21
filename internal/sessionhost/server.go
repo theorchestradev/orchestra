@@ -14,6 +14,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"github.com/creack/pty"
 )
@@ -254,7 +255,7 @@ func (s *server) handleLocked(c *client, m Message) Message {
 		return reply
 	case "resize":
 		if sess.exit == nil && !sess.stopped {
-			if err := pty.Setsize(sess.pty, &pty.Winsize{Cols: uint16(m.Cols), Rows: uint16(m.Rows)}); err != nil {
+			if err := setSize(sess.pty, m.Cols, m.Rows); err != nil {
 				return Message{Error: err.Error()}
 			}
 		}
@@ -285,6 +286,12 @@ func (s *server) spawnLocked(c *client, m Message) Message {
 	cmd.Dir = m.Dir
 	cmd.Env = m.Env
 	f, err := pty.StartWithSize(cmd, &pty.Winsize{Cols: uint16(m.Cols), Rows: uint16(m.Rows)})
+	if err == nil {
+		if f, err = pollable(f); err != nil {
+			_ = cmd.Process.Kill()
+			go func() { _ = cmd.Wait() }()
+		}
+	}
 	if err != nil {
 		return Message{Error: err.Error()}
 	}
@@ -339,6 +346,46 @@ func (s *server) read(sess *session) {
 		s.send(c, event)
 	}
 	sess.watchers = map[*client]bool{}
+}
+
+// pollable replaces a PTY with a non-blocking copy. creack/pty leaves the master in
+// blocking mode, where closing it cannot end a write that waits for the terminal to read;
+// on Linux that write would never return once the session stopped.
+func pollable(f *os.File) (*os.File, error) {
+	defer f.Close()
+	syscall.ForkLock.RLock()
+	fd, err := syscall.Dup(int(f.Fd()))
+	if err == nil {
+		syscall.CloseOnExec(fd)
+	}
+	syscall.ForkLock.RUnlock()
+	if err != nil {
+		return nil, err
+	}
+	if err = syscall.SetNonblock(fd, true); err != nil {
+		syscall.Close(fd)
+		return nil, err
+	}
+	return os.NewFile(uintptr(fd), f.Name()), nil
+}
+
+// setSize resizes a PTY without f.Fd(), which would switch it back to blocking mode.
+func setSize(f *os.File, cols, rows int) error {
+	conn, err := f.SyscallConn()
+	if err != nil {
+		return err
+	}
+	size := pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)}
+	var errno syscall.Errno
+	if err = conn.Control(func(fd uintptr) {
+		_, _, errno = syscall.Syscall(syscall.SYS_IOCTL, fd, syscall.TIOCSWINSZ, uintptr(unsafe.Pointer(&size)))
+	}); err != nil {
+		return err
+	}
+	if errno != 0 {
+		return errno
+	}
+	return nil
 }
 
 // write passes input to the session in order, without the host's lock. Closing the PTY
