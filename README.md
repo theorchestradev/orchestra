@@ -17,6 +17,9 @@
   unless you choose to.
 - **GitHub and diffs:** browse issues and pull requests, start a session from one, and
   review each session's changes.
+- **Files:** switch the right sidebar between Changes and Files, browse the session's
+  project or worktree, and open files in the sidebar to read syntax-highlighted code
+  in the central view.
 
 
 ## Install
