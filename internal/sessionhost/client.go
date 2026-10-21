@@ -19,8 +19,10 @@ const Flag = "--orchestra-host"
 var (
 	// ErrNotRunning means no host serves the folder.
 	ErrNotRunning = errors.New("The session host is not running.")
-	// errClosed ends a process when the client disconnects from the host.
-	errClosed = errors.New("The session host connection was closed.")
+	// ErrClosed means the connection to the host ended before the host replied.
+	ErrClosed = errors.New("The session host connection was closed.")
+	// ErrRunning means the host already runs a session with that ID.
+	ErrRunning = errors.New("Session is already running.")
 )
 
 // IncompatibleError reports a host that speaks another protocol, usually one started
@@ -94,7 +96,7 @@ func Start(dir, executable string, env []string) (*Client, error) {
 	}
 }
 
-// Close disconnects without stopping any session. Every attached Process ends with errClosed.
+// Close disconnects without stopping any session. Every attached Process ends with ErrClosed.
 func (c *Client) Close() { c.conn.Close() }
 
 func (c *Client) dispatch() {
@@ -138,7 +140,7 @@ func (c *Client) call(m Message) (Message, error) {
 	c.mu.Lock()
 	if c.closed {
 		c.mu.Unlock()
-		return Message{}, errClosed
+		return Message{}, ErrClosed
 	}
 	c.seq++
 	m.Seq = c.seq
@@ -151,12 +153,15 @@ func (c *Client) call(m Message) (Message, error) {
 	c.wmu.Unlock()
 	if err != nil {
 		c.conn.Close()
-		return Message{}, errClosed
+		return Message{}, ErrClosed
 	}
 	select {
 	case reply, ok := <-ch:
 		if !ok {
-			return Message{}, errClosed
+			return Message{}, ErrClosed
+		}
+		if reply.Error == ErrRunning.Error() {
+			return reply, ErrRunning
 		}
 		if reply.Error != "" {
 			return reply, errors.New(reply.Error)

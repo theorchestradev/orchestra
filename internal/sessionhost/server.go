@@ -38,18 +38,26 @@ type server struct {
 	quiet time.Time
 }
 type session struct {
-	id       string
-	meta     json.RawMessage
-	cmd      *exec.Cmd
-	pty      *os.File
-	started  time.Time
-	buffer   []byte
-	offset   int64
-	exit     *Exit
-	exited   time.Time
-	done     chan struct{}
+	id      string
+	meta    json.RawMessage
+	cmd     *exec.Cmd
+	pty     *os.File
+	started time.Time
+	buffer  []byte
+	offset  int64
+	exit    *Exit
+	exited  time.Time
+	done    chan struct{}
+	// input feeds the session's writer, so a terminal that stops reading blocks only its
+	// own writes and never the host's lock.
+	input    chan input
 	stopped  bool
 	watchers map[*client]bool
+}
+type input struct {
+	client *client
+	seq    int64
+	data   []byte
 }
 type client struct {
 	conn net.Conn
@@ -93,7 +101,10 @@ func Run(dir, version string, log *slog.Logger, options Options) error {
 		return err
 	}
 	// The app that started the host may quit at any time; only an explicit stop ends sessions.
-	signal.Ignore(syscall.SIGHUP)
+	// The host has no controlling terminal, so this only guards against a stray SIGHUP.
+	// signal.Ignore would be inherited across exec and keep the session's processes from
+	// ever receiving SIGHUP when their terminal closes; a handled signal is reset instead.
+	signal.Notify(make(chan os.Signal, 1), syscall.SIGHUP)
 	s := &server{sessions: map[string]*session{}, clients: map[*client]bool{}, version: version, log: log, options: options, quiet: time.Now()}
 	log.Info("session host started", "pid", os.Getpid(), "responsible", responsiblePID(os.Getpid()))
 	go s.exitWhenUnused(listener)
@@ -148,9 +159,10 @@ func (s *server) serve(conn net.Conn) {
 		if err := decoder.Decode(&m); err != nil {
 			break
 		}
-		reply := s.handle(c, m)
-		reply.Seq = m.Seq
-		s.send(c, reply)
+		if reply, later := s.handle(c, m); !later {
+			reply.Seq = m.Seq
+			s.send(c, reply)
+		}
 	}
 	c.close()
 	s.mu.Lock()
@@ -194,9 +206,26 @@ func (s *server) send(c *client, m Message) {
 	}
 }
 
-func (s *server) handle(c *client, m Message) Message {
+// handle answers m; later is true when the reply is sent once the request completes.
+func (s *server) handle(c *client, m Message) (reply Message, later bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if m.Op == "write" {
+		sess := s.sessions[m.ID]
+		if sess == nil || sess.exit != nil {
+			return Message{Error: "Session is not running."}, false
+		}
+		select {
+		case sess.input <- input{c, m.Seq, m.Data}:
+			return Message{}, true
+		default:
+			return Message{Error: "The session is not reading its input."}, false
+		}
+	}
+	return s.handleLocked(c, m), false
+}
+
+func (s *server) handleLocked(c *client, m Message) Message {
 	if m.Op == "hello" {
 		return Message{Protocol: Protocol, Version: s.version}
 	}
@@ -223,13 +252,6 @@ func (s *server) handle(c *client, m Message) Message {
 			sess.watchers[c] = true
 		}
 		return reply
-	case "write":
-		if sess.exit != nil {
-			return Message{Error: "Session is not running."}
-		}
-		if _, err := sess.pty.Write(m.Data); err != nil {
-			return Message{Error: err.Error()}
-		}
 	case "resize":
 		if sess.exit == nil && !sess.stopped {
 			if err := pty.Setsize(sess.pty, &pty.Winsize{Cols: uint16(m.Cols), Rows: uint16(m.Rows)}); err != nil {
@@ -252,7 +274,7 @@ func (s *server) handle(c *client, m Message) Message {
 func (s *server) spawnLocked(c *client, m Message) Message {
 	if old := s.sessions[m.ID]; old != nil {
 		if old.exit == nil {
-			return Message{Error: "Session is already running."}
+			return Message{Error: ErrRunning.Error()}
 		}
 		delete(s.sessions, m.ID)
 	}
@@ -266,10 +288,11 @@ func (s *server) spawnLocked(c *client, m Message) Message {
 	if err != nil {
 		return Message{Error: err.Error()}
 	}
-	sess := &session{id: m.ID, meta: m.Meta, cmd: cmd, pty: f, started: time.Now(), done: make(chan struct{}), watchers: map[*client]bool{c: true}}
+	sess := &session{id: m.ID, meta: m.Meta, cmd: cmd, pty: f, started: time.Now(), done: make(chan struct{}), input: make(chan input, 64), watchers: map[*client]bool{c: true}}
 	s.sessions[m.ID] = sess
 	s.log.Info("session process started", "session", m.ID, "pid", cmd.Process.Pid)
 	go s.read(sess)
+	go s.write(sess)
 	return Message{ID: m.ID, PID: cmd.Process.Pid}
 }
 
@@ -316,6 +339,31 @@ func (s *server) read(sess *session) {
 		s.send(c, event)
 	}
 	sess.watchers = map[*client]bool{}
+}
+
+// write passes input to the session in order, without the host's lock. Closing the PTY
+// ends a write that is waiting for the terminal to read.
+func (s *server) write(sess *session) {
+	for {
+		select {
+		case in := <-sess.input:
+			reply := Message{Seq: in.seq}
+			if _, err := sess.pty.Write(in.data); err != nil {
+				reply.Error = err.Error()
+			}
+			s.send(in.client, reply)
+		case <-sess.done:
+			// The exit is recorded under the lock that queues input, so nothing arrives later.
+			for {
+				select {
+				case in := <-sess.input:
+					s.send(in.client, Message{Seq: in.seq, Error: "Session is not running."})
+				default:
+					return
+				}
+			}
+		}
+	}
 }
 
 // terminateLocked stops a session like Orchestra always has: SIGTERM to its process

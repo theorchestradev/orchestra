@@ -48,6 +48,8 @@ func (s *Store) openBackgroundLocked() (map[string]sessionhost.Info, error) {
 	}
 	s.appLock, s.runtimeDir, s.hostDir = lock, run, filepath.Join(dir, "host")
 	live := map[string]sessionhost.Info{}
+	// listed is true when Store knows every session the host runs, or that none runs.
+	listed := false
 	client, err := sessionhost.Connect(s.hostDir)
 	var incompatible *sessionhost.IncompatibleError
 	switch {
@@ -55,17 +57,24 @@ func (s *Store) openBackgroundLocked() (map[string]sessionhost.Info, error) {
 		s.log.Warn("session host from another version", "version", incompatible.Version)
 		s.hostIncompatible = true
 		s.state.Error = err.Error()
-	case err != nil && !errors.Is(err, sessionhost.ErrNotRunning):
+	case errors.Is(err, sessionhost.ErrNotRunning):
+		listed = true
+	case err != nil:
 		s.log.Warn("session host unavailable", "error", err)
-	case err == nil:
+	default:
 		s.host = client
 		infos, err := client.List()
 		if err != nil {
 			s.log.Warn("session host list failed", "error", err)
 		}
+		listed = err == nil
 		for _, info := range infos {
 			live[info.ID] = info
 		}
+	}
+	if !listed {
+		// The host may still run sessions whose agents use these files.
+		return live, nil
 	}
 	// Session files from earlier launches would report a stale status to a restarted session.
 	entries, _ := os.ReadDir(run)
@@ -113,20 +122,35 @@ func (s *Store) reattachLocked(live map[string]sessionhost.Info) {
 }
 
 // startProcessLocked runs a session's command in the host when the user keeps sessions
-// running after quitting, and in the app otherwise or when the host is unavailable.
+// running after quitting, and in the app otherwise or when the host cannot be reached.
+// Once the host answered, its error stands: it may still run this session, and a second
+// agent in the same folder must never start beside it.
 func (s *Store) startProcessLocked(sess *Session, t *TerminalSession, argv []string, dir string, env []string, cols, rows int) error {
-	sess.LaunchID = ""
 	if s.hostDir != "" && !s.hostIncompatible && s.state.Preferences.KeepSessionsRunning {
-		client, err := s.hostLocked()
-		if err == nil {
-			launch := uuid.NewString()
-			meta, _ := json.Marshal(hostMeta{LaunchID: launch, AgentDirectory: t.agentDirectory, Launched: t.launched, Resumed: t.resumed})
+		launch := uuid.NewString()
+		meta, _ := json.Marshal(hostMeta{LaunchID: launch, AgentDirectory: t.agentDirectory, Launched: t.launched, Resumed: t.resumed})
+		var err error
+		// A connection that closed before the host replied is retried once with a new one.
+		for attempt := 0; attempt < 2; attempt++ {
+			var client *sessionhost.Client
+			if client, err = s.hostLocked(); err != nil {
+				break
+			}
 			var process *sessionhost.Process
 			if process, err = client.Spawn(sess.ID, argv, dir, env, cols, rows, meta); err == nil {
 				t.proc, t.background = &hostProcess{process, t.log}, true
 				sess.LaunchID = launch
 				return nil
 			}
+			if !errors.Is(err, sessionhost.ErrClosed) {
+				t.log.Warn("session host refused the session", "error", err)
+				if errors.Is(err, sessionhost.ErrRunning) {
+					return errors.New("This session is still running in the background. Quit and reopen Orchestra to reconnect it.")
+				}
+				return err
+			}
+			client.Close()
+			s.host = nil
 		}
 		t.log.Warn("session host unavailable; the session will stop with the app", "error", err)
 	}
@@ -138,6 +162,7 @@ func (s *Store) startProcessLocked(sess *Session, t *TerminalSession, argv []str
 		return err
 	}
 	t.proc = p
+	sess.LaunchID = ""
 	return nil
 }
 

@@ -203,3 +203,63 @@ func TestUnusedHostExitsAndSecondHostDefers(t *testing.T) {
 		t.Fatalf("connect after exit: %v", err)
 	}
 }
+
+// The host ignores SIGHUP without passing that on: a session's processes must still stop
+// when their terminal closes.
+func TestSessionReceivesSIGHUP(t *testing.T) {
+	dir := hostDir(t)
+	serveHost(t, dir, Options{})
+	c := connect(t, dir)
+	p, err := c.Spawn("hup", []string{"/bin/sh", "-c", "kill -HUP $$; printf 'survived\\r\\n'"}, "/", os.Environ(), 80, 24, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, _ := io.ReadAll(p)
+	if exit := p.Wait(); exit == nil || exit.Signal != syscall.SIGHUP.String() || strings.Contains(string(out), "survived") {
+		t.Fatalf("exit %+v, output %q", exit, out)
+	}
+}
+
+// A session that stops reading its input holds up only its own writes.
+func TestBlockedInputLeavesHostResponsive(t *testing.T) {
+	dir := hostDir(t)
+	serveHost(t, dir, Options{})
+	c := connect(t, dir)
+	stuck, err := c.Spawn("stuck", []string{"/bin/sh", "-c", "stty raw -echo; printf 'up\\r\\n'; exec sleep 30"}, "/", os.Environ(), 80, 24, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readUntil(t, stuck, "up")
+	written := make(chan error, 1)
+	go func() { written <- stuck.Write(bytes.Repeat([]byte("x"), 1024*1024)) }()
+	select {
+	case err = <-written:
+		t.Fatalf("a terminal that never reads took 1 MiB of input: %v", err)
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	other, err := c.Spawn("other", []string{"/bin/sh", "-c", "stty -echo; while IFS= read -r line; do printf 'got %s\\r\\n' \"$line\"; done"}, "/", os.Environ(), 80, 24, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = other.Write([]byte("hello\n")); err != nil {
+		t.Fatal(err)
+	}
+	readUntil(t, other, "got hello")
+	if sessions, err := c.List(); err != nil || len(sessions) != 2 {
+		t.Fatalf("sessions %+v, %v", sessions, err)
+	}
+
+	if err = stuck.Terminate(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err = <-written:
+		if err == nil {
+			t.Fatal("the blocked write succeeded after the session stopped")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("stopping the session left its write blocked")
+	}
+	other.Terminate()
+}

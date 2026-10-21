@@ -182,3 +182,40 @@ func TestStopSessionsOnQuitAndPreferenceOff(t *testing.T) {
 		t.Fatalf("app session survived quitting: %+v", sess)
 	}
 }
+
+// When the connection to the host drops, the session keeps running there. Starting it
+// again must not run a second agent beside it, and reopening reconnects it.
+func TestLostHostConnectionNeverStartsSecondAgent(t *testing.T) {
+	fakeAgent(t, "printf fixture-conversation > \"$ORCHESTRA_AGENT_ID_FILE\"\nprintf 'fixture ready\\r\\n'\nexec sleep 30\n")
+	s, path := backgroundStore(t)
+	p := projectFixture(t, s)
+	agent := sessionFixture(t, s, p, "claude")
+	if _, err := s.StartSession(agent.ID, false, 80, 24); err != nil {
+		t.Fatal(err)
+	}
+	waitUntil(t, func() bool {
+		return strings.Contains(terminalText(s, agent.ID), "fixture ready") && sessionState(s, agent.ID).AgentSessionID == "fixture-conversation"
+	})
+	s.mu.Lock()
+	s.host.Close()
+	s.mu.Unlock()
+	waitUntil(t, func() bool { return !sessionState(s, agent.ID).Running })
+
+	if _, err := s.StartSession(agent.ID, false, 80, 24); err == nil || !strings.Contains(err.Error(), "still running in the background") {
+		t.Fatalf("started the session again: %v", err)
+	}
+	s.mu.Lock()
+	infos, err := s.host.List()
+	local := s.terminals[agent.ID] != nil && !s.terminals[agent.ID].background
+	s.mu.Unlock()
+	if err != nil || len(infos) != 1 || infos[0].Exit != nil || local {
+		t.Fatalf("host sessions %+v, %v; local process %v", infos, err, local)
+	}
+	shutdownAndWait(t, s)
+
+	reopened := openBackground(t, path)
+	t.Cleanup(func() { shutdownAndWait(t, reopened) })
+	if sess := sessionState(reopened, agent.ID); !sess.Running || !sess.Background {
+		t.Fatalf("session not reconnected: %+v", sess)
+	}
+}
