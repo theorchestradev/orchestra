@@ -113,6 +113,7 @@ type hostProcess struct {
 func (p *hostProcess) Read(b []byte) (int, error)  { return p.process.Read(b) }
 func (p *hostProcess) Write(b []byte) error        { return p.process.Write(b) }
 func (p *hostProcess) Resize(cols, rows int) error { return p.process.Resize(cols, rows) }
+
 // Terminate also makes the host forget the session: Store asked for the exit, so there is
 // nothing to reconcile if Orchestra quits before it is recorded.
 func (p *hostProcess) Terminate() {

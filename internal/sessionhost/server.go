@@ -95,7 +95,7 @@ func Run(dir, version string, log *slog.Logger, options Options) error {
 	// The app that started the host may quit at any time; only an explicit stop ends sessions.
 	signal.Ignore(syscall.SIGHUP)
 	s := &server{sessions: map[string]*session{}, clients: map[*client]bool{}, version: version, log: log, options: options, quiet: time.Now()}
-	log.Info("session host started", "pid", os.Getpid())
+	log.Info("session host started", "pid", os.Getpid(), "responsible", responsiblePID(os.Getpid()))
 	go s.exitWhenUnused(listener)
 	for {
 		conn, err := listener.Accept()

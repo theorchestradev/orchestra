@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"sync"
 	"syscall"
 	"time"
@@ -82,15 +81,9 @@ func Start(dir, executable string, env []string) (*Client, error) {
 	if err = os.MkdirAll(dir, 0700); err != nil {
 		return nil, err
 	}
-	cmd := exec.Command(executable, Flag, dir)
-	cmd.Env = env
-	cmd.Dir = "/"
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
-	if err = cmd.Start(); err != nil {
+	if err = startHost(executable, dir, env); err != nil {
 		return nil, err
 	}
-	// Reap the host if it exits while the app is open, for example when another host won.
-	go func() { _ = cmd.Wait() }()
 	until := time.Now().Add(5 * time.Second)
 	for {
 		c, err = Connect(dir)
