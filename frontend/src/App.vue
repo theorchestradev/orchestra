@@ -4,7 +4,7 @@ import { call, on, copy, preview } from './shared/api'
 import { mac } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
-import { sessionPath, appSymbol, appGroups, fileManager } from './shared/openIn'
+import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { gitHubItem } from './shared/github'
 import { projectTitle, needsGitRepository } from './shared/project'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
@@ -170,6 +170,9 @@ function openFile(path) {
   if (!openedFiles.value.some((file) => file.id === id))
     openedFiles.value.push({ id, projectID: project.value.id, sessionID: session.value.id, path })
   activeFileID.value = id
+}
+function fileDetail(file, project) {
+  return [worktreeName(project.sessions.find((s) => s.id === file.sessionID)), file.path].filter(Boolean).join(' · ')
 }
 async function selectFile(file) {
   if (await action('Select', file.projectID, file.sessionID)) activeFileID.value = file.id
@@ -1170,15 +1173,15 @@ onBeforeUnmount(() => {
                   <button
                     class="sidebar-row"
                     :class="{ selected: activeFile?.id === file.id }"
-                    :title="file.path + ' — ' + p.sessions.find((s) => s.id === file.sessionID)?.name"
+                    :title="fileDetail(file, p)"
                     :aria-current="activeFile?.id === file.id ? 'page' : undefined"
                     @click="selectFile(file)"
                   >
                     <Icon name="note.text" :size="15" /><span class="session-name"
                       ><span class="truncate">{{ file.path.split('/').at(-1) }}</span
-                      ><small class="truncate"
-                        >{{ p.sessions.find((s) => s.id === file.sessionID)?.name }} · {{ file.path }}</small
-                      ></span
+                      ><small class="truncate">{{
+                        worktreeName(p.sessions.find((s) => s.id === file.sessionID)) || file.path
+                      }}</small></span
                     >
                   </button>
                   <button class="icon-button" :aria-label="'Close ' + file.path" @click="closeFile(file)">

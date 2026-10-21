@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { sessionPath, lastApp, appGroups } from '../src/shared/openIn.js'
+import { sessionPath, worktreeName, lastApp, appGroups } from '../src/shared/openIn.js'
+
+test('worktree labels use their branch or folder name, and project folders have no label', () => {
+  assert.equal(worktreeName({ worktreeDirectory: '/trees/abc', worktreeBranch: 'feature/files' }), 'feature/files')
+  assert.equal(worktreeName({ worktreeDirectory: '/trees/abc/' }), 'abc')
+  assert.equal(worktreeName({ worktreeBranch: 'main' }), '')
+  assert.equal(worktreeName(), '')
+})
 
 test('sessions open their worktree, or the project folder without one', () => {
   const project = { directory: '/code/orchestra' }

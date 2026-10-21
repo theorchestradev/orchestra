@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { call } from '../shared/api'
 import { fileLanguage, renderCode } from '../shared/syntax.js'
+import { worktreeName } from '../shared/openIn.js'
 import Icon from './Icon.vue'
 const props = defineProps({ file: Object, session: Object })
 const emit = defineEmits(['close'])
@@ -48,7 +49,7 @@ onBeforeUnmount(() => {
     <header>
       <div class="file-view-title">
         <h2 class="truncate" :title="file.path">{{ file.path }}</h2>
-        <span class="muted caption">{{ session?.name }} · Read-only</span>
+        <span class="muted caption">{{ [worktreeName(session), 'Read-only'].filter(Boolean).join(' · ') }}</span>
       </div>
       <button class="icon-button" aria-label="Close file" title="Close file" @click="emit('close')">
         <Icon name="xmark" :size="12" />

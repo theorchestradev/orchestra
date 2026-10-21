@@ -5,6 +5,11 @@ export const fileManager = 'files'
 // The folder a session runs in, for Copy Path.
 export const sessionPath = (project, session) => session?.worktreeDirectory || project?.directory || ''
 
+export const worktreeName = (session) =>
+  session?.worktreeDirectory
+    ? session.worktreeBranch || session.worktreeDirectory.split('/').filter(Boolean).at(-1)
+    : ''
+
 // The last app used, while it is still installed.
 export const lastApp = (apps = [], id = '') => (id && apps.find((a) => a.id === id)) || null
 

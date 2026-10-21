@@ -28,6 +28,7 @@ test('central file view highlights source, ignores stale reads and handles missi
     script.content
       .replace(/import \{ call \} from ['"]\.\.\/shared\/api['"]/, 'const call = globalThis.fileViewCall')
       .replace("'../shared/syntax.js'", JSON.stringify(new URL('../src/shared/syntax.js', import.meta.url).href))
+      .replace("'../shared/openIn.js'", JSON.stringify(new URL('../src/shared/openIn.js', import.meta.url).href))
       .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }'),
   )
   let app
