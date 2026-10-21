@@ -6,6 +6,15 @@ let Orchestra update itself when you ask it to.
 
 ## Unreleased
 
+### New
+
+- **Keep sessions running after quitting.** Turn on Keep Sessions Running After
+  Quitting in Settings → General, and sessions you start keep running in the
+  background when you quit Orchestra. When you open it again, they reconnect
+  with their recent terminal output. The Quit dialog can still stop them. While
+  Orchestra is closed, Inbox requests are not delivered and the orchestra CLI
+  is unavailable.
+
 ### Changed
 
 - **A clearer local branch notice.** When local main is behind origin, the

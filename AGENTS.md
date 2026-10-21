@@ -23,7 +23,11 @@ Orchestra is a macOS and Linux app built with Vue 3, Wails 2, Go and xterm.js.
 - Keep UI strings and repository documentation in English. Preserve unrelated changes.
   Reuse existing helpers and models before adding abstractions or dependencies.
 - Session processes belong to TerminalSession in `internal/core/session.go`; workspace
-  metadata belongs to Store and persistence in `internal/core/state.go`.
+  metadata belongs to Store and persistence in `internal/core/state.go`. With **Keep
+  Sessions Running After Quitting**, the session host in `internal/sessionhost/` (the app
+  executable started with `--orchestra-host`) runs the process, PTY and recent output
+  only; Store stays the single writer of workspace state and reconnects in
+  `internal/core/background.go`. Bump `sessionhost.Protocol` whenever a message changes.
 - Inbox routing and history belong to the existing collaboration store and its history file.
   Messaging must reuse sessions without creating another session type, a second
   harness, or automatically injecting terminal input. Only the user's explicit

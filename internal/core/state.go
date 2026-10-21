@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/google/uuid"
+	"github.com/theorchestradev/orchestra/internal/sessionhost"
 )
 
 type Session struct {
@@ -32,8 +33,13 @@ type Session struct {
 	Activity          string `json:"activity,omitempty"`
 	Running           bool   `json:"running,omitempty"`
 	Restored          bool   `json:"restored,omitempty"`
-	ExitMessage       string `json:"exitMessage,omitempty"`
-	StatusNeedsSetup  bool   `json:"statusNeedsSetup,omitempty"`
+	// Background is true while the session host runs the session, so it survives quitting.
+	Background bool `json:"background,omitempty"`
+	// LaunchID names the session host process last started for the session, so Store never
+	// reconnects to a process that belongs to another launch.
+	LaunchID         string `json:"launchID,omitempty"`
+	ExitMessage      string `json:"exitMessage,omitempty"`
+	StatusNeedsSetup bool   `json:"statusNeedsSetup,omitempty"`
 	// GitHubItem links a session started from Work on or Review to its issue or pull request.
 	GitHubItem *GitHubItem `json:"gitHubItem,omitempty"`
 	// ProfileID chooses the agent accounts for the session's whole life; empty is Default.
@@ -122,6 +128,9 @@ type Preferences struct {
 	// KeepLocalMainUpdated fetches origin and fast-forwards local main, when safe, before a
 	// session worktree is created.
 	KeepLocalMainUpdated bool `json:"keepLocalMainUpdated"`
+	// KeepSessionsRunning starts new sessions in the session host, so they keep running
+	// after Orchestra quits and reconnect when it opens again.
+	KeepSessionsRunning bool `json:"keepSessionsRunning"`
 }
 type State struct {
 	Version           int         `json:"version"`
@@ -133,7 +142,8 @@ type State struct {
 	Runs              []*Run      `json:"runs,omitempty"`
 }
 
-// Store owns app metadata. TerminalSession owns every live PTY; Collaboration owns routing.
+// Store owns app metadata. TerminalSession owns every live PTY, through the session host
+// for sessions that keep running after quitting; Collaboration owns routing.
 type Store struct {
 	mu            sync.Mutex
 	state         State
@@ -149,6 +159,14 @@ type Store struct {
 	track         func(string, map[string]any)
 	// closing holds sessions whose worktree CloseSession is removing without the lock.
 	closing map[string]bool
+	// hostDir is the session host's folder; empty when sessions always stop with the app.
+	hostDir string
+	host    *sessionhost.Client
+	// hostIncompatible is set when an earlier version's host still runs there.
+	hostIncompatible bool
+	// appLock keeps a second Orchestra from sharing the runtime folder and the host.
+	appLock    *os.File
+	stopOnQuit bool
 }
 
 // SetTracker connects Store's usage signals to the App-owned analytics client.
@@ -225,7 +243,14 @@ func MigrateState(from, dir string) error {
 }
 
 // NewStore opens the workspace at path. A nil logger discards records.
+// NewStore opens a workspace whose sessions always stop with the app.
 func NewStore(path, executable string, emit func(string, any), logger *slog.Logger) (*Store, error) {
+	return OpenStore(path, executable, emit, logger, false)
+}
+
+// OpenStore opens a workspace. With background, sessions can run in the session host
+// beside path, and Store reconnects to the ones still running there.
+func OpenStore(path, executable string, emit func(string, any), logger *slog.Logger, background bool) (*Store, error) {
 	if emit == nil {
 		emit = func(string, any) {}
 	}
@@ -249,12 +274,19 @@ func NewStore(path, executable string, emit func(string, any), logger *slog.Logg
 	}
 	s.restoreLocked()
 	var err error
-	s.runtimeDir, err = os.MkdirTemp("", "orchestra-")
-	if err != nil {
-		return nil, err
+	var live map[string]sessionhost.Info
+	if background {
+		if live, err = s.openBackgroundLocked(); err != nil {
+			s.log.Warn("sessions will stop with the app", "error", err)
+		}
 	}
-	if err = os.Chmod(s.runtimeDir, 0700); err != nil {
-		return nil, err
+	if s.runtimeDir == "" {
+		if s.runtimeDir, err = os.MkdirTemp("", "orchestra-"); err != nil {
+			return nil, err
+		}
+		if err = os.Chmod(s.runtimeDir, 0700); err != nil {
+			return nil, err
+		}
 	}
 	for name, data := range resources {
 		if err = atomicWrite(filepath.Join(s.runtimeDir, name), data, 0600); err != nil {
@@ -262,14 +294,18 @@ func NewStore(path, executable string, emit func(string, any), logger *slog.Logg
 		}
 	}
 	var warning string
-	s.collaboration, warning, err = newCollaboration(filepath.Join(filepath.Dir(path), "collaboration.json"), s)
+	s.collaboration, warning, err = newCollaboration(filepath.Join(filepath.Dir(path), "collaboration.json"), s, live)
 	if err != nil {
-		os.RemoveAll(s.runtimeDir)
+		s.closeBackgroundLocked()
+		if s.hostDir == "" {
+			os.RemoveAll(s.runtimeDir)
+		}
 		return nil, err
 	}
 	if s.state.Error == "" {
 		s.state.Error = warning
 	}
+	s.reattachLocked(live)
 	return s, nil
 }
 
@@ -361,6 +397,7 @@ func (s *Store) saveLocked() error {
 			sess.Activity = ""
 			sess.Running = false
 			sess.Restored = false
+			sess.Background = false
 			sess.ExitMessage = ""
 			sess.StatusNeedsSetup = false
 		}
@@ -1076,17 +1113,35 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), err
 }
+
+// Shutdown stops every session, except those in the session host when the user keeps
+// sessions running after quitting. Those are only disconnected.
 func (s *Store) Shutdown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	keep := s.state.Preferences.KeepSessionsRunning && !s.stopOnQuit
+	kept := map[string]bool{}
 	for id, t := range s.terminals {
+		if keep && t.background && !t.stopped {
+			// readTerminal ignores the closed connection once the session is no longer listed.
+			kept[id] = true
+			delete(s.terminals, id)
+			continue
+		}
 		if _, sess, err := s.sessionLocked(id); err == nil && !t.stopped {
 			s.trackSessionEndLocked(sess, t, "killed")
 		}
 		t.terminate()
 	}
+	if len(kept) > 0 {
+		s.log.Info("sessions kept running", "count", len(kept))
+	}
 	if s.collaboration != nil {
-		s.collaboration.stopLocked()
+		s.collaboration.stopLocked(kept)
+	}
+	s.closeBackgroundLocked()
+	if s.hostDir != "" {
+		return
 	}
 	if err := os.RemoveAll(s.runtimeDir); err != nil {
 		s.log.Warn("runtime folder cleanup failed", "error", err)

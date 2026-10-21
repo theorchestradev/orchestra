@@ -77,6 +77,7 @@ const workspace = ref({
     hideUsageStatus: false,
     usageDetailed: false,
     keepLocalMainUpdated: false,
+    keepSessionsRunning: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
@@ -120,6 +121,12 @@ const scratchpadView = ref(null),
   offerGitInit = ref(false)
 const activeSessionCount = computed(
   () => workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running).length,
+)
+// Sessions in the session host keep running after quitting while the preference is on.
+const keptSessionCount = computed(() =>
+  preferences.value.keepSessionsRunning
+    ? workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running && s.background).length
+    : 0,
 )
 const sessionAgents = computed(() =>
   [...agents].sort(
@@ -701,7 +708,7 @@ function requestQuit(state) {
   }
   finishQuit()
 }
-async function finishQuit() {
+async function finishQuit(stopSessions = false) {
   if (quitting.value) return
   quitting.value = true
   try {
@@ -710,7 +717,7 @@ async function finishQuit() {
     if (!(await scratchpadQueue)) return
     await preferenceQueue
     await telemetryRequest
-    await call('ConfirmQuit')
+    await call('ConfirmQuit', stopSessions)
   } catch (e) {
     error.value = String(e)
   } finally {
@@ -1735,13 +1742,34 @@ onBeforeUnmount(() => {
     <Modal v-else-if="modal === 'quit'" label="Quit Orchestra" @close="!quitting && closeModal()"
       ><div class="close-dialog">
         <h2>Quit Orchestra?</h2>
-        <p>
+        <p v-if="keptSessionCount">
+          {{ keptSessionCount }} running {{ keptSessionCount === 1 ? 'session keeps' : 'sessions keep' }} running in the
+          background and {{ keptSessionCount === 1 ? 'reconnects' : 'reconnect' }} when you reopen Orchestra.
+          <template v-if="activeSessionCount > keptSessionCount">
+            {{ activeSessionCount - keptSessionCount }}
+            {{ activeSessionCount - keptSessionCount === 1 ? 'session was' : 'sessions were' }} started before that
+            setting was on and will be stopped.
+          </template>
+        </p>
+        <p v-else>
           {{ activeSessionCount }} running {{ activeSessionCount === 1 ? 'session will' : 'sessions will' }} be stopped.
           Saved projects and notes will be available when you reopen Orchestra.
         </p>
         <footer>
           <button class="standard-button" :disabled="quitting" @click="closeModal">Cancel</button
-          ><button class="standard-button destructive" :disabled="quitting" @click="finishQuit">
+          ><button
+            v-if="keptSessionCount"
+            class="standard-button destructive"
+            :disabled="quitting"
+            @click="finishQuit(true)"
+          >
+            Stop Sessions and Quit</button
+          ><button
+            class="standard-button"
+            :class="keptSessionCount ? 'primary' : 'destructive'"
+            :disabled="quitting"
+            @click="finishQuit(false)"
+          >
             {{ quitting ? 'Saving…' : 'Quit Orchestra' }}
           </button>
         </footer>

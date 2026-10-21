@@ -3,6 +3,7 @@ package main
 import (
 	"embed"
 	"github.com/theorchestradev/orchestra/internal/core"
+	"github.com/theorchestradev/orchestra/internal/sessionhost"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/menu"
 	"github.com/wailsapp/wails/v2/pkg/menu/keys"
@@ -32,6 +33,9 @@ func main() {
 	core.Version = version
 	if len(os.Args) > 1 && os.Args[1] == "--orchestra-cli" {
 		os.Exit(core.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 2 && os.Args[1] == sessionhost.Flag {
+		os.Exit(runSessionHost(os.Args[2]))
 	}
 	if len(os.Args) > 1 && os.Args[1] == "--version" {
 		os.Exit(core.RunCLI(os.Args[1:2], os.Stdout, os.Stderr))
@@ -81,4 +85,21 @@ func main() {
 		log.Fatal(err)
 	}
 	logger.Info("shutdown")
+}
+
+// runSessionHost serves sessions that keep running after the app quits. Its log lines go
+// to the app's log, beside the workspace that owns dir.
+func runSessionHost(dir string) int {
+	logger, logFile, err := core.OpenLog(filepath.Join(filepath.Dir(dir), "logs"), os.Getenv("ORCHESTRA_LOG_LEVEL"))
+	if err != nil {
+		logger = slog.New(slog.DiscardHandler)
+	} else {
+		defer logFile.Close()
+	}
+	logger = logger.With("process", "host")
+	if err = sessionhost.Run(dir, version, logger, sessionhost.Options{}); err != nil {
+		logger.Error("session host failed", "error", err)
+		return 1
+	}
+	return 0
 }

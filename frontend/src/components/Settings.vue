@@ -302,6 +302,28 @@ if (!mac)
           <hr />
           <div class="setting-row">
             <div>
+              <label for="keepSessionsRunning">Keep Sessions Running After Quitting</label>
+              <p class="muted caption">
+                Sessions started while this is on keep running in the background when you quit Orchestra and reconnect
+                when you open it again. While Orchestra is closed, Inbox requests are not delivered and the orchestra
+                CLI is unavailable.
+              </p>
+            </div>
+            <button
+              id="keepSessionsRunning"
+              class="switch"
+              :class="{ on: preferences.keepSessionsRunning }"
+              role="switch"
+              :aria-checked="!!preferences.keepSessionsRunning"
+              aria-label="Keep Sessions Running After Quitting"
+              @click="choose('keepSessionsRunning', !preferences.keepSessionsRunning)"
+            >
+              <span />
+            </button>
+          </div>
+          <hr />
+          <div class="setting-row">
+            <div>
               <label for="attentionSound">Play Sound When an Agent Needs You</label>
               <p class="muted caption">
                 Play a sound when an agent finishes its turn or asks for permission, unless you're already looking at

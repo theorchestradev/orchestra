@@ -3,17 +3,27 @@ package core
 import (
 	"bytes"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/theorchestradev/orchestra/internal/sessionhost"
 )
 
 // Let the private CLI shim exercise the real CLI in subprocesses during tests.
 func TestMain(m *testing.M) {
 	if len(os.Args) > 1 && os.Args[1] == "--orchestra-cli" {
 		os.Exit(RunCLI(os.Args[2:], os.Stdout, os.Stderr))
+	}
+	// Sessions that keep running after quitting run in the test binary as their host.
+	if len(os.Args) > 2 && os.Args[1] == sessionhost.Flag {
+		if err := sessionhost.Run(os.Args[2], "test", slog.New(slog.DiscardHandler), sessionhost.Options{Idle: 300 * time.Millisecond}); err != nil {
+			os.Exit(1)
+		}
+		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
