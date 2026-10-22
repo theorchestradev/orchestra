@@ -322,7 +322,8 @@ hr {
   text-align: center;
   text-overflow: clip;
 }
-.project-title .project-icon {
+.project-title .project-icon,
+.arc-space .project-icon {
   flex-shrink: 0;
   width: 16px;
   height: 16px;

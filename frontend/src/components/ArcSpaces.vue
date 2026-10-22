@@ -2,7 +2,12 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Icon from './Icon.vue'
 import { spaceSymbol } from '../shared/project'
-const props = defineProps({ projects: Array, selectedId: String, settingsOpen: Boolean })
+const props = defineProps({
+  projects: Array,
+  projectIcons: { type: Object, default: () => ({}) },
+  selectedId: String,
+  settingsOpen: Boolean,
+})
 const emit = defineEmits(['select', 'options', 'settings', 'create'])
 const spaces = ref(null),
   width = ref(0)
@@ -72,6 +77,7 @@ function focusSpace(event) {
         @keydown.shift.f10.prevent="emit('options', { event: $event, project: p })"
       >
         <span v-if="compact" class="arc-space-dot" aria-hidden="true"></span>
+        <img v-else-if="!p.emoji && projectIcons[p.id]" class="project-icon" :src="projectIcons[p.id]" alt="" />
         <span v-else aria-hidden="true">{{ spaceSymbol(p) }}</span>
       </button>
     </nav>

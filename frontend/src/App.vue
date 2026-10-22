@@ -1201,6 +1201,7 @@ onBeforeUnmount(() => {
       <ArcSpaces
         v-if="preferences.arcMode"
         :projects="workspace.projects"
+        :project-icons="projectIcons"
         :selected-id="sidebarProjects[0]?.id"
         :settings-open="modal === 'settings'"
         @select="select($event, 'project')"
