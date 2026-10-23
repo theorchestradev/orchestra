@@ -540,6 +540,7 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		"cline":       " --auto-approve false",
 		"omp":         "omp --approval-mode write ",
 		"kilo":        "",
+		"muse":        "muse --permission-profile :auto-review ",
 	}
 	for agent := range agentSpecs {
 		mode, ok := modes[agent]

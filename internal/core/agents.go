@@ -19,6 +19,7 @@ import (
 // only offer approve-all modes, so they keep their default prompts; Pi has no tool approval
 // prompts. Antigravity and omp have no reviewed auto mode, so they only auto-approve
 // edits. Cline approves every tool by default, so it starts with approvals turned back on.
+// Muse's built-in :auto-review permission profile is its reviewed auto mode.
 type agentSpec struct {
 	ID, Name string
 	// Executable is the CLI on the login-shell PATH, for detection and launch errors.
@@ -76,7 +77,7 @@ type launch struct {
 }
 
 // agentOrder is the app's agent order; frontend/src/shared/appearance.js lists the same agents.
-var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent, ompAgent, kiloAgent}
+var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent, ompAgent, kiloAgent, museAgent}
 
 var agentSpecs = func() map[string]*agentSpec {
 	m := map[string]*agentSpec{}

@@ -215,3 +215,50 @@ console.log(seen.join(' ') + ' ' + readFileSync(process.env.ORCHESTRA_AGENT_ID_F
 		t.Fatalf("got %q (%v), want %q", out, err, want)
 	}
 }
+
+// Muse clears the environment of hook commands, so its hooks must find the session's files
+// without Orchestra's variables.
+func TestMuseHooksReportWithoutEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "orchestra"), []byte("#!/bin/sh\n/bin/cat > \"$ORCHESTRA_AGENT_ID_FILE\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	// A fake muse prints the value of its -c flag, after the permission profile.
+	if err := os.WriteFile(filepath.Join(dir, "muse"), []byte("#!/bin/sh\nprintf %s \"$4\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	command := museAgent.Command(launch{Session: &Session{ID: "id"}, Dir: dir})
+	out, err := exec.Command("/bin/sh", "-c", "PATH="+shellQuote(dir)+" "+command).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hooks map[string][]struct {
+		Matcher string
+		Hooks   []struct{ Type, Command string }
+	}
+	if err = json.Unmarshal([]byte(strings.TrimPrefix(string(out), "hooks=")), &hooks); err != nil {
+		t.Fatalf("%v: %s", err, out)
+	}
+	statusFile, idFile := sessionFiles(dir, "id")
+	want := map[string]string{"SessionStart": "waiting", "UserPromptSubmit": "working", "PreToolUse": "working", "PostToolUse": "working", "PermissionRequest": "waiting", "Stop": "waiting"}
+	if len(hooks) != len(want) {
+		t.Fatalf("hooks %v", hooks)
+	}
+	for event, state := range want {
+		groups := hooks[event]
+		if len(groups) != 1 || len(groups[0].Hooks) != 1 || groups[0].Hooks[0].Type != "command" {
+			t.Fatalf("%s hooks %+v", event, groups)
+		}
+		cmd := exec.Command("/bin/sh", "-c", groups[0].Hooks[0].Command)
+		cmd.Env = []string{}
+		cmd.Stdin = strings.NewReader(`{"session_id":"muse-id"}`)
+		if err = cmd.Run(); err != nil {
+			t.Fatal(err)
+		}
+		status, _ := os.ReadFile(statusFile)
+		id, _ := os.ReadFile(idFile)
+		if string(status) != state || string(id) != `{"session_id":"muse-id"}` {
+			t.Fatalf("%s wrote status %q and ID %q", event, status, id)
+		}
+	}
+}
