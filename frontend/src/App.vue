@@ -359,6 +359,10 @@ function command(kind) {
     navigate(kind === 'next' ? 1 : -1)
     return
   }
+  if (kind === 'previousProject' || kind === 'nextProject') {
+    switchProject(kind === 'nextProject' ? 1 : -1)
+    return
+  }
   if (kind === 'command' && modal.value === 'command') {
     closeModal()
     return
@@ -403,6 +407,15 @@ async function runCommand({ command: kind, item }) {
   }
   await nextTick()
   command(kind)
+}
+// Projects follow the sidebar order and wrap around, opening where each was left.
+function switchProject(step) {
+  const projects = workspace.value.projects
+  if (modal.value || !projects.length) return
+  const index = projects.findIndex((p) => p.id === project.value?.id)
+  const next =
+    projects[index < 0 ? (step > 0 ? 0 : projects.length - 1) : (index + step + projects.length) % projects.length]
+  if (next.id !== project.value?.id) select(next, 'project')
 }
 function navigate(step) {
   if (modal.value) return
