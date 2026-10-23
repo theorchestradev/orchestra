@@ -5,7 +5,7 @@ import (
 	"regexp"
 )
 
-var museEfforts = []string{"none", "minimal", "low", "medium", "high", "xhigh", "max", "ultra"}
+var museEfforts = []string{"minimal", "low", "medium", "high", "xhigh"}
 
 // Muse Code takes no conversation ID at launch and creates its session with the first
 // prompt, whose hooks report the ID. Muse clears the environment of hook commands, so each

@@ -554,7 +554,9 @@ export const backend = {
         opencode: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
         grok: [{ id: 'grok-4.7', name: 'grok-4.7', efforts: [] }],
         kilo: [{ id: 'kilo/kilo-auto/free', name: 'kilo/kilo-auto/free', efforts: [] }],
-        muse: [{ id: 'muse-spark-1.3', name: 'Muse Spark 1.3', efforts: ['none', 'minimal', ...levels, 'ultra'] }],
+        muse: [
+          { id: 'muse-spark-1.3', name: 'Muse Spark 1.3', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+        ],
         omp: [
           {
             id: 'openrouter/~anthropic/claude-opus-latest',
