@@ -394,6 +394,7 @@ async function runCommand({ command: kind, item }) {
   if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(project.value)
   if (kind === 'openIn') return openIn(session.value, item.app)
+  if (kind === 'renameSession') return edit(session.value.id, session.value.name, 'Session')
   if (kind === 'copyPath') return copyPath(project.value, session.value)
   if (kind === 'closeSession') return closeSession(project.value, session.value)
   if (kind === 'session' || kind === 'worktreeSession') {
