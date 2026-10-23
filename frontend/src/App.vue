@@ -371,6 +371,10 @@ function command(kind) {
     toggleFiles()
     return
   }
+  if (kind === 'pullRequest') {
+    togglePullRequest()
+    return
+  }
   if (kind === 'diff') {
     toggleDiff()
     return
@@ -433,6 +437,16 @@ function toggleFiles() {
     return
   }
   sidebarTab.value = 'Files'
+  if (!showsDiff.value) toggleDiff()
+}
+function togglePullRequest() {
+  if (modal.value || !session.value || !project.value?.repository) return
+  if (showsDiff.value && sidebarTab.value === 'PR') {
+    toggleDiff()
+    return
+  }
+  sidebarTab.value = 'PR'
+  track('feature_used', { feature: 'pull_request_view' })
   if (!showsDiff.value) toggleDiff()
 }
 function toggleDiff() {
@@ -1356,6 +1370,7 @@ onBeforeUnmount(() => {
         :session="session"
         :selected-path="activeFile?.path"
         :tab="sidebarTab"
+        :repository="project?.repository"
         @tab="sidebarTab = $event"
         @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"

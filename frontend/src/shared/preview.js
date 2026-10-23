@@ -692,6 +692,67 @@ export const backend = {
       truncated: files.some((f) => f.truncated),
     }
   },
+  SessionPullRequest: (target, activity) => {
+    const s = session(target)
+    const branch = s.worktreeBranch || 'main'
+    if (!s.worktreeDirectory)
+      return {
+        checks: [],
+        branch,
+        message: `No pull request for ${branch} yet. Push the branch and open one to see its checks here.`,
+      }
+    const ci = (name, workflow, status, duration, jobID) => ({
+      name,
+      workflow,
+      status,
+      duration,
+      jobID,
+      url: 'https://github.com/example/orchestra/actions/runs/1/job/' + jobID,
+    })
+    return {
+      branch,
+      repository: 'example/orchestra',
+      number: 43,
+      url: 'https://github.com/example/orchestra/pull/43',
+      title: 'Show pull request checks next to each session with a deliberately long title for narrow panes',
+      state: 'open',
+      checks: [
+        ci('changes', 'CI', 'success', '11s', 1),
+        ci('server-tests (ubuntu-latest)', 'CI', 'failure', '7m 15s', 2),
+        ci('build', 'Docker', 'pending', '2m 4s', 3),
+        ci('lint', 'CI', 'success', '1m 43s', 4),
+        ci('app-tests (macos)', 'A workflow with a very long name for compact windows', 'success', '5m 2s', 5),
+        ci('deploy-preview', 'CI', 'skipped', '', 6),
+      ],
+      ...(activity
+        ? {
+            reviews: [
+              {
+                id: 1,
+                state: 'CHANGES_REQUESTED',
+                user: { login: 'reviewer' },
+                submitted_at: new Date(Date.now() - 3600e3).toISOString(),
+                body: 'Please cover the empty state.',
+                body_html: '<p>Please cover the empty state.</p>',
+                html_url: 'https://github.com/example/orchestra/pull/43#pullrequestreview-1',
+              },
+            ],
+            comments: [
+              {
+                id: 2,
+                user: { login: 'maintainer' },
+                created_at: new Date(Date.now() - 600e3).toISOString(),
+                body: 'Looks good once CI passes.',
+                body_html: '<p>Looks good once CI passes.</p>',
+                html_url: 'https://github.com/example/orchestra/pull/43#issuecomment-2',
+              },
+            ],
+          }
+        : {}),
+    }
+  },
+  PullRequestCheckFailure: (_target, jobID) =>
+    `Check: server-tests (ubuntu-latest)\nConclusion: failure\nURL: https://github.com/example/orchestra/actions/runs/1/job/${jobID}\n\nLog:\n\`\`\`\n--- FAIL: TestPreview (0.01s)\n\`\`\``,
   TerminalSnapshot: (target) => ({ id: target, start: 0, end: 0, data: '' }),
   WriteTerminal: () => {},
   ResizeTerminal: () => {},

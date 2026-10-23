@@ -39,11 +39,27 @@ shell = bin_dir/'fixture-shell'
 shell.write_text('#!/bin/sh\nexec /bin/sh -c "$4"\n'); shell.chmod(0o700)
 gh = bin_dir/'gh'
 gh.write_text(f'''#!{python}
-import json, sys
+import datetime, json, sys
 endpoint = next((x for x in sys.argv if x.startswith('repos/')), '')
+if sys.argv[1:3] == ['pr','list']:
+ head = sys.argv[sys.argv.index('--head')+1]
+ now = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+ run = lambda name, workflow, conclusion, job, start='2026-10-21T17:00:00Z', end='2026-10-21T17:07:15Z': {{'__typename':'CheckRun','name':name,'workflowName':workflow,'status':'COMPLETED' if conclusion else 'IN_PROGRESS','conclusion':conclusion,'detailsUrl':f'https://github.com/example/orchestra/actions/runs/7/job/{{job}}','startedAt':start,'completedAt':end if conclusion else '0001-01-01T00:00:00Z'}}
+ checks = [run('changes','CI','SUCCESS',1,end='2026-10-21T17:00:11Z'), run('server-tests (ubuntu-latest)','CI','FAILURE',2), run('build','A workflow with a very long name for compact windows','',3,start=now), run('lint','CI','SUCCESS',4,end='2026-10-21T17:01:43Z'), run('app-tests (macos)','CI','SUCCESS',5,end='2026-10-21T17:05:02Z'), run('deploy-preview','CI','SKIPPED',6), {{'__typename':'StatusContext','context':'docs/preview','state':'PENDING','targetUrl':'https://example.invalid/docs'}}]
+ print(json.dumps([{{'number':43,'url':'https://github.com/example/orchestra/pull/43','title':'Update session activity indicators so each running agent shows a readable status in narrow windows','state':'OPEN','isDraft':False,'headRefName':head,'headRefOid':'0'*40,'isCrossRepository':False,'reviewDecision':'CHANGES_REQUESTED','statusCheckRollup':checks}}]))
+ sys.exit(0)
+if endpoint.endswith('/logs'):
+ print('\\n'.join([f'2026-10-21T17:00:{{i:02d}}.0000000Z step {{i}}' for i in range(40)] + ['2026-10-21T17:07:14.0000000Z --- FAIL: TestFixture (0.01s)', '2026-10-21T17:07:15.0000000Z ##[error]Process completed with exit code 1.']))
+ sys.exit(0)
+if '/annotations' in endpoint:
+ print(json.dumps([{{'path':'internal/core/session.go','start_line':12,'end_line':12,'annotation_level':'failure','message':'Fixture failure'}}])); sys.exit(0)
+if '/check-runs/' in endpoint:
+ print(json.dumps({{'name':'server-tests (ubuntu-latest)','conclusion':'failure','html_url':'https://github.com/example/orchestra/actions/runs/7/job/2','output':{{'title':'Tests failed','summary':'1 test failed.'}}}})); sys.exit(0)
+if '/reviews' in endpoint:
+ print(json.dumps([[{{'id':7,'state':'CHANGES_REQUESTED','user':{{'login':'reviewer-with-a-long-handle'}},'submitted_at':'2026-10-21T18:00:00Z','body':'Cover the empty state.','body_html':'<p>Cover the empty state.</p>','html_url':'https://github.com/example/orchestra/pull/43#pullrequestreview-7'}},{{'id':8,'state':'APPROVED','user':{{'login':'maintainer'}},'submitted_at':'2026-10-21T19:00:00Z','body':'','html_url':'https://github.com/example/orchestra/pull/43#pullrequestreview-8'}}]])); sys.exit(0)
 item = {{'number':42,'title':'Preserve terminal sessions when switching projects','state':'open','html_url':'https://github.com/example/orchestra/issues/42','updated_at':'2026-10-06T12:00:00Z','created_at':'2026-10-06T12:00:00Z','user':{{'login':'contributor'}},'labels':[{{'name':'enhancement','color':'58a6ff'}}],'assignees':[]}}
 if '/releases' in endpoint: result = [{{'tag_name':'v9.0.0','name':'Orchestra 9.0.0','body':'## What changed\\n\\n* Illustrative fixture release with a long note that wraps in the update dialog by @contributor in #42','html_url':'https://github.com/example/orchestra/releases/tag/v9.0.0','prerelease':False,'draft':False,'published_at':'2026-10-06T12:00:00Z'}}]
-elif '/comments' in endpoint: result = [[{{'id':1,'user':{{'login':'reviewer'}},'created_at':'2026-10-06T12:00:00Z','body_html':'<p>The session owns the process.</p>'}}]]
+elif '/comments' in endpoint: result = [[{{'id':1,'user':{{'login':'reviewer'}},'created_at':'2026-10-06T12:00:00Z','body':'The session owns the process.','body_html':'<p>The session owns the process.</p>'}}]]
 elif '?' in endpoint: result = [[item,{{**item,'number':43,'title':'Update session activity indicators','labels':[],'pull_request':{{'html_url':'https://github.com/example/orchestra/pull/43'}}}}]] if 'state=closed' not in endpoint else [[]]
 else:
  result = {{**item,'body_html':'<p>Keep processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch projects → return to the same conversation</code></pre>'}}
