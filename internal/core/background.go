@@ -107,7 +107,8 @@ func (s *Store) reattachLocked(live map[string]sessionhost.Info) {
 			s.log.Warn("session reconnect failed", "session", id, "error", err)
 			continue
 		}
-		t := &TerminalSession{statusFile: filepath.Join(s.runtimeDir, id+".status"), idFile: filepath.Join(s.runtimeDir, id+".agent"), done: make(chan struct{}), agentDirectory: meta.AgentDirectory, launched: meta.Launched, resumed: meta.Resumed, background: true, log: s.log.With("session", id)}
+		statusFile, idFile := sessionFiles(s.runtimeDir, id)
+		t := &TerminalSession{statusFile: statusFile, idFile: idFile, done: make(chan struct{}), agentDirectory: meta.AgentDirectory, launched: meta.Launched, resumed: meta.Resumed, background: true, log: s.log.With("session", id)}
 		t.proc = &hostProcess{process, t.log}
 		t.buffer, t.offset = snapshot.Data, snapshot.End
 		t.updateBracketedPaste()

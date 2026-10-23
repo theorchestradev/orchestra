@@ -17,6 +17,7 @@ func TestLaunchPassesModelAndEffortFlags(t *testing.T) {
 		"grok":        {"grok-4.7", " --model 'grok-4.7'"},
 		"antigravity": {"gemini-3.8-flash-high", " --model 'gemini-3.8-flash-high'"},
 		"omp":         {"openrouter/~anthropic/claude-opus-latest", " --model 'openrouter/~anthropic/claude-opus-latest' --thinking 'high'"},
+		"muse":        {"muse-spark-1.3", " --model 'muse-spark-1.3' --reasoning-effort 'high'"},
 	}
 	for agent, tc := range cases {
 		effort := "high"

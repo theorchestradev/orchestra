@@ -67,7 +67,7 @@ func TestSkillStubPointsToGuide(t *testing.T) {
 }
 
 func TestSkillCommand(t *testing.T) {
-	command, err := SkillCommand([]string{"claude", "codex", "pi", "opencode", "grok", "antigravity", "vibe", "cline", "kilo", "terminal", "unknown", "claude"})
+	command, err := SkillCommand([]string{"claude", "codex", "pi", "opencode", "grok", "antigravity", "vibe", "cline", "kilo", "muse", "terminal", "unknown", "claude"})
 	if err != nil {
 		t.Fatal(err)
 	}
