@@ -5,13 +5,13 @@ import { shortcuts, shortcutKeys, appCommand, terminalKeeps } from '../src/share
 import { commandItems } from '../src/shared/commands.js'
 
 const shifted = { '[': '{', ']': '}', ',': '<' }
-const codes = { '[': 'BracketLeft', ']': 'BracketRight', ',': 'Comma' }
+const codes = { '[': 'BracketLeft', ']': 'BracketRight', ',': 'Comma', '←': 'ArrowLeft', '→': 'ArrowRight' }
 // A keydown event for a shortcut in macOS notation, pressed with ⌘ on macOS and Ctrl elsewhere.
 function press(text, isMac) {
   const base = text.replace(/[⇧⌘]/g, '').toLowerCase()
   const shiftKey = text.includes('⇧')
   return {
-    key: shiftKey ? shifted[base] || base.toUpperCase() : base,
+    key: codes[base]?.startsWith('Arrow') ? codes[base] : shiftKey ? shifted[base] || base.toUpperCase() : base,
     code: codes[base] || 'Key' + base.toUpperCase(),
     shiftKey,
     metaKey: isMac,
@@ -19,7 +19,7 @@ function press(text, isMac) {
   }
 }
 const app = shortcuts.filter((s) => s.app)
-const keys = [...'abcdefghijklmnopqrstuvwxyz', '[', ']', ',']
+const keys = [...'abcdefghijklmnopqrstuvwxyz', '[', ']', ',', '←', '→']
 const combos = keys.flatMap((k) => ['⌘' + k.toUpperCase(), '⇧⌘' + k.toUpperCase()])
 
 test('every listed app shortcut is handled, in and out of terminals', () => {
@@ -54,7 +54,23 @@ test('the macOS menu uses the listed shortcuts', () => {
       /keys\.(?:CmdOrCtrl\("(.)"\)|Combo\("(.)", keys\.CmdOrCtrlKey, keys\.ShiftKey\)).*"command", "(\w+)"/g,
     ),
   ].map(([, plain, shift, id]) => [id, plain ? '⌘' + plain.toUpperCase() : '⇧⌘' + shift.toUpperCase()])
-  assert.deepEqual(menu.sort(), app.map((s) => [s.id, s.keys]).sort())
+  assert.deepEqual(
+    menu.sort(),
+    app
+      .filter((s) => s.menu !== false)
+      .map((s) => [s.id, s.keys])
+      .sort(),
+  )
+  for (const entry of app.filter((s) => s.menu === false))
+    assert.match(main, new RegExp(`nil, func.*"command", "${entry.id}"`), entry.id + ' has a menu item')
+})
+
+test('project shortcuts leave text fields alone', () => {
+  const field = (inTerminal) => ({ closest: (selector) => (selector === '.xterm' ? inTerminal : true) })
+  const event = (target) => ({ ...press('⇧⌘→', true), target })
+  assert.equal(appCommand(event(field(false))), null)
+  assert.equal(appCommand(event(field(true))), 'nextProject')
+  assert.equal(appCommand(event({ closest: () => null })), 'nextProject')
 })
 
 test('the command bar shows the listed shortcuts', () => {
@@ -75,6 +91,8 @@ test('shortcut keys follow the platform', () => {
   assert.deepEqual(labels('project', false), [['Ctrl+Shift+N', 'Control Shift N', '']])
   assert.deepEqual(labels('copy', false), [['Ctrl+Shift+C', 'Control Shift C', '']])
   assert.deepEqual(labels('previous', true), [['⇧⌘[', 'Shift Command Left Bracket', '']])
+  assert.deepEqual(labels('nextProject', true), [['⇧⌘→', 'Shift Command Right Arrow', '']])
+  assert.deepEqual(labels('previousProject', false), [['Ctrl+Shift+←', 'Control Shift Left Arrow', '']])
   assert.deepEqual(labels('saveDescription', true), [['⌘↩', 'Command Return', '']])
   assert.deepEqual(labels('saveDescription', false), [['Ctrl+Enter', 'Control Enter', '']])
   assert.deepEqual(labels('contextMenu', false), [['Shift+F10', 'Shift F10', '']])
