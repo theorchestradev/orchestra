@@ -41,7 +41,7 @@ make_dmg() {
 }
 
 if [ "${UNSIGNED:-}" = 1 ]; then
-	codesign --force --sign - "$app"
+	codesign --force --entitlements build/darwin/entitlements.plist --sign - "$app"
 	make_dmg
 	ditto -c -k --sequesterRsrc --keepParent "$app" "$zip"
 	exit 0
@@ -66,7 +66,7 @@ else
 fi
 
 # Gatekeeper requires the hardened runtime and a secure timestamp for notarization.
-codesign --force --options runtime --timestamp --sign "$identity" "$app"
+codesign --force --options runtime --timestamp --entitlements build/darwin/entitlements.plist --sign "$identity" "$app"
 codesign --verify --strict --verbose=2 "$app"
 
 make_dmg

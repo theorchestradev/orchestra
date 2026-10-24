@@ -23,6 +23,26 @@
         <string>true</string>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
+        <key>NSAppleEventsUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to automate local apps when you request it.</string>
+        <key>NSAudioCaptureUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to capture desktop audio when you request it.</string>
+        <key>NSBluetoothAlwaysUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to access Bluetooth devices when you request it.</string>
+        <key>NSBluetoothPeripheralUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to access Bluetooth devices when you request it.</string>
+        <key>NSCameraUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to use the camera when you request it.</string>
+        <key>NSDocumentsFolderUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to access your Documents folder when you request it.</string>
+        <key>NSDownloadsFolderUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to access your Downloads folder when you request it.</string>
+        <key>NSLocalNetworkUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to discover and connect to local development servers when you request it.</string>
+        <key>NSLocationUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to access location when you request it.</string>
+        <key>NSMicrophoneUsageDescription</key>
+        <string>Orchestra allows terminal-launched developer tools to use the microphone when you request it.</string>
         {{if .Info.FileAssociations}}
         <key>CFBundleDocumentTypes</key>
         <array>

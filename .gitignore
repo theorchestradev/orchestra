@@ -4,6 +4,7 @@
 /build/bin/
 /build/darwin/*
 !/build/darwin/Info.plist
+!/build/darwin/entitlements.plist
 /verification/
 .DS_Store
 /frontend/package.json.md5

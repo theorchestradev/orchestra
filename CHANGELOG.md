@@ -14,6 +14,23 @@ let Orchestra update itself when you ask it to.
   shown, faster while checks run. Copy a failing check to get its output,
   annotations and the end of its log, ready to paste into the agent.
 
+## 0.10.0 — 2026-10-23
+
+### New
+
+- **Switch projects from the keyboard.** Shift+Cmd+Left and Shift+Cmd+Right
+  (Ctrl+Shift+Left and Ctrl+Shift+Right on Linux) select the previous or next
+  project, including from a terminal. In text fields the keys still select to
+  the start or end of the line.
+
+### Fixed
+
+- **Terminal tools can ask for macOS permissions.** Commands run in a session,
+  such as `osascript`, now show the macOS privacy prompt for Orchestra instead
+  of failing silently.
+- **Project icons in Arc layout.** Projects show their favicon in the Arc
+  spaces bar, as they do in the sidebar.
+
 ## 0.9.0 — 2026-10-21
 
 ### New

@@ -445,7 +445,7 @@ export const backend = {
     return {
       node: true,
       detected: true,
-      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp', 'kilo'].map(
+      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp', 'kilo', 'muse'].map(
         (id) => ({
           id,
           installed: found.includes(id),
@@ -454,10 +454,10 @@ export const backend = {
     }
   },
   AgentSkillCommand: (ids) => {
-    const keys = { claude: 'claude-code', antigravity: 'antigravity-cli', vibe: 'mistral-vibe' }
+    const keys = { claude: 'claude-code', antigravity: 'antigravity-cli', vibe: 'mistral-vibe', muse: 'codex' }
     return (
       'npx --yes skills@1.7.2 add https://github.com/theorchestradev/orchestra --skill orchestra --global --yes' +
-      ids.map((id) => ' --agent ' + (keys[id] || id)).join('')
+      [...new Set(ids.map((id) => keys[id] || id))].map((key) => ' --agent ' + key).join('')
     )
   },
   InstallAgentSkill: async (ids) => {
@@ -554,6 +554,9 @@ export const backend = {
         opencode: [{ id: 'opencode/big-pickle', name: 'opencode/big-pickle', efforts: [] }],
         grok: [{ id: 'grok-4.7', name: 'grok-4.7', efforts: [] }],
         kilo: [{ id: 'kilo/kilo-auto/free', name: 'kilo/kilo-auto/free', efforts: [] }],
+        muse: [
+          { id: 'muse-spark-1.3', name: 'Muse Spark 1.3', efforts: ['minimal', 'low', 'medium', 'high', 'xhigh'] },
+        ],
         omp: [
           {
             id: 'openrouter/~anthropic/claude-opus-latest',
@@ -599,6 +602,7 @@ export const backend = {
             cline: 'Cline',
             omp: 'omp',
             kilo: 'Kilo',
+            muse: 'Muse Code',
             opencode: 'OpenCode',
             pi: 'Pi',
             codex: 'Codex',

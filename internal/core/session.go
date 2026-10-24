@@ -66,6 +66,11 @@ func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'
 func statusCommand(state string) string {
 	return "if [ -n \"$ORCHESTRA_AGENT_ID_FILE\" ]; then \"$ORCHESTRA_CLI_DIRECTORY/orchestra\" agent-id >/dev/null 2>&1 || :; else /bin/cat >/dev/null; fi; if [ -n \"$ORCHESTRA_STATUS_FILE\" ]; then printf " + state + " > \"$ORCHESTRA_STATUS_FILE\"; fi"
 }
+
+// sessionFiles are the status and conversation ID files of a session in the runtime folder.
+func sessionFiles(runtimeDir, id string) (status, agentID string) {
+	return filepath.Join(runtimeDir, id+".status"), filepath.Join(runtimeDir, id+".agent")
+}
 func launchCommand(sess *Session, dir string) (string, error) {
 	if sess.Agent == terminalAgent {
 		// A login session runs only the login command and ends with it; restarting it opens a
@@ -195,7 +200,8 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	if env["LANG"] == "" {
 		env["LANG"] = "en_US.UTF-8"
 	}
-	t := &TerminalSession{statusFile: filepath.Join(s.runtimeDir, id+".status"), idFile: filepath.Join(s.runtimeDir, id+".agent"), done: make(chan struct{}), launched: time.Now(), log: s.log.With("session", id)}
+	statusFile, idFile := sessionFiles(s.runtimeDir, id)
+	t := &TerminalSession{statusFile: statusFile, idFile: idFile, done: make(chan struct{}), launched: time.Now(), log: s.log.With("session", id)}
 	env["ORCHESTRA_STATUS_FILE"] = t.statusFile
 	env["ORCHESTRA_AGENT_ID_FILE"] = t.idFile
 	collab, err := s.collaboration.environmentLocked(id)

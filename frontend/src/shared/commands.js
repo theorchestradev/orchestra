@@ -41,6 +41,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
           icon: appSymbol(a),
         }))
       : []),
+    session && { id: 'renameSession', group: 'Session', name: 'Rename Session…', icon: 'square.and.pencil' },
     session && { id: 'copyPath', group: 'Session', name: 'Copy Path', icon: 'doc.on.doc' },
     session && { id: 'closeSession', group: 'Session', name: 'Close Current Session', icon: 'trash' },
     project && {

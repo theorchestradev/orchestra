@@ -31,7 +31,7 @@ while True:
  os.write(1,data.replace(b'\\r',b'\\r\\n'))
  if b'\\r' in data: os.write(1,b'\\r\\nFixture received terminal input.\\r\\n> ')
 ''')
-for command in ['codex','claude','pi','vibe','opencode','agy','grok','cline','omp','kilo']:
+for command in ['codex','claude','pi','vibe','opencode','agy','grok','cline','omp','kilo','muse']:
  path=bin_dir/command
  path.write_text(f'#!/bin/sh\nexec "{python}" "{agent}" {command} "$@"\n')
  path.chmod(0o700)

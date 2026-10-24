@@ -120,6 +120,7 @@ test('command bar opens the selected session folder in installed apps', () => {
     [
       ['openIn:zed', 'openIn', 'zed', 'Open in Zed', apps[0].icon, 'macwindow'],
       ['openIn:files', 'openIn', 'files', 'Open in Finder', undefined, 'folder'],
+      ['renameSession', undefined, undefined, 'Rename Session…', undefined, 'square.and.pencil'],
       ['copyPath', undefined, undefined, 'Copy Path', undefined, 'doc.on.doc'],
       ['closeSession', undefined, undefined, 'Close Current Session', undefined, 'trash'],
     ],

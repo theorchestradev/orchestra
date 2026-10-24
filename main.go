@@ -72,6 +72,9 @@ func main() {
 	nav.AddText("Command Bar…", keys.CmdOrCtrl("k"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "command") })
 	nav.AddText("Previous Item", keys.Combo("[", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previous") })
 	nav.AddText("Next Item", keys.Combo("]", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "next") })
+	// ⇧⌘← and ⇧⌘→ select text in fields, so the page handles them instead of the menu.
+	nav.AddText("Previous Project", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previousProject") })
+	nav.AddText("Next Project", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "nextProject") })
 	appMenu.Append(menu.WindowMenu())
 	if goruntime.GOOS != "darwin" {
 		// GTK menu accelerators run before the webview, so Ctrl+B, Ctrl+K and Ctrl+N would
