@@ -4,6 +4,16 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### New
+
+- **See a session's pull request and CI checks.** A PR tab next to Changes and
+  Files shows the pull request for the session's branch, its checks grouped by
+  result with their durations, and its reviews and comments. It refreshes while
+  shown, faster while checks run. Copy a failing check to get its output,
+  annotations and the end of its log, ready to paste into the agent.
+
 ## 0.10.0 — 2026-10-23
 
 ### New

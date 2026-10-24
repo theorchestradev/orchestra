@@ -33,9 +33,14 @@ test('command bar lists navigation, creation and app commands for the selected p
     'sidebar',
     'diff',
     'files',
+    'pullRequest',
     'appearance',
     'theme',
   ])
+  assert.equal(
+    commandItems({ projects, project: projects[1], preferences: {} }).some((c) => c.id === 'pullRequest'),
+    Boolean(projects[1].repository),
+  )
   const none = commandItems({ projects: [], preferences: {} }).map((c) => c.id)
   assert.deepEqual(none, ['goto', 'project', 'settings', 'update', 'sidebar', 'appearance', 'theme'])
 })

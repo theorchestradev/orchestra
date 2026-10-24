@@ -744,6 +744,23 @@ func (a *App) SessionDiff(id string) (core.SessionDiff, error) {
 	return a.store.SessionDiff(id)
 }
 
+// SessionPullRequest reads the pull request and checks for the session's branch. It only
+// reads Git and GitHub; activity adds the pull request's reviews and comments.
+func (a *App) SessionPullRequest(id string, activity bool) (core.PullRequestStatus, error) {
+	if err := a.ready(); err != nil {
+		return core.PullRequestStatus{}, err
+	}
+	return a.store.SessionPullRequest(id, activity)
+}
+
+// PullRequestCheckFailure describes a failed check as text the user can copy.
+func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	return a.store.PullRequestCheckFailure(id, jobID)
+}
+
 // SessionFiles lists a folder or previews a text file inside the session folder.
 func (a *App) SessionFiles(id, path string) (core.SessionFiles, error) {
 	if err := a.ready(); err != nil {
