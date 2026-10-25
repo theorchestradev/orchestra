@@ -7,6 +7,8 @@
 #   APPLE_API_KEY               App Store Connect API key (AuthKey_….p8, base64), Developer role
 #   APPLE_API_KEY_ID            The key ID
 #   APPLE_API_ISSUER            The issuer ID
+# Stable signed releases also update the cask in theorchestradev/homebrew-tap, using:
+#   HOMEBREW_TAP_TOKEN          Fine-grained token with Contents read and write access to that repository
 # Set them with `base64 -i file | gh secret set NAME`. Analytics read the
 # POSTHOG_PROJECT_TOKEN secret and POSTHOG_HOST variable (see docs/privacy.md).
 name: Release
@@ -157,3 +159,40 @@ jobs:
             printf '\n%s\n' 'The macOS app in this release is not signed or notarized. After copying it to Applications, run `xattr -dr com.apple.quarantine /Applications/Orchestra.app` before opening it.' >> "$notes_file"
           fi
           gh release create "$GITHUB_REF_NAME" --verify-tag --notes-file "$notes_file" --title "Orchestra ${GITHUB_REF_NAME#v}" $prerelease Orchestra-* SHA256SUMS
+
+  # Stable releases with a signed and notarized macOS app update the Homebrew cask.
+  homebrew:
+    needs: [macos, release]
+    if: needs.macos.outputs.signed == 'true' && !contains(github.ref_name, '-')
+    runs-on: ubuntu-24.04
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - name: Check the tap token
+        run: |
+          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then
+            echo "::warning::HOMEBREW_TAP_TOKEN is missing, so the Homebrew cask was not updated."
+          fi
+      - uses: actions/checkout@v4
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        with:
+          repository: theorchestradev/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+      - name: Update the cask
+        if: env.HOMEBREW_TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          sha256=$(gh release download "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" -p SHA256SUMS -O - |
+            awk -v name="Orchestra-$version-macos-universal.dmg" '$2 == name { print $1 }')
+          echo "$sha256" | grep -Eq '^[0-9a-f]{64}$' || { echo "No SHA-256 for the $version DMG in SHA256SUMS." >&2; exit 1; }
+          sed -i -E \
+            -e "s/^  version \"[^\"]*\"/  version \"$version\"/" \
+            -e "s/^  sha256 \"[^\"]*\"/  sha256 \"$sha256\"/" \
+            Casks/orchestra.rb
+          git diff --exit-code --quiet && { echo "The cask is already at $version."; exit 0; }
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "Update Orchestra to $version"
+          git push
