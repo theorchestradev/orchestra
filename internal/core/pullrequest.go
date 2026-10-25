@@ -110,13 +110,8 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 	}
 	var pr *ghPullRequest
 	if number > 0 {
-		data, err := runCommand(directory, "gh", "pr", "view", strconv.Itoa(number), "--repo", repo, "--json", pullRequestFields)
-		if err != nil {
-			return PullRequestStatus{}, gitHubCLIError(err)
-		}
-		pr = &ghPullRequest{}
-		if err = json.Unmarshal(data, pr); err != nil {
-			return PullRequestStatus{}, errors.New("Invalid GitHub response.")
+		if pr, err = viewPullRequest(directory, repo, number); err != nil {
+			return PullRequestStatus{}, err
 		}
 		result.Branch = pr.HeadRefName
 	} else {
@@ -140,12 +135,7 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 			return result, nil
 		}
 	}
-	result.Number, result.URL, result.Title, result.ReviewDecision = pr.Number, pr.URL, pr.Title, pr.ReviewDecision
-	result.State = pullRequestState(pr)
-	result.BaseBranch = pr.BaseRefName
-	result.Conflicts = pr.State == "OPEN" && pr.Mergeable == "CONFLICTING"
-	result.ForkWithoutEdits = pr.IsCrossRepository && !pr.MaintainerCanModify
-	result.Checks = pullRequestChecks(pr, time.Now())
+	fillPullRequestStatus(&result, pr)
 	if activity {
 		// Activity is secondary: when it fails the checks still show, with none of it.
 		reviews, reviewsErr := ghPages(directory, fmt.Sprintf("repos/%s/pulls/%d/reviews?per_page=100", repo, pr.Number))
@@ -156,6 +146,46 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 		result.Reviews, result.Comments = reviews, comments
 	}
 	return result, nil
+}
+
+// GitHubPullRequest reads a project's pull request and its checks for the GitHub view. It
+// only reads GitHub, from the project folder.
+func (s *Store) GitHubPullRequest(projectID string, number int) (PullRequestStatus, error) {
+	repo, directory, err := s.repository(projectID)
+	if err != nil {
+		return PullRequestStatus{}, err
+	}
+	if number < 1 {
+		return PullRequestStatus{}, errors.New("Invalid item number.")
+	}
+	pr, err := viewPullRequest(directory, repo, number)
+	if err != nil {
+		return PullRequestStatus{}, err
+	}
+	result := PullRequestStatus{Checks: []PullRequestCheck{}, Repository: repo, Branch: pr.HeadRefName}
+	fillPullRequestStatus(&result, pr)
+	return result, nil
+}
+
+func viewPullRequest(directory, repo string, number int) (*ghPullRequest, error) {
+	data, err := runCommand(directory, "gh", "pr", "view", strconv.Itoa(number), "--repo", repo, "--json", pullRequestFields)
+	if err != nil {
+		return nil, gitHubCLIError(err)
+	}
+	pr := &ghPullRequest{}
+	if err = json.Unmarshal(data, pr); err != nil {
+		return nil, errors.New("Invalid GitHub response.")
+	}
+	return pr, nil
+}
+
+func fillPullRequestStatus(result *PullRequestStatus, pr *ghPullRequest) {
+	result.Number, result.URL, result.Title, result.ReviewDecision = pr.Number, pr.URL, pr.Title, pr.ReviewDecision
+	result.State = pullRequestState(pr)
+	result.BaseBranch = pr.BaseRefName
+	result.Conflicts = pr.State == "OPEN" && pr.Mergeable == "CONFLICTING"
+	result.ForkWithoutEdits = pr.IsCrossRepository && !pr.MaintainerCanModify
+	result.Checks = pullRequestChecks(pr, time.Now())
 }
 
 // sessionBranch is the branch name on the remote for the folder's checkout, and its head
@@ -354,12 +384,25 @@ func (s *Store) PullRequestCheckFailure(id string, jobID int64) (string, error) 
 	if !repoRE.MatchString(repo) {
 		return "", errors.New("This project has no GitHub remote.")
 	}
-	if jobID < 1 {
-		return "", errors.New("Invalid check.")
-	}
 	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
 	if err != nil {
 		return "", err
+	}
+	return checkFailure(directory, repo, jobID)
+}
+
+// GitHubCheckFailure is PullRequestCheckFailure for a pull request in the GitHub view.
+func (s *Store) GitHubCheckFailure(projectID string, jobID int64) (string, error) {
+	repo, directory, err := s.repository(projectID)
+	if err != nil {
+		return "", err
+	}
+	return checkFailure(directory, repo, jobID)
+}
+
+func checkFailure(directory, repo string, jobID int64) (string, error) {
+	if jobID < 1 {
+		return "", errors.New("Invalid check.")
 	}
 	data, err := ghAPI(directory, fmt.Sprintf("repos/%s/check-runs/%d", repo, jobID), false, false)
 	if err != nil {

@@ -5,12 +5,14 @@ import { relativeDate } from '../shared/appearance'
 import { canWorkOn, descriptionSource, isPermissionError, itemSessions, pullConflict } from '../shared/github'
 import { sanitize } from '../shared/markdown'
 import { shortcutLabel } from '../shared/platform'
+import { refreshDelay } from '../shared/pullRequest'
 import Icon from './Icon.vue'
 import Avatar from './Avatar.vue'
 import ConflictNotice from './ConflictNotice.vue'
 import GitHubMetadataEditor from './GitHubMetadataEditor.vue'
 import GitHubSessions from './GitHubSessions.vue'
 import Modal from './Modal.vue'
+import PullRequestChecks from './PullRequestChecks.vue'
 import WorkOnButton from './WorkOnButton.vue'
 const props = defineProps({
   project: Object,
@@ -37,9 +39,13 @@ const state = ref('open'),
   detailsError = ref(''),
   draft = ref(null),
   discarding = ref(null),
-  readOnly = ref(new Set())
+  readOnly = ref(new Set()),
+  pullStatus = ref(null),
+  checksError = ref('')
 let request = 0,
-  detailRequest = 0
+  detailRequest = 0,
+  checksRequest = 0,
+  checksTimer
 const visibleItems = computed(() =>
   items.value.filter(
     (item) =>
@@ -97,6 +103,7 @@ async function detail(item, background = false) {
     content.value = null
   }
   detailsError.value = ''
+  if (!background) loadChecks(item)
   try {
     const result = await call('GitHubDetail', props.project.id, item.number, Boolean(item.pull_request))
     if (token === detailRequest) content.value = result
@@ -106,11 +113,43 @@ async function detail(item, background = false) {
     if (token === detailRequest) detailsLoading.value = false
   }
 }
+// A pull request's checks load beside its details, and poll on their own: quickly while
+// checks run, slowly once they settle, and only while the detail is shown.
+async function loadChecks(item, background = false) {
+  const token = ++checksRequest
+  clearTimeout(checksTimer)
+  if (!background) {
+    pullStatus.value = null
+    checksError.value = ''
+  }
+  if (!item.pull_request) return
+  try {
+    const result = await call('GitHubPullRequest', props.project.id, item.number)
+    if (token === checksRequest) {
+      pullStatus.value = result
+      checksError.value = ''
+    }
+  } catch (e) {
+    if (token === checksRequest) checksError.value = String(e)
+  } finally {
+    if (token === checksRequest) scheduleChecks()
+  }
+}
+function scheduleChecks() {
+  clearTimeout(checksTimer)
+  if (props.visible && selected.value?.pull_request)
+    checksTimer = setTimeout(
+      () => (document.hidden ? scheduleChecks() : loadChecks(selected.value, true)),
+      refreshDelay(pullStatus.value),
+    )
+}
+const loadFailure = (jobID) => call('GitHubCheckFailure', props.project.id, jobID)
 function back() {
   if (editing.value || draft.value?.saving) return
   discardDraft(() => {
     selected.value = null
     detailRequest++
+    loadChecks({})
   })
 }
 // The draft keeps the source it started from so saving can detect edits made on GitHub.
@@ -217,7 +256,8 @@ watch(
     if (!visible) {
       itemMenu.value = null
       editing.value = null
-    }
+      clearTimeout(checksTimer)
+    } else if (selected.value?.pull_request) loadChecks(selected.value, true)
   },
 )
 function keys(event) {
@@ -268,7 +308,11 @@ watch(
   },
   { immediate: true },
 )
-onBeforeUnmount(() => clearInterval(refreshTimer))
+onBeforeUnmount(() => {
+  clearInterval(refreshTimer)
+  clearTimeout(checksTimer)
+  checksRequest++
+})
 watch(state, () => load())
 onMounted(() => load())
 </script>
@@ -534,6 +578,19 @@ onMounted(() => load())
           :read-only="readOnly.has(`true#${selected.number}`)"
           @resolve="emit('resolve', conflict, $event)"
         />
+        <template v-if="selected.pull_request">
+          <PullRequestChecks
+            v-if="pullStatus"
+            :key="selected.number"
+            :status="pullStatus"
+            :load-failure="loadFailure"
+            @error="checksError = $event"
+          />
+          <p v-else-if="!checksError" class="pr-checks pr-checks-loading muted caption">
+            <span class="spinner" />Loading checks…
+          </p>
+          <p v-if="checksError" class="status-error caption pr-checks-error" role="alert">{{ checksError }}</p>
+        </template>
         <section class="discussion">
           <div class="description">
             <form v-if="draft" class="description-form" @submit.prevent="saveDescription">

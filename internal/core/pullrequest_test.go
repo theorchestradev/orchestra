@@ -145,6 +145,36 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	}
 }
 
+func TestGitHubPullRequest(t *testing.T) {
+	s := fixtureStore(t)
+	p := repositoryFixture(t, s)
+	dir, respond := pullRequestFixture(t)
+	s.mu.Lock()
+	stored, _ := s.projectLocked(p.ID)
+	stored.Repository = "fixture/repository"
+	s.mu.Unlock()
+	respond("view", `{"number":56,"title":"Bump","state":"OPEN","headRefName":"bump","baseRefName":"main","statusCheckRollup":[{"__typename":"CheckRun","name":"build","workflowName":"CI","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://github.com/fixture/repository/actions/runs/10/job/100"}]}`)
+	status, err := s.GitHubPullRequest(p.ID, 56)
+	if err != nil || status.Number != 56 || status.Branch != "bump" || status.Repository != "fixture/repository" {
+		t.Fatalf("pull request: %+v, %v", status, err)
+	}
+	if len(status.Checks) != 1 || status.Checks[0].Status != "failure" || status.Checks[0].JobID != 100 {
+		t.Fatalf("checks: %+v", status.Checks)
+	}
+	if args, _ := os.ReadFile(filepath.Join(dir, "args")); !strings.HasPrefix(string(args), "pr\nview\n56\n--repo\nfixture/repository\n") {
+		t.Fatalf("gh arguments: %s", args)
+	}
+	respond("run", `{"name":"build","conclusion":"failure"}`)
+	respond("annotations", `[]`)
+	respond("logs", "2026-10-21T17:00:00.0000000Z FAIL")
+	if text, err := s.GitHubCheckFailure(p.ID, 100); err != nil || !strings.Contains(text, "Check: build\n") || !strings.Contains(text, "FAIL\n```") {
+		t.Fatalf("failure: %q, %v", text, err)
+	}
+	if _, err = s.GitHubPullRequest(p.ID, 0); err == nil {
+		t.Fatal("invalid number accepted")
+	}
+}
+
 func TestPullRequestCheckFailure(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
