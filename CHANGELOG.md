@@ -4,6 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.14.0 — 2026-10-25
+
+### Changed
+
+- **A new app icon.** Orchestra's icon is now an octopus conducting its own
+  orchestra.
+- **Dialogs show their Command-Return shortcut.** The button that
+  Command-Return clicks shows ⌘↩ (Ctrl+Enter on Linux).
+
+### Removed
+
+- **The App Icon setting.** Settings → Appearance no longer offers White and
+  Black icons; Orchestra always uses the new icon.
+
 ## 0.13.0 — 2026-10-25
 
 ### New
