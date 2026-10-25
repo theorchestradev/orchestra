@@ -4,6 +4,28 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.13.0 — 2026-10-25
+
+### New
+
+- **Readable branch names for worktree sessions.** New worktree sessions get a
+  branch named after the session, such as `orchestra/32-fix-login` for a Work on
+  session, instead of an ID. The worktree folder follows the branch name.
+  Existing branches and folders are never reused: the name gets `-2`, `-3` and
+  so on.
+- **Choose the branch name and where it starts.** New Session lets you type a
+  branch name and pick the branch to start from.
+- **CI checks in the GitHub view.** A pull request's page shows the same checks
+  as a session's PR tab, with durations, links and Copy for a failing check.
+- **Reorder the session sidebar tabs.** Drag Changes, Files and PR, or move the
+  focused tab with Option-Left and Option-Right.
+
+### Changed
+
+- **Pick the agent from a menu in New Session.** It starts on your default
+  agent, and Create Session starts the session.
+- **Confirm dialogs with Command-Return,** the same shortcut forms already use.
+
 ## 0.12.0 — 2026-10-25
 
 ### New
