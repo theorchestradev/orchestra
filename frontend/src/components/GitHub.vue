@@ -2,11 +2,12 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, copy, openURL } from '../shared/api'
 import { relativeDate } from '../shared/appearance'
-import { canWorkOn, descriptionSource, isPermissionError, itemSessions } from '../shared/github'
+import { canWorkOn, descriptionSource, isPermissionError, itemSessions, pullConflict } from '../shared/github'
 import { sanitize } from '../shared/markdown'
 import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
 import Avatar from './Avatar.vue'
+import ConflictNotice from './ConflictNotice.vue'
 import GitHubMetadataEditor from './GitHubMetadataEditor.vue'
 import GitHubSessions from './GitHubSessions.vue'
 import Modal from './Modal.vue'
@@ -18,7 +19,7 @@ const props = defineProps({
   defaultAgent: String,
   profiles: Array,
 })
-const emit = defineEmits(['work', 'session', 'error'])
+const emit = defineEmits(['work', 'resolve', 'session', 'error'])
 const detailElement = ref(null),
   itemMenu = ref(null),
   editing = ref(null),
@@ -114,6 +115,7 @@ function back() {
 }
 // The draft keeps the source it started from so saving can detect edits made on GitHub.
 const draftChanged = computed(() => draft.value && draft.value.text !== draft.value.source)
+const conflict = computed(() => selected.value?.pull_request && pullConflict(content.value?.detail))
 const canEditDescription = computed(
   () => content.value && !readOnly.value.has(`${Boolean(selected.value.pull_request)}#${selected.value.number}`),
 )
@@ -522,6 +524,16 @@ onMounted(() => load())
           ><span class="status-open">+{{ content.detail.additions }}</span
           ><span class="status-error">−{{ content.detail.deletions }}</span>
         </div>
+        <ConflictNotice
+          v-if="conflict"
+          :conflict="conflict"
+          :default-agent="defaultAgent"
+          :profiles="profiles"
+          :profile-id="project.profileID || ''"
+          :visible="visible"
+          :read-only="readOnly.has(`true#${selected.number}`)"
+          @resolve="emit('resolve', conflict, $event)"
+        />
         <section class="discussion">
           <div class="description">
             <form v-if="draft" class="description-form" @submit.prevent="saveDescription">

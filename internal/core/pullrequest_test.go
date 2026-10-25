@@ -127,10 +127,18 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","statusCheckRollup":[]}`)
+	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","baseRefName":"main","isCrossRepository":true,"mergeable":"CONFLICTING","statusCheckRollup":[]}`)
 	status, err := s.SessionPullRequest(state.Projects[0].Sessions[0].ID, false)
 	if err != nil || status.Number != 42 || status.Branch != "feature" || status.State != "open" {
 		t.Fatalf("reviewed pull request: %+v, %v", status, err)
+	}
+	if !status.Conflicts || status.BaseBranch != "main" || !status.ForkWithoutEdits {
+		t.Fatalf("conflicts: %+v", status)
+	}
+	// GitHub reports UNKNOWN while it computes mergeability; that isn't a conflict yet.
+	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","isCrossRepository":true,"maintainerCanModify":true,"mergeable":"UNKNOWN","statusCheckRollup":[]}`)
+	if status, err = s.SessionPullRequest(state.Projects[0].Sessions[0].ID, false); err != nil || status.Conflicts || status.ForkWithoutEdits {
+		t.Fatalf("unknown mergeability: %+v, %v", status, err)
 	}
 	if args, _ := os.ReadFile(filepath.Join(dir, "args")); !strings.HasPrefix(string(args), "pr\nview\n42\n--repo\nfixture/repository\n") {
 		t.Fatalf("gh arguments: %s", args)

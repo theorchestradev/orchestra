@@ -41,8 +41,10 @@ import {
   stateLabels,
 } from '../shared/pullRequest'
 import Avatar from './Avatar.vue'
+import ConflictNotice from './ConflictNotice.vue'
 import Icon from './Icon.vue'
-const props = defineProps({ session: Object })
+const props = defineProps({ session: Object, defaultAgent: String, profiles: Array, profileId: String })
+const emit = defineEmits(['resolve'])
 const maxJobs = 5
 const error = ref(''),
   loading = ref(false),
@@ -56,6 +58,17 @@ const summary = computed(() => checksSummary(status.value?.checks))
 const segments = computed(() => ringSegments(status.value?.checks))
 const activity = computed(() => pullRequestActivity(status.value))
 const counts = computed(() => activityCounts(activity.value))
+const conflict = computed(
+  () =>
+    status.value?.conflicts && {
+      number: status.value.number,
+      title: status.value.title,
+      url: status.value.url,
+      base: status.value.baseBranch,
+      head: status.value.branch,
+      forkWithoutEdits: status.value.forkWithoutEdits,
+    },
+)
 const failures = computed(() => (status.value?.checks || []).filter((check) => check.status === 'failure'))
 let generation = 0,
   pollTimer,
@@ -182,6 +195,15 @@ defineExpose({ refresh, loading })
           >
         </p>
       </section>
+      <ConflictNotice
+        v-if="conflict"
+        :conflict="conflict"
+        :default-agent="defaultAgent"
+        :profiles="profiles"
+        :profile-id="profileId"
+        visible
+        @resolve="emit('resolve', conflict, $event)"
+      />
       <section class="pr-checks" aria-label="Checks">
         <div class="pr-checks-summary" :class="'outcome-' + summary.outcome">
           <button class="pr-summary-toggle" :aria-expanded="checksOpen" @click="checksOpen = !checksOpen">
