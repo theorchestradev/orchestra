@@ -720,6 +720,8 @@ export const backend = {
       url: 'https://github.com/example/orchestra/pull/43',
       title: 'Show pull request checks next to each session with a deliberately long title for narrow panes',
       state: 'open',
+      conflicts: true,
+      baseBranch: 'release/2026-10-a-very-long-base-branch-name',
       checks: [
         ci('changes', 'CI', 'success', '11s', 1),
         ci('server-tests (ubuntu-latest)', 'CI', 'failure', '7m 15s', 2),
@@ -780,7 +782,15 @@ export const backend = {
         '<p>Keep each project’s processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch projects → return to the same conversation</code></pre>',
       ...structuredClone(githubItems.find((i) => i.number === number)),
       ...(pull
-        ? { head: { label: 'feature/status' }, base: { label: 'main' }, changed_files: 3, additions: 52, deletions: 12 }
+        ? {
+            head: { label: 'feature/status', ref: 'feature/status', repo: { full_name: 'example/orchestra' } },
+            base: { label: 'main', ref: 'main', repo: { full_name: 'example/orchestra' } },
+            mergeable: false,
+            mergeable_state: 'dirty',
+            changed_files: 3,
+            additions: 52,
+            deletions: 12,
+          }
         : {}),
     },
     comments: [

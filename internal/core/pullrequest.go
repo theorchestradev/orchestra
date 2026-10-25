@@ -33,33 +33,41 @@ type PullRequestCheck struct {
 // PullRequestStatus is the pull request for a session's branch. Without a number, Message
 // explains why there is none to show.
 type PullRequestStatus struct {
-	Message        string             `json:"message,omitempty"`
-	Branch         string             `json:"branch,omitempty"`
-	Repository     string             `json:"repository,omitempty"`
-	Number         int                `json:"number,omitempty"`
-	URL            string             `json:"url,omitempty"`
-	Title          string             `json:"title,omitempty"`
-	State          string             `json:"state,omitempty"` // open, draft, merged or closed
-	ReviewDecision string             `json:"reviewDecision,omitempty"`
-	Checks         []PullRequestCheck `json:"checks"`
+	Message        string `json:"message,omitempty"`
+	Branch         string `json:"branch,omitempty"`
+	Repository     string `json:"repository,omitempty"`
+	Number         int    `json:"number,omitempty"`
+	URL            string `json:"url,omitempty"`
+	Title          string `json:"title,omitempty"`
+	State          string `json:"state,omitempty"` // open, draft, merged or closed
+	ReviewDecision string `json:"reviewDecision,omitempty"`
+	// Conflicts is set only once GitHub has confirmed them; it reports UNKNOWN while computing.
+	Conflicts  bool   `json:"conflicts,omitempty"`
+	BaseBranch string `json:"baseBranch,omitempty"`
+	// ForkWithoutEdits means the head is on a fork that doesn't allow edits by maintainers.
+	ForkWithoutEdits bool               `json:"forkWithoutEdits,omitempty"`
+	Checks           []PullRequestCheck `json:"checks"`
 	// Reviews and Comments are GitHub REST objects with rendered bodies, read only on request.
 	Reviews  []json.RawMessage `json:"reviews,omitempty"`
 	Comments []json.RawMessage `json:"comments,omitempty"`
 }
 
-const pullRequestFields = "number,url,title,state,isDraft,headRefName,headRefOid,isCrossRepository,reviewDecision,statusCheckRollup"
+const pullRequestFields = "number,url,title,state,isDraft,headRefName,headRefOid,baseRefName,isCrossRepository,maintainerCanModify,mergeable,reviewDecision,statusCheckRollup"
 
 type ghPullRequest struct {
-	Number            int    `json:"number"`
-	URL               string `json:"url"`
-	Title             string `json:"title"`
-	State             string `json:"state"`
-	IsDraft           bool   `json:"isDraft"`
-	HeadRefName       string `json:"headRefName"`
-	HeadRefOid        string `json:"headRefOid"`
-	IsCrossRepository bool   `json:"isCrossRepository"`
-	ReviewDecision    string `json:"reviewDecision"`
-	StatusCheckRollup []struct {
+	Number              int    `json:"number"`
+	URL                 string `json:"url"`
+	Title               string `json:"title"`
+	State               string `json:"state"`
+	IsDraft             bool   `json:"isDraft"`
+	HeadRefName         string `json:"headRefName"`
+	HeadRefOid          string `json:"headRefOid"`
+	BaseRefName         string `json:"baseRefName"`
+	IsCrossRepository   bool   `json:"isCrossRepository"`
+	MaintainerCanModify bool   `json:"maintainerCanModify"`
+	Mergeable           string `json:"mergeable"`
+	ReviewDecision      string `json:"reviewDecision"`
+	StatusCheckRollup   []struct {
 		Typename     string `json:"__typename"`
 		Name         string `json:"name"`
 		WorkflowName string `json:"workflowName"`
@@ -134,6 +142,9 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 	}
 	result.Number, result.URL, result.Title, result.ReviewDecision = pr.Number, pr.URL, pr.Title, pr.ReviewDecision
 	result.State = pullRequestState(pr)
+	result.BaseBranch = pr.BaseRefName
+	result.Conflicts = pr.State == "OPEN" && pr.Mergeable == "CONFLICTING"
+	result.ForkWithoutEdits = pr.IsCrossRepository && !pr.MaintainerCanModify
 	result.Checks = pullRequestChecks(pr, time.Now())
 	if activity {
 		// Activity is secondary: when it fails the checks still show, with none of it.

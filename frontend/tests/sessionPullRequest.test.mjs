@@ -54,15 +54,35 @@ test('PR shows grouped checks and activity, and copies failure context', async (
       .replace(/import \{ sanitize \} from ['"]\.\.\/shared\/markdown['"]/, 'const sanitize = (h) => h')
       .replace("'../shared/pullRequest'", JSON.stringify(new URL('../src/shared/pullRequest.js', import.meta.url).href))
       .replace(/import Avatar from ['"]\.\/Avatar.vue['"]/, 'const Avatar = { render: () => null }')
+      .replace(
+        /import ConflictNotice from ['"]\.\/ConflictNotice.vue['"]/,
+        'const ConflictNotice = globalThis.conflictStub',
+      )
       .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }'),
   )
   let app
   try {
-    const { default: PullRequest, pullRequests } = await import(pathToFileURL(dir + '/pullRequest.mjs').href)
     const { createApp, h, ref } = await import('vue')
+    globalThis.conflictStub = {
+      props: ['conflict'],
+      emits: ['resolve'],
+      setup:
+        (props, { emit }) =>
+        () =>
+          h(
+            'button',
+            { class: 'conflict-stub', onClick: () => emit('resolve', { agent: 'codex' }) },
+            props.conflict.base,
+          ),
+    }
+    const { default: PullRequest, pullRequests } = await import(pathToFileURL(dir + '/pullRequest.mjs').href)
     const session = ref({ id: 'one' })
+    const resolved = []
     const flush = () => new Promise((resolve) => setImmediate(resolve))
-    app = createApp({ render: () => h(PullRequest, { session: session.value }) })
+    app = createApp({
+      render: () =>
+        h(PullRequest, { session: session.value, onResolve: (conflict, choice) => resolved.push([conflict, choice]) }),
+    })
     app.mount('#root')
     await flush()
     assert.deepEqual(calls[0], ['SessionPullRequest', 'one', true])
@@ -94,6 +114,26 @@ test('PR shows grouped checks and activity, and copies failure context', async (
     await flush()
     assert.match(copied[1], /Check: tests[\s\S]*---\n\nCheck: deploy\nStatus: failure/)
     assert.match(document.querySelector('.pr-copy-all').textContent, /Copied/)
+    assert.equal(document.querySelector('.conflict-stub'), null)
+
+    reply = { ...reply, conflicts: true, baseBranch: 'main', forkWithoutEdits: true }
+    session.value = { id: 'conflicted' }
+    app._instance.update()
+    await flush()
+    document.querySelector('.conflict-stub').click()
+    assert.deepEqual(resolved, [
+      [
+        {
+          number: 9,
+          title: 'Session work',
+          url: 'https://github.com/o/r/pull/9',
+          base: 'main',
+          head: 'feature',
+          forkWithoutEdits: true,
+        },
+        { agent: 'codex' },
+      ],
+    ])
 
     reply = { checks: [], branch: 'other', message: 'No pull request for other yet.' }
     session.value = { id: 'two' }

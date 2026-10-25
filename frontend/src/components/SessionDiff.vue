@@ -25,8 +25,12 @@ const props = defineProps({
   tab: { type: String, default: 'Changes' },
   // The project's GitHub repository; the PR tab is only offered with one.
   repository: String,
+  // Session choices for Resolve conflicts in the PR tab.
+  defaultAgent: String,
+  profiles: Array,
+  profileId: String,
 })
-const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab'])
+const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab', 'resolve'])
 const tabs = computed(() => (props.repository ? ['Changes', 'Files', 'PR'] : ['Changes', 'Files']))
 const activeTab = computed({
     get: () => (tabs.value.includes(props.tab) ? props.tab : 'Changes'),
@@ -277,6 +281,10 @@ onBeforeUnmount(() => {
       role="tabpanel"
       aria-labelledby="session-tab-PR"
       :session="session"
+      :default-agent="defaultAgent"
+      :profiles="profiles"
+      :profile-id="profileId"
+      @resolve="(conflict, choice) => emit('resolve', conflict, choice)"
     />
     <div
       v-show="activeTab === 'Changes'"

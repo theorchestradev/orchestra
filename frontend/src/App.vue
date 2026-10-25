@@ -5,7 +5,7 @@ import { mac } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
-import { gitHubItem } from './shared/github'
+import { conflictTask, gitHubItem } from './shared/github'
 import { projectTitle, needsGitRepository } from './shared/project'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
@@ -608,18 +608,31 @@ async function newTerminal(p) {
     formError.value = ''
   }
 }
-async function workOn(item, choice = {}) {
-  if (busy.value) return
-  sessionProjectID.value = project.value.id
+function workOn(item, choice = {}) {
   const url = item.pull_request?.html_url || item.html_url
   // Agents often read only the description, so ask for the discussion explicitly.
-  await createSession(
-    choice.agent || preferences.value.defaultAgent,
+  return startGitHubSession(
+    item,
     item.pull_request
       ? `Review this GitHub pull request: ${url}. First read its description, comments and reviews (gh pr view ${url} --json title,body,comments,reviews) and its inline review comments (gh api ${new URL(url).pathname.slice(1).replace(/^([^/]+\/[^/]+)\/pull\//, 'repos/$1/pulls/')}/comments).`
       : `Work on this GitHub issue: ${url}. First read the issue and all of its comments (gh issue view ${url} --json title,body,comments).`,
-    true,
     `#${item.number} ${item.title || ''}`,
+    choice,
+  )
+}
+// Like Review, this only starts a new session; it never types into an existing one.
+function resolveConflicts(conflict, choice = {}) {
+  const task = conflictTask(conflict)
+  return startGitHubSession({ number: conflict.number, pull_request: {} }, task.prompt, task.name, choice)
+}
+async function startGitHubSession(item, prompt, name, choice) {
+  if (busy.value) return
+  sessionProjectID.value = project.value.id
+  await createSession(
+    choice.agent || preferences.value.defaultAgent,
+    prompt,
+    true,
+    name,
     gitHubItem(item),
     choice.model,
     choice.effort,
@@ -1331,6 +1344,7 @@ onBeforeUnmount(() => {
                 :profiles="workspace.profiles"
                 :visible="project?.id === p.id && currentDestination === 'github' && !modal"
                 @work="workOn"
+                @resolve="resolveConflicts"
                 @session="(sess) => select(p, sess.id)"
                 @error="error = $event"
               /></div
@@ -1430,7 +1444,11 @@ onBeforeUnmount(() => {
         :selected-path="activeFile?.path"
         :tab="sidebarTab"
         :repository="project?.repository"
+        :default-agent="preferences.defaultAgent"
+        :profiles="workspace.profiles"
+        :profile-id="project?.profileID || ''"
         @tab="sidebarTab = $event"
+        @resolve="resolveConflicts"
         @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"
         @close="toggleDiff"

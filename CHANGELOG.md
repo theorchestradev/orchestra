@@ -13,6 +13,10 @@ let Orchestra update itself when you ask it to.
   result with their durations, and its reviews and comments. It refreshes while
   shown, faster while checks run. Copy a failing check to get its output,
   annotations and the end of its log, ready to paste into the agent.
+- **Resolve merge conflicts on a pull request.** When GitHub confirms that a
+  pull request conflicts with its base branch, the GitHub view and the PR tab
+  say so. **Resolve conflicts** starts a new session that merges the base
+  branch, resolves the files, runs the checks and pushes to the pull request.
 
 ## 0.11.0 — 2026-10-24
 
