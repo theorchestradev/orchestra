@@ -5039,3 +5039,10 @@ h2 {
   font-size: 12px;
   border-top: 0;
 }
+.submenu-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.context-menu .open-in-item[aria-expanded='true'] {
+  background: var(--selection);
+}

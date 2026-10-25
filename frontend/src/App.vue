@@ -94,6 +94,8 @@ const loading = ref(true),
   error = ref(''),
   modal = ref(''),
   menu = ref(null),
+  // Where the session menu's Open in submenu shows, while it is open.
+  openInMenu = ref(null),
   busy = ref(false)
 const projectName = ref(''),
   projectDescription = ref(''),
@@ -872,6 +874,7 @@ watch(
 )
 // Long menus move up to stay inside the window.
 watch(menu, async (value) => {
+  openInMenu.value = null
   if (value) {
     await nextTick()
     const el = document.querySelector('.context-menu')
@@ -923,6 +926,46 @@ async function openIn(sess, app) {
 function copyPath(p, sess) {
   menu.value = null
   copy(sessionPath(p, sess)).catch((e) => (error.value = String(e)))
+}
+// The submenu opens beside its item, on the left when the right side has no room, and stays in the window.
+async function showOpenInMenu(event, focus) {
+  const rect = event.currentTarget.getBoundingClientRect()
+  if (!openInMenu.value) {
+    openInMenu.value = { x: rect.right + 2, y: rect.top - 5 }
+    await nextTick()
+  }
+  const el = document.querySelector('.open-in-submenu')
+  if (!el) return
+  const width = el.offsetWidth,
+    height = el.offsetHeight
+  openInMenu.value = {
+    x: rect.right + 2 + width <= innerWidth - 8 ? rect.right + 2 : Math.max(8, rect.left - width - 2),
+    y: Math.max(8, Math.min(rect.top - 5, innerHeight - height - 8)),
+  }
+  if (focus) el.querySelector('button')?.focus()
+}
+function hideOpenInMenu(restoreFocus) {
+  openInMenu.value = null
+  if (restoreFocus) document.querySelector('.open-in-item')?.focus()
+}
+// Moving to another item of the session menu closes the submenu.
+function contextMenuKeys(event) {
+  if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) openInMenu.value = null
+  menuKeys(event)
+}
+function closeOpenInMenuFrom(event) {
+  const item = event.target.closest('button')
+  if (item && !item.classList.contains('open-in-item')) openInMenu.value = null
+}
+function openInMenuKeys(event) {
+  if (event.key === 'Escape' || event.key === 'ArrowLeft') {
+    event.preventDefault()
+    event.stopPropagation()
+    hideOpenInMenu(true)
+  } else {
+    event.stopPropagation()
+    menuKeys(event)
+  }
 }
 let unsubs = [],
   resizeCleanup
@@ -1424,7 +1467,8 @@ onBeforeUnmount(() => {
       v-if="menu"
       class="context-menu"
       role="menu"
-      @keydown="menuKeys"
+      @keydown="contextMenuKeys"
+      @pointerover="closeOpenInMenuFrom"
       :style="{ left: menu.x + 'px', top: menu.y + 'px' }"
       @pointerdown.stop
     >
@@ -1510,6 +1554,7 @@ onBeforeUnmount(() => {
         </button></template
       >
       <template v-else
+        ><button role="menuitem" @click="edit(menu.session.id, menu.session.name, 'Session')">Edit Session…</button
         ><template v-if="isTerminal(menu.session)"
           ><!-- prettier-ignore-attribute @click --><button
             v-if="menu.session.activity === 'ended'"
@@ -1537,49 +1582,55 @@ onBeforeUnmount(() => {
           <span class="truncate">Profile: {{ profileName(workspace.profiles, menu.session.profileID) }}</span>
         </button>
         <hr />
-        <template v-for="group in appGroups(openInApps)" :key="group.kind"
-          ><div role="group" :aria-label="group.label">
-            <button v-for="app in group.apps" :key="app.id" role="menuitem" @click="openIn(menu.session, app.id)">
-              <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else :name="appSymbol(app)" :size="14" /><span
-                class="truncate"
-                >Open in {{ app.name }}</span
-              >
-            </button>
-          </div>
-          <hr
-        /></template>
         <button
-          v-for="app in openInApps.filter((a) => a.id === fileManager)"
-          :key="app.id"
           role="menuitem"
-          @click="openIn(menu.session, app.id)"
+          class="open-in-item"
+          aria-haspopup="menu"
+          :aria-expanded="!!openInMenu"
+          @click="showOpenInMenu($event, true)"
+          @pointerenter="showOpenInMenu($event, false)"
+          @keydown.right.prevent="showOpenInMenu($event, true)"
         >
-          <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else name="folder" :size="14" /><span class="truncate"
-            >Open in {{ app.name }}</span
-          ></button
-        ><button role="menuitem" @click="copyPath(menu.project, menu.session)">
-          <Icon name="doc.on.doc" :size="14" />Copy Path
+          <Icon name="macwindow" :size="14" />Open in<Icon class="submenu-chevron" name="chevron.right" :size="10" />
         </button>
         <hr />
-        <button role="menuitem" @click="edit(menu.session.id, menu.session.name, 'Session')">Edit Session…</button
-        ><button
-          role="menuitem"
-          :disabled="orderOf('session', menu.project.id)[0] === menu.session.id"
-          @click="moveBy('session', menu.project.id, menu.session.id, -1)"
-        >
-          Move Up</button
-        ><button
-          role="menuitem"
-          :disabled="orderOf('session', menu.project.id).at(-1) === menu.session.id"
-          @click="moveBy('session', menu.project.id, menu.session.id, 1)"
-        >
-          Move Down
-        </button>
-        <hr />
-        <button role="menuitem" @click="closeSession(menu.project, menu.session)">
+        <button role="menuitem" class="destructive" @click="closeSession(menu.project, menu.session)">
           <Icon name="trash" :size="14" />Close Session…
         </button></template
       >
+    </div>
+    <div
+      v-if="menu?.kind === 'session' && openInMenu"
+      class="context-menu open-in-menu open-in-submenu"
+      role="menu"
+      aria-label="Open in"
+      :style="{ left: openInMenu.x + 'px', top: openInMenu.y + 'px' }"
+      @keydown="openInMenuKeys"
+      @pointerdown.stop
+    >
+      <template v-for="group in appGroups(openInApps)" :key="group.kind"
+        ><div role="group" :aria-label="group.label">
+          <button v-for="app in group.apps" :key="app.id" role="menuitem" @click="openIn(menu.session, app.id)">
+            <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else :name="appSymbol(app)" :size="14" /><span
+              class="truncate"
+              >{{ app.name }}</span
+            >
+          </button>
+        </div>
+        <hr
+      /></template>
+      <button
+        v-for="app in openInApps.filter((a) => a.id === fileManager)"
+        :key="app.id"
+        role="menuitem"
+        @click="openIn(menu.session, app.id)"
+      >
+        <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else name="folder" :size="14" /><span class="truncate">{{
+          app.name
+        }}</span></button
+      ><button role="menuitem" @click="copyPath(menu.project, menu.session)">
+        <Icon name="doc.on.doc" :size="14" />Copy Path
+      </button>
     </div>
     <section v-if="localMainNotice" class="local-main-notice" role="status" aria-labelledby="local-main-notice-title">
       <button class="notice-close" aria-label="Dismiss notice" @click="dismissLocalMainNotice">
