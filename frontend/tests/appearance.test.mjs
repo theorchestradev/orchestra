@@ -81,19 +81,25 @@ test('project navigation preserves page priority and messaging labels', () => {
 })
 
 test('startup views never select or resume a restored agent', () => {
-  const project = { repository: 'example/orchestra', selectedSessionID: 'restored-agent' }
+  const project = { repositories: [{ gitHub: 'example/orchestra' }], selectedSessionID: 'restored-agent' }
   assert.equal(startupDestination(project, { startupView: 'last' }), null)
   assert.equal(startupDestination(project, { startupView: 'scratchpad' }), 'scratchpad')
   assert.equal(startupDestination(project, { startupView: 'github' }), 'github')
-  assert.equal(startupDestination({ ...project, repository: '' }, { startupView: 'github' }), null)
+  assert.equal(startupDestination({ ...project, repositories: [{ gitHub: '' }] }, { startupView: 'github' }), null)
   assert.equal(startupDestination(undefined, { startupView: 'scratchpad' }), null)
 })
 
 test('sidebar navigation follows visible order and wraps', () => {
   const projects = [
-    { id: 'a', isExpanded: true, repository: 'o/a', hasScratchpad: true, sessions: [{ id: 's1' }, { id: 's2' }] },
-    { id: 'b', isExpanded: false, repository: 'o/b', hasScratchpad: true, sessions: [{ id: 's3' }] },
-    { id: 'c', isExpanded: true, repository: '', hasScratchpad: false, sessions: [{ id: 's4' }] },
+    {
+      id: 'a',
+      isExpanded: true,
+      repositories: [{ gitHub: 'o/a' }],
+      hasScratchpad: true,
+      sessions: [{ id: 's1' }, { id: 's2' }],
+    },
+    { id: 'b', isExpanded: false, repositories: [{ gitHub: 'o/b' }], hasScratchpad: true, sessions: [{ id: 's3' }] },
+    { id: 'c', isExpanded: true, repositories: [{}], hasScratchpad: false, sessions: [{ id: 's4' }] },
   ]
   assert.deepEqual(
     sidebarItems(projects).map((i) => i.project.id + ':' + i.destination),
@@ -107,11 +113,11 @@ test('sidebar navigation follows visible order and wraps', () => {
   assert.equal(adjacentItem(projects, 'a', 'empty', -1).destination, 's4')
   assert.equal(adjacentItem([], 'a', 'empty', 1), null)
 })
-test('the Scratchpad sits at its saved position among sessions, below Issues & PRs', () => {
+test('the Scratchpad sits at its saved position among sessions, below Work Items', () => {
   const p = {
     id: 'a',
     isExpanded: true,
-    repository: 'o/a',
+    repositories: [{ gitHub: 'o/a' }],
     hasScratchpad: true,
     scratchpadIndex: 1,
     sessions: [{ id: 's1' }, { id: 's2' }],

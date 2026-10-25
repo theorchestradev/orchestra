@@ -3,22 +3,24 @@
 <img width="1624" height="1061" alt="file-21b6f91d6892d81e16aa4fd210f9f691" src="https://github.com/user-attachments/assets/05a7f32e-a07a-445a-9b35-09bbe49bc167" />
 
 <p align="center">
-  A desktop app for running coding agents side by side in project-based terminal sessions.<br>
+  A desktop app for running coding agents side by side in workspace-based terminal sessions.<br>
   <a href="https://github.com/theorchestradev/orchestra/releases/latest">Download</a> ·
   <a href="https://theorchestra.dev">Website</a>
 </p>
 
 - **Any agent:** Claude Code, Codex, OpenCode, Pi, Mistral Vibe, Antigravity CLI, Grok
   Build, Cline, omp, Kilo, Muse Code, or a plain shell, each in its own session.
+- **Workspaces:** group the repositories you work on together, such as an app, its
+  website and its docs. Each session works in one of them.
 - **Worktrees:** every session can run in its own Git worktree and branch, so agents
   don't step on each other.
 - **Sessions talk to each other:** agents send requests between sessions and share a
-  project Scratchpad through the `orchestra` CLI. Nothing is typed into a terminal
+  workspace Scratchpad through the `orchestra` CLI. Nothing is typed into a terminal
   unless you choose to.
-- **GitHub and diffs:** browse issues and pull requests, start a session from one, and
-  review each session's changes.
+- **Work Items and diffs:** browse the issues and pull requests of every GitHub
+  repository in a workspace, start a session from one, and review each session's changes.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
-  project or worktree, and open files in the sidebar to read syntax-highlighted code
+  repository or worktree, and open files in the sidebar to read syntax-highlighted code
   in the central view.
 
 
@@ -42,8 +44,9 @@ For the GitHub views, install the [GitHub CLI](https://cli.github.com/) and run
 
 ## Use
 
-1. Add a project from an existing folder.
-2. Add a session and choose an agent. **Create a new worktree** is on by default and puts
+1. Add a workspace from an existing folder. Add more repositories from the workspace's
+   **Add Repository…** menu item or in Edit Workspace.
+2. Add a session, choose its repository and an agent. **Create a new worktree** is on by default and puts
    the session on a new branch under `~/.orchestra/worktrees/`.
 3. When you close the session, **Remove the worktree** deletes a clean checkout and
    keeps any branch with unmerged commits.
@@ -52,11 +55,11 @@ To use more than one Claude Code or Codex account, add a profile in Settings →
 and choose **Log In** for each agent. Orchestra keeps a separate config folder for each
 profile under `~/.orchestra/profiles/` (through `CLAUDE_CONFIG_DIR` and `CODEX_HOME`), so
 a profile starts without your usual CLI settings, MCP servers and skills; Settings →
-Profiles offers to install the Orchestra Skill when a profile is missing it. A project
+Profiles offers to install the Orchestra Skill when a profile is missing it. A workspace
 chooses the profile its new sessions use, and the New Session dialog can choose another.
 
 The Orchestra Skill lets agents in different sessions talk to each other: they send
-requests and share the project Scratchpad through the `orchestra` CLI. Install it from
+requests and share the workspace Scratchpad through the `orchestra` CLI. Install it from
 Settings → Agents → Orchestra Skill, or run:
 
 ```sh

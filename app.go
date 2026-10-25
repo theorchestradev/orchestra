@@ -185,7 +185,7 @@ func (a *App) ChooseFolder() (string, error) {
 		return "", err
 	}
 
-	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Project Folder", CanCreateDirectories: false})
+	return runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{Title: "Repository Folder", CanCreateDirectories: false})
 }
 
 type usageReading struct {
@@ -287,12 +287,32 @@ func (a *App) CreateProject(name, directory, description string) (core.State, er
 		}
 		for _, p := range state.Projects {
 			if p.ID == state.SelectedProjectID {
-				a.Track("project_added", map[string]any{"has_github_repository": p.Repository != ""})
+				a.Track("project_added", map[string]any{"has_github_repository": p.Repositories[0].GitHub != ""})
 				break
 			}
 		}
 	}
 	return state, err
+}
+// AddRepository, RenameRepository and RemoveRepository manage a workspace's repositories.
+// Removing one never touches its folder.
+func (a *App) AddRepository(project, directory string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.AddRepository(project, directory)
+}
+func (a *App) RenameRepository(project, repository, name string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.RenameRepository(project, repository, name)
+}
+func (a *App) RemoveRepository(project, repository string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.RemoveRepository(project, repository)
 }
 func (a *App) RemoveProject(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -374,12 +394,12 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
+func (a *App) CreateSession(project, repository, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
+	state, err := a.store.CreateSession(project, repository, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
 	if err == nil && gitHubItem != nil {
 		action := "work_on"
 		if gitHubItem.PullRequest {
@@ -390,29 +410,29 @@ func (a *App) CreateSession(project, agent, name, prompt string, createWorktree 
 	return state, err
 }
 
-// CanCreateWorktree reports whether new sessions in the project can start in a worktree.
-func (a *App) CanCreateWorktree(project string) (bool, error) {
+// CanCreateWorktree reports whether new sessions in the repository can start in a worktree.
+func (a *App) CanCreateWorktree(project, repository string) (bool, error) {
 	if err := a.ready(); err != nil {
 		return false, err
 	}
-	return a.store.CanCreateWorktree(project)
+	return a.store.CanCreateWorktree(project, repository)
 }
 
 // WorktreeBranches lists the branches a new session worktree can start from.
-func (a *App) WorktreeBranches(project string) (core.WorktreeBranches, error) {
+func (a *App) WorktreeBranches(project, repository string) (core.WorktreeBranches, error) {
 	if err := a.ready(); err != nil {
 		return core.WorktreeBranches{}, err
 	}
-	return a.store.WorktreeBranches(project)
+	return a.store.WorktreeBranches(project, repository)
 }
 
 // KeepLocalMainUpToDate and DismissLocalMainNotice back the notice shown when a new session
 // worktree finds local main behind origin.
-func (a *App) KeepLocalMainUpToDate(projectID string) (core.State, error) {
+func (a *App) KeepLocalMainUpToDate(projectID, repositoryID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.KeepLocalMainUpToDate(projectID)
+	return a.store.KeepLocalMainUpToDate(projectID, repositoryID)
 }
 func (a *App) DismissLocalMainNotice(projectID string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -546,11 +566,11 @@ func (a *App) ResizeTerminal(id string, cols, rows int) error {
 
 	return a.store.ResizeTerminal(id, cols, rows)
 }
-func (a *App) InitializeGitRepository(project string) (core.State, error) {
+func (a *App) InitializeGitRepository(project, repository string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.InitializeGitRepository(project)
+	return a.store.InitializeGitRepository(project, repository)
 }
 func (a *App) DetectRepository(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -558,31 +578,32 @@ func (a *App) DetectRepository(id string) (core.State, error) {
 	}
 	return a.store.DetectRepository(id)
 }
-func (a *App) GitHubItems(project, state string) ([]json.RawMessage, error) {
+// The GitHub methods act on one GitHub-connected repository of a workspace.
+func (a *App) GitHubItems(project, repository, state string) ([]json.RawMessage, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
 
-	return a.store.GitHubItems(project, state)
+	return a.store.GitHubItems(project, repository, state)
 }
-func (a *App) GitHubDetail(project string, number int, pull bool) (core.GitHubContent, error) {
+func (a *App) GitHubDetail(project, repository string, number int, pull bool) (core.GitHubContent, error) {
 	if err := a.ready(); err != nil {
 		return core.GitHubContent{}, err
 	}
 
-	return a.store.GitHubDetail(project, number, pull)
+	return a.store.GitHubDetail(project, repository, number, pull)
 }
-func (a *App) GitHubMetadataOptions(project, field string) ([]json.RawMessage, error) {
+func (a *App) GitHubMetadataOptions(project, repository, field string) ([]json.RawMessage, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	return a.store.GitHubMetadataOptions(project, field)
+	return a.store.GitHubMetadataOptions(project, repository, field)
 }
-func (a *App) UpdateGitHubMetadata(project string, number int, pull bool, field string, values []string) error {
+func (a *App) UpdateGitHubMetadata(project, repository string, number int, pull bool, field string, values []string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	err := a.store.UpdateGitHubMetadata(project, number, pull, field, values)
+	err := a.store.UpdateGitHubMetadata(project, repository, number, pull, field, values)
 	if err == nil {
 		a.Track("github_action", map[string]any{"action": "edit_metadata"})
 	}
@@ -756,20 +777,20 @@ func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 	return a.store.PullRequestCheckFailure(id, jobID)
 }
 
-// GitHubPullRequest reads a project's pull request and its checks for the GitHub view.
-func (a *App) GitHubPullRequest(project string, number int) (core.PullRequestStatus, error) {
+// GitHubPullRequest reads a repository's pull request and its checks for Work Items.
+func (a *App) GitHubPullRequest(project, repository string, number int) (core.PullRequestStatus, error) {
 	if err := a.ready(); err != nil {
 		return core.PullRequestStatus{}, err
 	}
-	return a.store.GitHubPullRequest(project, number)
+	return a.store.GitHubPullRequest(project, repository, number)
 }
 
-// GitHubCheckFailure describes a failed check of a project's pull request as text to copy.
-func (a *App) GitHubCheckFailure(project string, jobID int64) (string, error) {
+// GitHubCheckFailure describes a failed check of a repository's pull request as text to copy.
+func (a *App) GitHubCheckFailure(project, repository string, jobID int64) (string, error) {
 	if err := a.ready(); err != nil {
 		return "", err
 	}
-	return a.store.GitHubCheckFailure(project, jobID)
+	return a.store.GitHubCheckFailure(project, repository, jobID)
 }
 
 // SessionFiles lists a folder or previews a text file inside the session folder.
@@ -780,15 +801,15 @@ func (a *App) SessionFiles(id, path string) (core.SessionFiles, error) {
 	return a.store.SessionFiles(id, path)
 }
 
-// ProjectIcons maps project IDs to the favicon or app icon found in their folders, as data URLs.
-// Projects without one are left out.
+// ProjectIcons maps workspace IDs to the favicon or app icon found in their first repository's
+// folder, as data URLs. Workspaces without one are left out.
 func (a *App) ProjectIcons() map[string]string {
 	result := map[string]string{}
 	if a.ready() != nil {
 		return result
 	}
 	for _, p := range a.store.Snapshot().Projects {
-		if icon := core.ProjectIcon(p.Directory); icon != "" {
+		if icon := core.ProjectIcon(p.Repositories[0].Directory); icon != "" {
 			result[p.ID] = icon
 		}
 	}

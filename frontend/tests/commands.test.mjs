@@ -6,7 +6,7 @@ const projects = [
   {
     id: 'p1',
     name: 'Orchestra',
-    repository: 'theorchestradev/orchestra',
+    repositories: [{ id: 'r1', name: 'orchestra', gitHub: 'theorchestradev/orchestra' }],
     hasScratchpad: true,
     scratchpadName: 'Notes',
     sessions: [{ id: 's1', name: 'Claude Code', agent: 'claude', worktreeBranch: 'feature' }],
@@ -39,7 +39,7 @@ test('command bar lists navigation, creation and app commands for the selected p
   ])
   assert.equal(
     commandItems({ projects, project: projects[1], preferences: {} }).some((c) => c.id === 'pullRequest'),
-    Boolean(projects[1].repository),
+    false,
   )
   const none = commandItems({ projects: [], preferences: {} }).map((c) => c.id)
   assert.deepEqual(none, ['goto', 'project', 'settings', 'update', 'sidebar', 'appearance', 'theme'])

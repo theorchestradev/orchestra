@@ -291,7 +291,7 @@ func (s *Store) LogIn(projectID, profileID, agent string) (State, error) {
 	if profile != nil {
 		name = profile.Name
 	}
-	return s.createSessionLocked(projectID, terminalAgent, "Log In · "+agentSpecs[agent].Name+" · "+name, "", false, nil, "", "", profileID, agent, "", "")
+	return s.createSessionLocked(projectID, "", terminalAgent, "Log In · "+agentSpecs[agent].Name+" · "+name, "", false, nil, "", "", profileID, agent, "", "")
 }
 
 // ProfileLogin reports whether an agent's CLI is signed in with a profile's config folder.

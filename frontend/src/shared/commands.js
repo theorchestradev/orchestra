@@ -1,5 +1,5 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
-import { projectTitle } from './project.js'
+import { hasWorkItems, projectTitle, sessionRepository } from './project.js'
 import { shortcut } from './shortcuts.js'
 import { appSymbol } from './openIn.js'
 
@@ -14,13 +14,13 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       group: 'Navigation',
       name: 'Go to…',
       icon: 'magnifyingglass',
-      placeholder: 'Search projects and sessions',
+      placeholder: 'Search workspaces and sessions',
       children: destinations(projects),
     },
-    project?.repository && {
+    hasWorkItems(project) && {
       id: 'github',
       group: 'Navigation',
-      name: 'Open Issues & PRs',
+      name: 'Open Work Items',
       icon: 'list.bullet.rectangle',
     },
     project && {
@@ -62,7 +62,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       children: sessionAgents,
     },
     project && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
-    { id: 'project', group: 'Create', name: 'New Project…', icon: 'folder', shortcut: shortcut('project') },
+    { id: 'project', group: 'Create', name: 'New Workspace…', icon: 'folder', shortcut: shortcut('project') },
     { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: shortcut('settings') },
     { id: 'update', group: 'App', name: 'Check for Updates…', icon: 'arrow.down.circle' },
     {
@@ -80,7 +80,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       shortcut: shortcut('diff'),
     },
     project && { id: 'files', group: 'App', name: 'Toggle Files', icon: 'folder', shortcut: shortcut('files') },
-    project?.repository && {
+    (session ? sessionRepository(project, session)?.gitHub : hasWorkItems(project)) && {
       id: 'pullRequest',
       group: 'App',
       name: 'Toggle Pull Request',
@@ -108,11 +108,11 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
 export function destinations(projects = []) {
   return projects.flatMap((p) => [
     { id: p.id + ':project', name: projectTitle(p), icon: 'folder', project: p, destination: 'project' },
-    ...(p.repository
+    ...(hasWorkItems(p)
       ? [
           {
             id: p.id + ':github',
-            name: 'Issues & PRs',
+            name: 'Work Items',
             detail: projectTitle(p),
             icon: 'list.bullet.rectangle',
             project: p,
@@ -135,7 +135,9 @@ export function destinations(projects = []) {
     ...p.sessions.map((s) => ({
       id: s.id,
       name: s.name,
-      detail: [projectTitle(p), s.worktreeBranch].filter(Boolean).join(' · '),
+      detail: [projectTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
+        .filter(Boolean)
+        .join(' · '),
       ...(isTerminal(s) ? { icon: 'terminal' } : { agent: s.agent }),
       project: p,
       destination: s.id,

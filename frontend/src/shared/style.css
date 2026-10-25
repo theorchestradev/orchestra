@@ -1167,6 +1167,51 @@ input::placeholder {
 .folder-field button {
   align-self: flex-start;
 }
+.repository-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.repository-settings header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.repository-settings h3 {
+  font-size: 13px;
+}
+.repository-settings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+}
+.repository-settings li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+}
+.repository-settings li + li {
+  border-top: 1px solid var(--rule);
+}
+.repository-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.repository-fields input {
+  padding: 5px 7px;
+}
+.repository-settings li > button {
+  flex: none;
+}
 .project-path {
   margin-top: 6px;
   overflow-wrap: anywhere;
@@ -1647,6 +1692,33 @@ input::placeholder {
 }
 .search-field > .symbol {
   color: var(--muted);
+}
+.work-item-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.work-item-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.work-item-sources .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.item-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.source-warning {
+  padding: 8px 20px 0;
+}
+.source-error {
+  white-space: pre-line;
 }
 .status-filter {
   font-size: 12px;
@@ -2236,7 +2308,7 @@ input::placeholder {
     width: 100%;
     margin: 0;
   }
-  .status-filter {
+  .work-item-filters {
     margin-left: auto;
   }
   .type-tabs button {

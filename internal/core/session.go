@@ -155,7 +155,7 @@ func (t *TerminalSession) terminate() {
 func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (TerminalOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		return TerminalOutput{}, err
 	}
@@ -175,7 +175,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 			sess.AgentSessionID = sess.ID
 		}
 	}
-	directory, err := sessionFolder(p.Directory, sess.WorktreeDirectory)
+	directory, err := sessionFolder(repo.Directory, sess.WorktreeDirectory)
 	if err != nil {
 		return TerminalOutput{}, err
 	}

@@ -6,7 +6,15 @@ import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { conflictTask, gitHubItem } from './shared/github'
-import { projectTitle, needsGitRepository } from './shared/project'
+import {
+  projectTitle,
+  needsGitRepository,
+  repositories,
+  sessionRepository,
+  defaultRepository,
+  hasWorkItems,
+  repositoryLabel,
+} from './shared/project'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
   palette,
@@ -105,6 +113,10 @@ const projectName = ref(''),
   renameKind = ref(''),
   sessionID = ref(''),
   sessionProjectID = ref(''),
+  // The repository a new session works in.
+  sessionRepositoryID = ref(''),
+  // Edit Workspace's repository names, saved with the workspace.
+  repositoryNames = ref({}),
   // The profile a new session or an edited project uses; "" is Default.
   sessionProfileID = ref(''),
   projectProfileID = ref(''),
@@ -121,7 +133,7 @@ const scratchpadView = ref(null),
   newBranch = ref(''),
   newBase = ref(''),
   worktreeBranches = ref({ current: '', branches: [] }),
-  // False when the New Session project folder is not in a Git repository, so it cannot have worktrees.
+  // False when the New Session repository folder is not in a Git repository, so it cannot have worktrees.
   worktreeAvailable = ref(true),
   removeWorktree = ref(false),
   initializingGit = ref(false),
@@ -201,6 +213,7 @@ const modalSession = computed(() =>
 const modalProject = computed(
   () => workspace.value.projects.find((p) => p.id === sessionProjectID.value) || project.value,
 )
+const modalRepository = computed(() => repositories(modalProject.value).find((r) => r.id === sessionRepositoryID.value))
 const preferences = computed(() => workspace.value.preferences)
 // Views get the appearance shown, so System mode needs no handling outside Settings.
 const shownPreferences = computed(() => ({
@@ -338,28 +351,40 @@ function openModal(kind, p = project.value) {
     gitInitialized.value = offerGitInit.value = false
     worktreeAvailable.value = true
     if (p) sessionProjectID.value = p.id
+    sessionRepositoryID.value = defaultRepository(modalProject.value)?.id || ''
     sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
-    checkWorktree(modalProject.value?.id)
+    checkWorktree(modalProject.value?.id, sessionRepositoryID.value)
   }
 }
+// Worktrees, branches and Git initialization belong to the chosen repository.
+function chooseSessionRepository() {
+  newBranch.value = newBase.value = ''
+  worktreeBranches.value = { current: '', branches: [] }
+  gitInitialized.value = offerGitInit.value = false
+  worktreeAvailable.value = newWorktree.value = true
+  formError.value = ''
+  checkWorktree(modalProject.value?.id, sessionRepositoryID.value)
+}
+const choosingRepository = (id, repositoryID) =>
+  modal.value === 'session' && modalProject.value?.id === id && sessionRepositoryID.value === repositoryID
 // The status bar's usage popover opens Settings at Usage or Profiles; other entry points start at General.
 function openSettings(section) {
   openModal('settings')
   settingsSection.value = section
 }
-async function checkWorktree(id) {
-  if (!id) return
-  const available = await call('CanCreateWorktree', id).catch(() => true)
-  if (modal.value !== 'session' || modalProject.value?.id !== id) return
+async function checkWorktree(id, repositoryID) {
+  if (!id || !repositoryID) return
+  const available = await call('CanCreateWorktree', id, repositoryID).catch(() => true)
+  if (!choosingRepository(id, repositoryID)) return
   worktreeAvailable.value = available
   // Initialize Git Repository stays reachable now that the worktree error no longer appears.
   offerGitInit.value = !available
   if (!available) newWorktree.value = false
-  else loadWorktreeBranches(id)
+  else loadWorktreeBranches(id, repositoryID)
 }
-async function loadWorktreeBranches(id) {
-  const branches = await call('WorktreeBranches', id).catch(() => null)
-  if (branches && modal.value === 'session' && modalProject.value?.id === id) worktreeBranches.value = branches
+async function loadWorktreeBranches(id, repositoryID) {
+  const branches = await call('WorktreeBranches', id, repositoryID).catch(() => null)
+  if (branches && choosingRepository(id, repositoryID)) worktreeBranches.value = branches
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -468,7 +493,7 @@ function toggleFiles() {
   if (!showsDiff.value) toggleDiff()
 }
 function togglePullRequest() {
-  if (modal.value || !session.value || !project.value?.repository) return
+  if (modal.value || !sessionRepository(project.value, session.value)?.gitHub) return
   if (showsDiff.value && sidebarTab.value === 'PR') {
     toggleDiff()
     return
@@ -486,9 +511,9 @@ function toggleDiff() {
   if (closing && inPane) closeModal()
 }
 async function keepLocalMainUpToDate() {
-  const { projectID } = localMainNotice.value
+  const { projectID, repositoryID } = localMainNotice.value
   localMainNotice.value = null
-  await action('KeepLocalMainUpToDate', projectID)
+  await action('KeepLocalMainUpToDate', projectID, repositoryID)
 }
 function dismissLocalMainNotice() {
   const { projectID } = localMainNotice.value
@@ -571,6 +596,8 @@ async function createSession(
   profileID = (modalProject.value || project.value)?.profileID || '',
   branch = '',
   base = '',
+  // Empty starts in the repository New Session chose last.
+  repositoryID = '',
 ) {
   busy.value = true
   try {
@@ -578,6 +605,7 @@ async function createSession(
       await call(
         'CreateSession',
         modalProject.value?.id || project.value.id,
+        repositoryID,
         agent,
         name,
         prompt,
@@ -604,15 +632,15 @@ async function initializeGit() {
   if (busy.value) return
   busy.value = initializingGit.value = true
   try {
-    apply(await call('InitializeGitRepository', modalProject.value.id))
+    apply(await call('InitializeGitRepository', modalProject.value.id, sessionRepositoryID.value))
     formError.value = ''
     offerGitInit.value = false
     gitInitialized.value = true
     // Initializing here means the user wants a worktree, so offer it again as the note describes.
     worktreeAvailable.value = newWorktree.value = true
-    loadWorktreeBranches(modalProject.value.id)
+    loadWorktreeBranches(modalProject.value.id, sessionRepositoryID.value)
     // The button goes away, so keep keyboard focus inside the dialog.
-    nextTick(() => document.querySelector('#session-agent')?.focus())
+    nextTick(() => document.querySelector('#session-repository, #session-agent')?.focus())
   } catch (e) {
     formError.value = String(e)
   } finally {
@@ -643,8 +671,14 @@ function workOn(item, choice = {}) {
 // Like Review, this only starts a new session; it never types into an existing one.
 function resolveConflicts(conflict, choice = {}) {
   const task = conflictTask(conflict)
-  return startGitHubSession({ number: conflict.number, pull_request: {} }, task.prompt, task.name, choice)
+  return startGitHubSession(
+    { number: conflict.number, pull_request: {}, repositoryID: conflict.repositoryID },
+    task.prompt,
+    task.name,
+    choice,
+  )
 }
+// Items carry the repository Work Items read them from, so the session starts there.
 async function startGitHubSession(item, prompt, name, choice) {
   if (busy.value) return
   sessionProjectID.value = project.value.id
@@ -657,6 +691,9 @@ async function startGitHubSession(item, prompt, name, choice) {
     choice.model,
     choice.effort,
     choice.profileID,
+    '',
+    '',
+    item.repositoryID,
   )
   if (formError.value) {
     error.value = formError.value
@@ -665,6 +702,8 @@ async function startGitHubSession(item, prompt, name, choice) {
 }
 function edit(id, name, kind, description = '', emoji = '', profileID = '') {
   projectProfileID.value = profileID
+  const edited = kind === 'Project' && workspace.value.projects.find((p) => p.id === id)
+  repositoryNames.value = Object.fromEntries(repositories(edited).map((r) => [r.id, r.name]))
   renameID.value = id
   renameValue.value = name
   renameKind.value = kind
@@ -682,6 +721,11 @@ async function rename() {
     const edited = state.projects?.find((p) => p.id === renameID.value)
     if (renameKind.value === 'Project' && edited && (edited.profileID || '') !== projectProfileID.value)
       state = await call('SetProjectProfile', renameID.value, projectProfileID.value)
+    if (renameKind.value === 'Project')
+      for (const repo of repositories(edited)) {
+        const name = repositoryNames.value[repo.id]?.trim()
+        if (name && name !== repo.name) state = await call('RenameRepository', renameID.value, repo.id, name)
+      }
     apply(state)
     closeModal()
   } catch (e) {
@@ -704,6 +748,32 @@ function deleteScratchpad(p) {
   scratchpadProjectID.value = p.id
   openModal('deleteScratchpad')
 }
+// Add Repository adds a local folder; removing one keeps the folder and needs its sessions closed.
+async function addRepository(p) {
+  menu.value = null
+  const fail = (e) => (modal.value === 'rename' ? (formError.value = String(e)) : (error.value = String(e)))
+  try {
+    const folder = await call('ChooseFolder')
+    if (!folder) return
+    const state = apply(await call('AddRepository', p.id, folder))
+    const added = repositories(state.projects.find((x) => x.id === p.id)).at(-1)
+    if (added && !(added.id in repositoryNames.value)) repositoryNames.value[added.id] = added.name
+  } catch (e) {
+    fail(e)
+  }
+}
+async function removeRepository(p, repo) {
+  try {
+    apply(await call('RemoveRepository', p.id, repo.id))
+    delete repositoryNames.value[repo.id]
+  } catch (e) {
+    formError.value = String(e)
+  }
+}
+const repositorySessionCount = (p, repo) => p.sessions.filter((s) => s.repositoryID === repo.id).length
+const editedProject = computed(() =>
+  renameKind.value === 'Project' ? workspace.value.projects.find((p) => p.id === renameID.value) : null,
+)
 function removeProject(p) {
   removalProjectID.value = p.id
   openModal('removeProject')
@@ -759,7 +829,7 @@ function projectMenu(event, p, kind) {
       rect.bottom + 3,
       innerHeight -
         (kind === 'project'
-          ? 200 + workspace.value.profiles.length * 30 + (workspace.value.profiles.length ? 70 : 0)
+          ? 230 + workspace.value.profiles.length * 30 + (workspace.value.profiles.length ? 70 : 0)
           : 150),
     ),
   }
@@ -930,8 +1000,8 @@ async function loadOpenInApps() {
     console.warn('Could not list apps: ' + e)
   }
 }
-// Favicons in project folders replace the folder symbol when a project has no emoji. They are read
-// when projects are added or moved to another folder, and on focus at most every 30 seconds.
+// Favicons in a workspace's first repository replace the folder symbol when it has no emoji. They are
+// read when workspaces are added or their first repository changes, and on focus at most every 30 seconds.
 const projectIcons = ref({})
 let projectIconsRead = 0
 async function loadProjectIcons(force) {
@@ -944,7 +1014,7 @@ async function loadProjectIcons(force) {
   }
 }
 watch(
-  () => workspace.value.projects?.map((p) => p.id + '\0' + p.directory).join('\n'),
+  () => workspace.value.projects?.map((p) => p.id + '\0' + repositories(p)[0]?.directory).join('\n'),
   () => loadProjectIcons(true),
 )
 // Go resolves the folder from the session; the app used becomes the Open in button's default.
@@ -1137,8 +1207,8 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div v-if="!preferences.arcMode" class="sidebar-heading">
-        <strong>Projects</strong
-        ><button class="icon-button" aria-label="New Project" title="New Project" @click="openModal('project')">
+        <strong>Workspaces</strong
+        ><button class="icon-button" aria-label="New Workspace" title="New Workspace" @click="openModal('project')">
           <Icon name="plus" :size="16" />
         </button>
       </div>
@@ -1158,7 +1228,16 @@ onBeforeUnmount(() => {
               <div class="project-heading">
                 <button
                   class="project-title"
-                  :title="p.description ? p.description + '\n\n' + p.directory : p.directory"
+                  :title="
+                    [
+                      p.description,
+                      repositories(p)
+                        .map((r) => r.directory)
+                        .join('\n'),
+                    ]
+                      .filter(Boolean)
+                      .join('\n\n')
+                  "
                   @click="select(p, 'project')"
                 >
                   <span v-if="p.emoji" class="project-emoji" aria-hidden="true">{{ p.emoji }}</span
@@ -1192,12 +1271,12 @@ onBeforeUnmount(() => {
               </div>
               <div v-if="preferences.arcMode || p.isExpanded" class="project-children">
                 <button
-                  v-if="p.repository"
+                  v-if="hasWorkItems(p)"
                   class="sidebar-row"
                   :class="{ selected: project?.id === p.id && currentDestination === 'github' }"
                   @click="select(p, 'github')"
                 >
-                  <Icon name="list.bullet.rectangle" :size="15" /><span>Issues &amp; PRs</span></button
+                  <Icon name="list.bullet.rectangle" :size="15" /><span>Work Items</span></button
                 ><SidebarList
                   :items="projectRows(p)"
                   handle=".session-row,.scratchpad-row"
@@ -1220,6 +1299,7 @@ onBeforeUnmount(() => {
                         class="sidebar-row session-row"
                         :class="{ selected: project?.id === p.id && currentDestination === sess.id }"
                         :title="
+                          (repositoryLabel(p, sess) ? repositoryLabel(p, sess) + ' — ' : '') +
                           (sess.worktreeBranch ? sess.worktreeBranch + ' · ' + sess.worktreeDirectory + ' — ' : '') +
                           sess.name +
                           ' — Profile: ' +
@@ -1251,7 +1331,9 @@ onBeforeUnmount(() => {
                                 ? 'Ready to resume'
                                 : 'Resume unavailable'
                           }}</small
-                          ><small v-if="sess.worktreeBranch" class="truncate">{{ sess.worktreeBranch }}</small></span
+                          ><small v-if="repositoryLabel(p, sess) || sess.worktreeBranch" class="truncate">{{
+                            [repositoryLabel(p, sess), sess.worktreeBranch].filter(Boolean).join(' · ')
+                          }}</small></span
                         ><span
                           v-if="sessionProfile(workspace.profiles, p, sess)"
                           class="profile-badge"
@@ -1337,9 +1419,9 @@ onBeforeUnmount(() => {
         <div v-if="loading" class="empty-state"><span class="spinner" /></div>
         <div v-else-if="!project" class="empty-state">
           <Icon name="folder" :size="48" />
-          <h2>No Project Selected</h2>
-          <p>Create or select a project to access its sessions.</p>
-          <button class="standard-button" @click="openModal('project')">New Project</button>
+          <h2>No Workspace Selected</h2>
+          <p>Create or select a workspace to access its sessions.</p>
+          <button class="standard-button" @click="openModal('project')">New Workspace</button>
         </div>
         <template v-else
           ><Scratchpad
@@ -1354,7 +1436,7 @@ onBeforeUnmount(() => {
           />
           <template v-for="p in workspace.projects" :key="p.id"
             ><div
-              v-if="visitedGitHub.has(p.id) && p.repository"
+              v-if="visitedGitHub.has(p.id) && hasWorkItems(p)"
               v-show="project?.id === p.id && currentDestination === 'github'"
               class="github-pane"
             >
@@ -1373,7 +1455,7 @@ onBeforeUnmount(() => {
           <div v-if="currentDestination === 'empty'" class="empty-state">
             <Icon name="terminal" :size="48" />
             <h2>No Sessions</h2>
-            <p>Choose an agent to start a session in this project’s folder.</p>
+            <p>Choose a repository and an agent to start a session in this workspace.</p>
             <button class="standard-button" @click="openModal('session')">New Session</button>
           </div>
           <FileView v-if="activeFile" :file="activeFile" :session="session" @close="closeFile(activeFile)" />
@@ -1399,9 +1481,9 @@ onBeforeUnmount(() => {
             <p>
               {{
                 !session.hasLaunched
-                  ? `Start ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'this project’s folder'}.`
+                  ? `Start ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'the ' + (sessionRepository(project, session)?.name || 'repository') + ' folder'}.`
                   : session.agentSessionID
-                    ? `Resume ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'this project’s folder'}.`
+                    ? `Resume ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'the ' + (sessionRepository(project, session)?.name || 'repository') + ' folder'}.`
                     : 'Orchestra could not capture this agent’s conversation ID. Starting again creates a new conversation.'
               }}
             </p>
@@ -1465,13 +1547,13 @@ onBeforeUnmount(() => {
         :selected-path="activeFile?.path"
         :tab="sidebarTab"
         :tab-order="preferences.sidebarTabs"
-        :repository="project?.repository"
+        :repository="sessionRepository(project, session)?.gitHub"
         :default-agent="preferences.defaultAgent"
         :profiles="workspace.profiles"
         :profile-id="project?.profileID || ''"
         @tab="sidebarTab = $event"
         @reorder="changePreferences({ ...preferences, sidebarTabs: $event })"
-        @resolve="resolveConflicts"
+        @resolve="(conflict, choice) => resolveConflicts({ ...conflict, repositoryID: session.repositoryID }, choice)"
         @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"
         @close="toggleDiff"
@@ -1534,7 +1616,8 @@ onBeforeUnmount(() => {
             )
           "
         >
-          Edit Project…</button
+          Edit Workspace…</button
+        ><button role="menuitem" @click="addRepository(menu.project)">Add Repository…</button
         ><button
           role="menuitem"
           :disabled="workspace.projects[0]?.id === menu.project.id"
@@ -1567,7 +1650,7 @@ onBeforeUnmount(() => {
         >
         <hr />
         <button role="menuitem" class="destructive" @click="removeProject(menu.project)">
-          <Icon name="trash" :size="14" />Remove Project…
+          <Icon name="trash" :size="14" />Remove Workspace…
         </button></template
       >
       <template v-else-if="menu.kind === 'scratchpad'"
@@ -1735,17 +1818,17 @@ onBeforeUnmount(() => {
         :apps="openInApps"
         @run="runCommand"
     /></Modal>
-    <Modal v-else-if="modal === 'project'" label="New Project" @close="closeModal"
+    <Modal v-else-if="modal === 'project'" label="New Workspace" @close="closeModal"
       ><form class="project-dialog" @submit.prevent="createProject">
-        <h2>New Project</h2>
+        <h2>New Workspace</h2>
         <label
-          >Project Name<input
+          >Workspace Name<input
             autocorrect="off"
             autocapitalize="off"
             v-model="projectName"
             autofocus
             placeholder="Name"
-            aria-label="Project Name" /></label
+            aria-label="Workspace Name" /></label
         ><label
           >Description (optional)<textarea
             autocorrect="off"
@@ -1754,13 +1837,14 @@ onBeforeUnmount(() => {
             class="description-field"
             rows="3"
             maxlength="500"
-            placeholder="What this project is, or why it is here"
+            placeholder="What this workspace is, or why it is here"
             aria-label="Description (optional)"
           />
         </label>
         <div class="folder-field">
-          <h3>Project Folder</h3>
+          <h3>Repository</h3>
           <p v-if="directory" class="muted">{{ directory }}</p>
+          <p v-else class="muted caption">A local folder, usually a Git repository. Add more in Edit Workspace.</p>
           <button type="button" class="standard-button" @click="chooseFolder">
             {{ directory ? 'Change Folder…' : 'Choose Folder…' }}
           </button>
@@ -1769,7 +1853,7 @@ onBeforeUnmount(() => {
         <footer>
           <button type="button" class="standard-button" @click="closeModal">Cancel</button
           ><button type="submit" class="standard-button primary" :disabled="busy || !projectName.trim() || !directory">
-            Create Project
+            Create Workspace
           </button>
         </footer>
       </form></Modal
@@ -1778,19 +1862,52 @@ onBeforeUnmount(() => {
       ><form
         class="session-dialog"
         @submit.prevent="
-          createSession(sessionAgent, '', newWorktree, '', null, '', '', sessionProfileID, newBranch, newBase)
+          createSession(
+            sessionAgent,
+            '',
+            newWorktree,
+            '',
+            null,
+            '',
+            '',
+            sessionProfileID,
+            newBranch,
+            newBase,
+            sessionRepositoryID,
+          )
         "
       >
         <h2>New Session</h2>
         <div>
           <p>Choose an agent for {{ projectTitle(modalProject) }}.</p>
-          <p class="muted caption project-path">{{ modalProject?.directory }}</p>
+          <p class="muted caption project-path">{{ modalRepository?.directory }}</p>
+        </div>
+        <div v-if="repositories(modalProject).length > 1" class="setting-row session-profile">
+          <label for="session-repository">Repository</label>
+          <div class="theme-select general-select">
+            <select
+              id="session-repository"
+              v-model="sessionRepositoryID"
+              :disabled="busy"
+              autofocus
+              @change="chooseSessionRepository"
+            >
+              <option v-for="repo in repositories(modalProject)" :key="repo.id" :value="repo.id">
+                {{ repo.name }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
         </div>
         <div class="setting-row session-profile">
           <label for="session-agent">Agent</label>
           <div class="theme-select session-agent">
             <img :src="agentIcon(sessionAgent, shownPreferences.appearance)" alt="" />
-            <select id="session-agent" v-model="sessionAgent" :disabled="busy" autofocus>
+            <select
+              id="session-agent"
+              v-model="sessionAgent"
+              :disabled="busy"
+              :autofocus="repositories(modalProject).length < 2"
+            >
               <option v-for="agent in sessionAgents" :key="agent.id" :value="agent.id">
                 {{ agent.name }}{{ agent.id === preferences.defaultAgent ? ' (Default)' : '' }}
               </option></select
@@ -1858,13 +1975,13 @@ onBeforeUnmount(() => {
         <p v-if="busy && newWorktree && !initializingGit" class="muted caption" role="status">Creating worktree…</p>
         <p v-if="initializingGit" class="muted caption" role="status">Initializing Git…</p>
         <p v-if="gitInitialized" class="muted caption" role="status">
-          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then create the
+          Git is initialized. A worktree starts from a commit, so commit the repository’s files first, then create the
           session again.
         </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <div v-if="offerGitInit" class="git-init">
           <p class="muted caption" id="git-init-description">
-            Runs git init in this project folder. Files stay as they are, and nothing is staged or committed.
+            Runs git init in this repository folder. Files stay as they are, and nothing is staged or committed.
           </p>
           <button
             type="button"
@@ -1884,9 +2001,12 @@ onBeforeUnmount(() => {
         </footer>
       </form></Modal
     >
-    <Modal v-else-if="modal === 'rename'" :label="'Edit ' + renameKind" @close="closeModal"
+    <Modal
+      v-else-if="modal === 'rename'"
+      :label="'Edit ' + (renameKind === 'Project' ? 'Workspace' : renameKind)"
+      @close="closeModal"
       ><form class="rename-dialog" @submit.prevent="rename">
-        <h2>Edit {{ renameKind }}</h2>
+        <h2>Edit {{ renameKind === 'Project' ? 'Workspace' : renameKind }}</h2>
         <div v-if="renameKind === 'Project'" class="project-name-fields">
           <div class="emoji-field">
             <label for="project-emoji">Emoji</label
@@ -1903,12 +2023,12 @@ onBeforeUnmount(() => {
             ></span>
           </div>
           <label class="name-field"
-            >Project Name<input
+            >Workspace Name<input
               autocorrect="off"
               autocapitalize="off"
               v-model="renameValue"
               autofocus
-              aria-label="Project Name"
+              aria-label="Workspace Name"
           /></label>
         </div>
         <label v-else
@@ -1927,10 +2047,57 @@ onBeforeUnmount(() => {
             class="description-field"
             rows="3"
             maxlength="500"
-            placeholder="What this project is, or why it is here"
+            placeholder="What this workspace is, or why it is here"
             aria-label="Description (optional)"
           />
         </label>
+        <section v-if="editedProject" class="repository-settings" aria-labelledby="repositories-heading">
+          <header>
+            <h3 id="repositories-heading">Repositories</h3>
+            <button type="button" class="standard-button" :disabled="busy" @click="addRepository(editedProject)">
+              <Icon name="plus" :size="12" />Add Repository…
+            </button>
+          </header>
+          <ul>
+            <li v-for="repo in repositories(editedProject)" :key="repo.id">
+              <span class="repository-fields"
+                ><input
+                  autocorrect="off"
+                  autocapitalize="off"
+                  v-model="repositoryNames[repo.id]"
+                  :aria-label="'Name of the repository at ' + repo.directory"
+                  spellcheck="false"
+                /><small class="muted caption truncate" :title="repo.directory"
+                  >{{ repo.directory }}{{ repo.gitHub ? ' · ' + repo.gitHub : '' }}</small
+                ><small
+                  v-if="repositories(editedProject).length > 1 && repositorySessionCount(editedProject, repo)"
+                  :id="'repository-sessions-' + repo.id"
+                  class="muted caption"
+                  >Close its {{ repositorySessionCount(editedProject, repo) }}
+                  {{ repositorySessionCount(editedProject, repo) === 1 ? 'session' : 'sessions' }} to remove it.</small
+                ></span
+              ><button
+                type="button"
+                class="standard-button"
+                :disabled="
+                  busy || repositories(editedProject).length < 2 || repositorySessionCount(editedProject, repo) > 0
+                "
+                :aria-label="'Remove ' + repo.name + ' from the workspace'"
+                :aria-describedby="
+                  repositorySessionCount(editedProject, repo) ? 'repository-sessions-' + repo.id : undefined
+                "
+                :title="
+                  repositories(editedProject).length < 2
+                    ? 'A workspace needs at least one repository.'
+                    : 'Removes it from the workspace. The folder stays on disk.'
+                "
+                @click="removeRepository(editedProject, repo)"
+              >
+                Remove
+              </button>
+            </li>
+          </ul>
+        </section>
         <div v-if="renameKind === 'Project' && workspace.profiles.length" class="setting-row session-profile">
           <span>
             <label for="project-profile">Profile</label>
@@ -1952,15 +2119,15 @@ onBeforeUnmount(() => {
         </footer>
       </form></Modal
     >
-    <Modal v-else-if="modal === 'removeProject'" label="Remove Project" @close="!busy && closeModal()"
+    <Modal v-else-if="modal === 'removeProject'" label="Remove Workspace" @close="!busy && closeModal()"
       ><div class="close-dialog">
-        <h2>Remove {{ projectTitle(removalProject) || 'Project' }}?</h2>
+        <h2>Remove {{ projectTitle(removalProject) || 'Workspace' }}?</h2>
         <p>
-          This removes the project, its sessions and scratchpad from Orchestra. The project folder and its files will
-          stay on disk.
+          This removes the workspace, its sessions and scratchpad from Orchestra. Its repository folders and their files
+          will stay on disk.
         </p>
         <p v-if="removalProject?.sessions.some((s) => s.running)" class="muted">
-          Running sessions in this project will be stopped.
+          Running sessions in this workspace will be stopped.
         </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
@@ -1971,7 +2138,7 @@ onBeforeUnmount(() => {
             :disabled="busy || !removalProject"
             @click="confirmRemoveProject"
           >
-            {{ busy ? 'Removing…' : 'Remove Project' }}
+            {{ busy ? 'Removing…' : 'Remove Workspace' }}
           </button>
         </footer>
       </div></Modal
@@ -1998,7 +2165,7 @@ onBeforeUnmount(() => {
       ><div class="close-dialog">
         <h2>Close {{ modalSession?.name || 'Session' }}?</h2>
         <p>
-          This will stop the terminal process and remove the session from this project. This action cannot be undone.
+          This will stop the terminal process and remove the session from this workspace. This action cannot be undone.
         </p>
         <label v-if="modalSession?.worktreeDirectory" class="worktree-option" for="close-worktree"
           ><input
@@ -2035,7 +2202,7 @@ onBeforeUnmount(() => {
         </p>
         <p v-else>
           {{ activeSessionCount }} running {{ activeSessionCount === 1 ? 'session will' : 'sessions will' }} be stopped.
-          Saved projects and notes will be available when you reopen Orchestra.
+          Saved workspaces and notes will be available when you reopen Orchestra.
         </p>
         <footer>
           <button class="standard-button" :disabled="quitting" @click="closeModal">Cancel</button

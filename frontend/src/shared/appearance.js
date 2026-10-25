@@ -148,7 +148,10 @@ export function arcScrollDelta(event, width) {
     (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? width : 1)
   )
 }
-// Reorderable rows under Issues & PRs: sessions with the Scratchpad at its saved position.
+// Work Items lists a workspace's GitHub repositories. It matches hasWorkItems in project.js, kept
+// here because the website's build reads this file alone.
+const listsWorkItems = (p) => (p?.repositories || []).some((r) => r.gitHub)
+// Reorderable rows under Work Items: sessions with the Scratchpad at its saved position.
 export function projectRows(p) {
   const rows = [...(p.sessions || [])]
   if (p.hasScratchpad)
@@ -159,7 +162,7 @@ export function sidebarItems(projects) {
   return (projects || [])
     .filter((p) => p.isExpanded)
     .flatMap((p) =>
-      [...(p.repository ? ['github'] : []), ...projectRows(p).map((s) => s.id)].map((destination) => ({
+      [...(listsWorkItems(p) ? ['github'] : []), ...projectRows(p).map((s) => s.id)].map((destination) => ({
         project: p,
         destination,
       })),
@@ -222,7 +225,7 @@ export function accentForeground(color) {
 export function startupDestination(project, preferences) {
   if (!project) return null
   if (preferences.startupView === 'scratchpad') return 'scratchpad'
-  if (preferences.startupView === 'github' && project.repository) return 'github'
+  if (preferences.startupView === 'github' && listsWorkItems(project)) return 'github'
   return null
 }
 export function activityLabel(activity) {

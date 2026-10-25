@@ -92,7 +92,7 @@ async function action(method, ...args) {
       </article>
     </div>
     <p v-if="error" class="error caption" role="alert">{{ error }}</p>
-    <p v-if="!peers.length" class="muted">Create another session in this project to exchange messages.</p>
+    <p v-if="!peers.length" class="muted">Create another session in this workspace to exchange messages.</p>
     <template v-else
       ><label class="recipient-select"
         ><img
