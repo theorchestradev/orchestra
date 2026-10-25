@@ -368,13 +368,9 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	previousIcon := a.store.Snapshot().Preferences.AppIcon
 	state, err := a.store.SetPreferences(p)
 	if err == nil {
 		a.applyAppearance(state.Preferences.Appearance)
-		if state.Preferences.AppIcon != previousIcon {
-			a.applyAppIcon(state.Preferences.AppIcon)
-		}
 	}
 	return state, err
 }
@@ -718,16 +714,7 @@ func (a *App) domReady(context.Context) {
 	}
 	p := a.store.Snapshot().Preferences
 	a.applyAppearance(p.Appearance)
-	a.applyAppIcon(p.AppIcon)
-}
-
-func (a *App) applyAppIcon(name string) {
-	data, err := appIcons.ReadFile("frontend/public/app-icons/" + name + ".png")
-	if err != nil {
-		a.log.Error("app icon unavailable", "icon", name, "error", err)
-		return
-	}
-	appearance.SetAppIcon(data)
+	appearance.SetAppIcon(icon)
 }
 
 // applyAppearance sets the native window chrome. With "system" the window follows the OS, and so

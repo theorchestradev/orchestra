@@ -26,9 +26,6 @@ var assets embed.FS
 //go:embed build/appicon.png
 var icon []byte
 
-//go:embed frontend/public/app-icons/*.png
-var appIcons embed.FS
-
 func main() {
 	core.Version = version
 	if len(os.Args) > 1 && os.Args[1] == "--orchestra-cli" {

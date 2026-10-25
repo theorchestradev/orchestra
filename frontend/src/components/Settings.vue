@@ -57,11 +57,6 @@ const modes = [
   { id: 'light', name: 'Light', icon: 'sun.max' },
   { id: 'dark', name: 'Dark', icon: 'moon' },
 ]
-const appIcons = [
-  { id: 'color', name: 'Color' },
-  { id: 'white', name: 'White' },
-  { id: 'black', name: 'Black' },
-]
 const choose = (key, value) => emit('change', { ...props.preferences, [key]: value })
 // Duplicate as Custom Theme writes the selected theme's colors through Go; App then reloads the
 // custom themes and selects the copy.
@@ -370,27 +365,6 @@ if (!mac)
           </div>
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
-          <template v-if="mac">
-            <div class="setting-row app-icon-setting">
-              <div>
-                <span>App Icon</span>
-                <p class="muted caption">Choose the icon shown in the Dock.</p>
-              </div>
-              <div class="app-icon-options" role="group" aria-label="App Icon">
-                <button
-                  v-for="icon in appIcons"
-                  :key="icon.id"
-                  :aria-pressed="(preferences.appIcon || 'color') === icon.id"
-                  :class="{ selected: (preferences.appIcon || 'color') === icon.id }"
-                  @click="choose('appIcon', icon.id)"
-                >
-                  <img :src="`/app-icons/${icon.id}.png`" alt="" width="64" height="64" />
-                  <span>{{ icon.name }}</span>
-                </button>
-              </div>
-            </div>
-            <hr />
-          </template>
           <div class="setting-row">
             <div>
               <span>Mode</span>
