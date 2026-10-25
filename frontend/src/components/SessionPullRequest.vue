@@ -43,6 +43,7 @@ import {
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 const props = defineProps({ session: Object })
+const maxJobs = 5
 const error = ref(''),
   loading = ref(false),
   checksOpen = ref(true),
@@ -101,9 +102,9 @@ async function copyFailures(checks, key) {
   error.value = ''
   try {
     const details = new Map()
-    for (const check of checks.slice(0, 5))
+    for (const check of checks.slice(0, maxJobs))
       if (check.jobID) details.set(check, await call('PullRequestCheckFailure', props.session.id, check.jobID))
-    await copy(failureContext(status.value, checks, details))
+    await copy(failureContext(status.value, checks, details, maxJobs))
     flash(key)
   } catch (e) {
     error.value = String(e)

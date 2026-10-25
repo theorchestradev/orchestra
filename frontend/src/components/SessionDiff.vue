@@ -184,6 +184,8 @@ watch(
 )
 // An agent turn finishing or a process exiting usually means files changed.
 watch([() => props.session.activity, () => props.session.running], () => {
+  // A finished turn may have pushed a branch, so keep the tab label current.
+  if (props.repository && activeTab.value !== 'PR') loadPullRequest(props.session.id).catch(() => {})
   clearTimeout(activityTimer)
   activityTimer = setTimeout(refresh, 400)
 })

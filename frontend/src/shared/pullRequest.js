@@ -116,8 +116,9 @@ export function activityCounts(items) {
 
 // Plain text to paste into an agent: the pull request, then each failed check. `details`
 // maps a check to the text PullRequestCheckFailure returned for it, when it has a job.
-export function failureContext(status, checks, details = new Map()) {
+export function failureContext(status, checks, details = new Map(), limit = Infinity) {
   const header = [`Pull request #${status.number}: ${status.title}`, status.url, `Branch: ${status.branch}`]
+  const omitted = Math.max(checks.length - limit, 0)
   const blocks = checks.map(
     (check) =>
       details.get(check) ||
@@ -129,6 +130,7 @@ export function failureContext(status, checks, details = new Map()) {
         .filter(Boolean)
         .join('\n'),
   )
+  if (omitted) blocks.push(`${omitted} more failing ${omitted === 1 ? 'check' : 'checks'} listed above without logs.`)
   return [header.filter(Boolean).join('\n'), ...blocks].join('\n\n---\n\n')
 }
 

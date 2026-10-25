@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Limits keep a long CI log from flooding the clipboard when a failure is copied.
@@ -135,12 +136,13 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 	result.State = pullRequestState(pr)
 	result.Checks = pullRequestChecks(pr, time.Now())
 	if activity {
-		if result.Reviews, err = ghPages(directory, fmt.Sprintf("repos/%s/pulls/%d/reviews?per_page=100", repo, pr.Number)); err != nil {
-			return PullRequestStatus{}, gitHubCLIError(err)
+		// Activity is secondary: when it fails the checks still show, with none of it.
+		reviews, reviewsErr := ghPages(directory, fmt.Sprintf("repos/%s/pulls/%d/reviews?per_page=100", repo, pr.Number))
+		comments, commentsErr := ghPages(directory, fmt.Sprintf("repos/%s/issues/%d/comments?per_page=100", repo, pr.Number))
+		if reviewsErr != nil || commentsErr != nil {
+			reviews, comments = []json.RawMessage{}, []json.RawMessage{}
 		}
-		if result.Comments, err = ghPages(directory, fmt.Sprintf("repos/%s/issues/%d/comments?per_page=100", repo, pr.Number)); err != nil {
-			return PullRequestStatus{}, gitHubCLIError(err)
-		}
+		result.Reviews, result.Comments = reviews, comments
 	}
 	return result, nil
 }
@@ -418,6 +420,10 @@ func (s *Store) PullRequestCheckFailure(id string, jobID int64) (string, error) 
 
 // logTail keeps the last lines of a job log without timestamps or terminal colors.
 func logTail(log string) (string, bool) {
+	// Only the end matters, so a huge log isn't split line by line.
+	if len(log) > 4*maxCheckLogBytes {
+		log = log[len(log)-4*maxCheckLogBytes:]
+	}
 	lines := strings.Split(strings.TrimRight(strings.ReplaceAll(log, "\r\n", "\n"), "\n"), "\n")
 	truncated := false
 	if len(lines) > maxCheckLogLines {
@@ -429,6 +435,9 @@ func logTail(log string) (string, bool) {
 	tail := strings.Join(lines, "\n")
 	if len(tail) > maxCheckLogBytes {
 		tail = tail[len(tail)-maxCheckLogBytes:]
+		for len(tail) > 0 && !utf8.RuneStart(tail[0]) {
+			tail = tail[1:]
+		}
 		if i := strings.IndexByte(tail, '\n'); i >= 0 {
 			tail = tail[i+1:]
 		}

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 )
 
 // pullRequestFixture puts a fake gh first in PATH. It records its arguments and answers
@@ -190,5 +191,12 @@ func TestCheckDuration(t *testing.T) {
 		if got := checkDuration(tc.started, tc.completed, tc.running, now); got != tc.want {
 			t.Errorf("checkDuration(%s, %s) = %q, want %q", tc.started, tc.completed, got, tc.want)
 		}
+	}
+}
+
+func TestLogTailKeepsValidUTF8(t *testing.T) {
+	tail, truncated := logTail(strings.Repeat("é", maxCheckLogBytes))
+	if !truncated || !utf8.ValidString(tail) {
+		t.Fatalf("truncated=%v valid=%v", truncated, utf8.ValidString(tail))
 	}
 }
