@@ -141,7 +141,7 @@ onBeforeUnmount(() => {
       ref="editor"
       v-model="text"
       aria-label="Project scratchpad"
-      placeholder="Write notes for this project…"
+      placeholder="Write notes for this workspace…"
       spellcheck="false"
     />
   </section>

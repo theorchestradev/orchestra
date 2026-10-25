@@ -46,20 +46,40 @@ type Session struct {
 	ProfileID string `json:"profileID,omitempty"`
 	// LoginAgent makes a terminal session run that agent's login command when it first starts.
 	LoginAgent string `json:"loginAgent,omitempty"`
+	// RepositoryID is the workspace repository the session works in, fixed for its whole life.
+	RepositoryID string `json:"repositoryID"`
 }
 
-// GitHubItem identifies an issue or pull request in the project's repository.
+// GitHubItem identifies an issue or pull request in the session's repository.
 type GitHubItem struct {
 	Number      int  `json:"number"`
 	PullRequest bool `json:"pullRequest,omitempty"`
 }
+// Repository is a local folder that a workspace's sessions can work in. Removing it from the
+// workspace never touches the folder.
+type Repository struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	Directory string `json:"directory"`
+	// GitHub is the owner/name of the folder's GitHub remote. DetectRepository sets it and it is
+	// never saved.
+	GitHub string `json:"gitHub,omitempty"`
+}
+
+// Project is a workspace: its repositories, sessions and Scratchpad. The UI calls it a workspace;
+// the saved state and the CLI keep the project name.
 type Project struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	// Emoji is one optional grapheme cluster shown before the name and as the Arc Mode space icon.
-	Emoji             string `json:"emoji,omitempty"`
-	Directory         string `json:"directory"`
+	Emoji string `json:"emoji,omitempty"`
+	// Repositories is never empty; the first one provides the workspace icon.
+	Repositories []*Repository `json:"repositories"`
+	// LastRepositoryID is the repository New Session chose last.
+	LastRepositoryID string `json:"lastRepositoryID,omitempty"`
+	// Directory is the single folder of version 1 workspaces, read only to migrate them.
+	Directory         string `json:"directory,omitempty"`
 	IsExpanded        bool   `json:"isExpanded"`
 	SelectedSessionID string `json:"selectedSessionID,omitempty"`
 	ShowsGitHub       bool   `json:"showsGitHub"`
@@ -73,7 +93,6 @@ type Project struct {
 	ScratchpadRevision int `json:"scratchpadRevision"`
 	// ScratchpadMode is "read" when the Scratchpad renders its Markdown; empty means Edit.
 	ScratchpadMode string `json:"scratchpadMode,omitempty"`
-	Repository     string `json:"repository,omitempty"`
 	// ProfileID is the profile new sessions use; empty is Default.
 	ProfileID string `json:"profileID,omitempty"`
 	// LocalMainNoticeDismissed hides the notice that local main is behind origin.
@@ -259,21 +278,35 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Store{path: path, worktreesDir: filepath.Join(filepath.Dir(path), "Worktrees"), executable: executable, canSave: true, terminals: map[string]*TerminalSession{}, closing: map[string]bool{}, emit: emit, log: logger}
-	s.state = State{Version: 1, Projects: []*Project{}, Preferences: defaultPreferences()}
+	s.state = State{Version: stateVersion, Projects: []*Project{}, Preferences: defaultPreferences()}
+	migrated := false
 	if data, err := os.ReadFile(path); err == nil {
 		if err = json.Unmarshal(data, &s.state); err == nil {
+			if migrated = s.state.Version == 1; migrated {
+				migrateRepositories(&s.state)
+			}
 			err = validateState(s.state)
+		}
+		// Earlier versions cannot read the new format, so the original stays beside it.
+		if err == nil && migrated {
+			err = atomicWrite(strings.TrimSuffix(path, ".json")+"-v1.json", data, 0600)
 		}
 		if err != nil {
 			s.log.Warn("saved workspace unreadable", "error", err)
 			s.canSave = false
-			s.state.Error = "Could not load saved workspace. The file was left unchanged."
+			s.state.Error = "Could not load saved state. The file was left unchanged."
 			s.state.Projects = []*Project{}
 		}
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
 	s.restoreLocked()
+	if migrated && s.canSave {
+		if err := s.saveLocked(); err != nil {
+			return nil, err
+		}
+		s.log.Info("workspaces migrated to repositories", "count", len(s.state.Projects))
+	}
 	var err error
 	var live map[string]sessionhost.Info
 	if background {
@@ -341,6 +374,9 @@ func (s *Store) restoreLocked() {
 		if _, err := s.profileLocked(p.ProfileID); err != nil {
 			p.ProfileID = ""
 		}
+		if _, err := s.repositoryLocked(p, p.LastRepositoryID); err != nil {
+			p.LastRepositoryID = ""
+		}
 		p.ScratchpadIndex = max(0, min(p.ScratchpadIndex, len(p.Sessions)))
 		if p.ScratchpadMode != "read" {
 			p.ScratchpadMode = ""
@@ -379,7 +415,7 @@ func atomicWrite(path string, data []byte, mode os.FileMode) error {
 }
 func (s *Store) saveLocked() error {
 	if !s.canSave {
-		return errors.New("Saved workspace is unreadable; recover it before saving changes.")
+		return errors.New("Saved state is unreadable; recover it before saving changes.")
 	}
 	// Persist metadata only, never live process state or terminal scrollback.
 	data, err := json.Marshal(s.state)
@@ -393,7 +429,9 @@ func (s *Store) saveLocked() error {
 	saved.Runs = nil
 	saved.Error = ""
 	for _, p := range saved.Projects {
-		p.Repository = ""
+		for _, repo := range p.Repositories {
+			repo.GitHub = ""
+		}
 		for _, sess := range p.Sessions {
 			sess.Activity = ""
 			sess.Running = false
@@ -433,7 +471,7 @@ func (s *Store) projectLocked(id string) (*Project, error) {
 			return p, nil
 		}
 	}
-	return nil, errors.New("Project unavailable.")
+	return nil, errors.New("Workspace unavailable.")
 }
 func (s *Store) sessionLocked(id string) (*Project, *Session, error) {
 	for _, p := range s.state.Projects {
@@ -450,17 +488,14 @@ func (s *Store) CreateProject(name, directory, description string) (State, error
 	defer s.mu.Unlock()
 	name = strings.TrimSpace(name)
 	if name == "" {
-		return State{}, errors.New("Enter a project name.")
+		return State{}, errors.New("Enter a workspace name.")
 	}
-	info, err := os.Stat(directory)
-	if err != nil || !info.IsDir() {
-		return State{}, errors.New("Choose an existing project folder.")
-	}
-	directory, err = filepath.Abs(directory)
+	directory, err := repositoryFolder(nil, directory)
 	if err != nil {
 		return State{}, err
 	}
-	p := &Project{ID: uuid.NewString(), Name: name, Description: strings.TrimSpace(description), Directory: directory, IsExpanded: true, Sessions: []*Session{}}
+	repo := &Repository{ID: uuid.NewString(), Name: folderName(directory, name), Directory: directory}
+	p := &Project{ID: uuid.NewString(), Name: name, Description: strings.TrimSpace(description), Repositories: []*Repository{repo}, IsExpanded: true, Sessions: []*Session{}}
 	s.state.Projects = append(s.state.Projects, p)
 	s.state.SelectedProjectID = p.ID
 	if err = s.saveLocked(); err != nil {
@@ -509,7 +544,7 @@ func (s *Store) RemoveProject(id string) (State, error) {
 			delete(s.terminals, sess.ID)
 		}
 	}
-	// Only app metadata and private session resources are removed; never p.Directory.
+	// Only app metadata and private session resources are removed; never a repository folder.
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
@@ -540,7 +575,7 @@ func (s *Store) EditProject(id, name, description, emoji string) (State, error) 
 	defer s.mu.Unlock()
 	name, emoji = strings.TrimSpace(name), strings.TrimSpace(emoji)
 	if name == "" {
-		return State{}, errors.New("Enter a project name.")
+		return State{}, errors.New("Enter a workspace name.")
 	}
 	if !validProjectEmoji(emoji) {
 		return State{}, errors.New("Choose a single emoji.")
@@ -571,7 +606,7 @@ func (s *Store) Select(projectID, destination string) (State, error) {
 			found = found || x == sess
 		}
 		if !found {
-			return State{}, errors.New("Session unavailable in this project.")
+			return State{}, errors.New("Session unavailable in this workspace.")
 		}
 		p.SelectedSessionID = destination
 	}
@@ -615,7 +650,7 @@ func (s *Store) MoveProject(id string, index int) (State, error) {
 		}
 	}
 	if from < 0 {
-		return State{}, errors.New("Project unavailable.")
+		return State{}, errors.New("Workspace unavailable.")
 	}
 	previous := s.state.Projects
 	s.state.Projects = moved(previous, from, index)
@@ -888,17 +923,21 @@ func clampSessionName(name string) string {
 }
 
 // CreateSession names the session sessionName when given, otherwise "<Agent name> <n>".
-// gitHubItem records the issue or pull request a Work on or Review session came from.
+// repositoryID is the workspace repository it works in; empty is the one New Session used last.
+// gitHubItem records the issue or pull request in that repository a Work on or Review session came from.
 // profileID chooses the session's agent accounts; empty is Default.
 // With a worktree, branch names the new session branch, by default orchestra/<session name>,
-// and base is where it starts, by default the project's current commit. It first keeps local main up to date when the preference is on, and
+// and base is where it starts, by default the repository's current commit. It first keeps local main up to date when the preference is on, and
 // otherwise emits "local-main-behind" when local main lags origin.
-func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
+func (s *Store) CreateSession(projectID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
 	s.mu.Lock()
 	directory, keepUpdated, notice := "", false, false
 	if p, err := s.projectLocked(projectID); err == nil && createWorktree && agent != terminalAgent {
-		directory, keepUpdated = p.Directory, s.state.Preferences.KeepLocalMainUpdated
-		notice = !keepUpdated && !p.LocalMainNoticeDismissed
+		if repo, err := s.newSessionRepositoryLocked(p, repositoryID); err == nil {
+			repositoryID, directory = repo.ID, repo.Directory
+			keepUpdated = s.state.Preferences.KeepLocalMainUpdated
+			notice = !keepUpdated && !p.LocalMainNoticeDismissed
+		}
 	}
 	s.mu.Unlock()
 	// Fetching can be slow, so it runs outside the lock and never blocks creating the session.
@@ -909,11 +948,11 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
-	state, err := s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
+	state, err := s.createSessionLocked(projectID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
 	s.mu.Unlock()
 	if err == nil && notice {
 		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
-			s.emit("local-main-behind", LocalMainBehind{projectID, branch, behind})
+			s.emit("local-main-behind", LocalMainBehind{projectID, repositoryID, branch, behind})
 		}
 	}
 	return state, err
@@ -921,21 +960,26 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 
 // LocalMainBehind tells the user that local main lags origin by Behind commits.
 type LocalMainBehind struct {
-	ProjectID string `json:"projectID"`
-	Branch    string `json:"branch"`
-	Behind    int    `json:"behind"`
+	ProjectID    string `json:"projectID"`
+	RepositoryID string `json:"repositoryID"`
+	Branch       string `json:"branch"`
+	Behind       int    `json:"behind"`
 }
 
-// KeepLocalMainUpToDate turns on Keep Local Main Up to Date and updates the project's local
+// KeepLocalMainUpToDate turns on Keep Local Main Up to Date and updates the repository's local
 // main now. The preference stays on when this update is skipped, and the error explains why.
-func (s *Store) KeepLocalMainUpToDate(projectID string) (State, error) {
+func (s *Store) KeepLocalMainUpToDate(projectID, repositoryID string) (State, error) {
 	s.mu.Lock()
 	p, err := s.projectLocked(projectID)
+	var repo *Repository
+	if err == nil {
+		repo, err = s.repositoryLocked(p, repositoryID)
+	}
 	if err != nil {
 		s.mu.Unlock()
 		return State{}, err
 	}
-	directory, previous := p.Directory, s.state.Preferences.KeepLocalMainUpdated
+	directory, previous := repo.Directory, s.state.Preferences.KeepLocalMainUpdated
 	s.state.Preferences.KeepLocalMainUpdated = true
 	if err = s.saveLocked(); err != nil {
 		s.state.Preferences.KeepLocalMainUpdated = previous
@@ -966,8 +1010,12 @@ func (s *Store) DismissLocalMainNotice(projectID string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
+func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
 	p, err := s.projectLocked(projectID)
+	if err != nil {
+		return State{}, err
+	}
+	repo, err := s.newSessionRepositoryLocked(p, repositoryID)
 	if err != nil {
 		return State{}, err
 	}
@@ -996,31 +1044,34 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 	if sessionName = clampSessionName(sessionName); sessionName == "" {
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
-	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent}
+	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent, RepositoryID: repo.ID}
 	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID
 	}
 	worktreeRoot := ""
 	if createWorktree {
 		if !s.canSave {
-			return State{}, errors.New("Repair or import the saved workspace before creating a worktree.")
+			return State{}, errors.New("Repair or import the saved state before creating a worktree.")
 		}
 		if branch = strings.TrimSpace(branch); branch == "" {
-			branch = newSessionBranch(p.Directory, sessionName, agent)
-		} else if err = checkBranchName(p.Directory, branch); err != nil {
+			branch = newSessionBranch(repo.Directory, sessionName, agent)
+		} else if err = checkBranchName(repo.Directory, branch); err != nil {
 			return State{}, err
 		}
-		worktreeRoot = worktreeFolder(filepath.Join(s.worktreesDir, repositoryName(p)), branch)
+		worktreeRoot = worktreeFolder(filepath.Join(s.worktreesDir, repositoryName(repo)), branch)
 		sess.WorktreeBranch = branch
-		sess.WorktreeDirectory, sess.WorktreeBase, err = createSessionWorktree(p.Directory, worktreeRoot, branch, strings.TrimSpace(base))
+		sess.WorktreeDirectory, sess.WorktreeBase, err = createSessionWorktree(repo.Directory, worktreeRoot, branch, strings.TrimSpace(base))
 		if err != nil {
 			s.log.Warn("worktree create failed", "project", p.ID, "session", sess.ID, "error", err)
 			return State{}, err
 		}
 	}
-	previousProjectID, previousSessionID := s.state.SelectedProjectID, p.SelectedSessionID
+	previousProjectID, previousSessionID, previousRepositoryID := s.state.SelectedProjectID, p.SelectedSessionID, p.LastRepositoryID
 	previousExpanded, previousGitHub, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsScratchpad
 	p.Sessions = append(p.Sessions, sess)
+	if loginAgent == "" {
+		p.LastRepositoryID = repo.ID
+	}
 	p.SelectedSessionID = sess.ID
 	p.IsExpanded = true
 	p.ShowsGitHub = false
@@ -1028,10 +1079,10 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 	s.state.SelectedProjectID = p.ID
 	if err = s.saveLocked(); err != nil {
 		p.Sessions = p.Sessions[:len(p.Sessions)-1]
-		p.SelectedSessionID, s.state.SelectedProjectID = previousSessionID, previousProjectID
+		p.SelectedSessionID, s.state.SelectedProjectID, p.LastRepositoryID = previousSessionID, previousProjectID, previousRepositoryID
 		p.IsExpanded, p.ShowsGitHub, p.ShowsScratchpad = previousExpanded, previousGitHub, previousScratchpad
 		if worktreeRoot != "" {
-			if cleanupErr := removeSessionWorktree(p.Directory, worktreeRoot, sess.WorktreeBranch); cleanupErr != nil {
+			if cleanupErr := removeSessionWorktree(repo.Directory, worktreeRoot, sess.WorktreeBranch); cleanupErr != nil {
 				s.log.Warn("worktree remove failed", "project", p.ID, "session", sess.ID, "error", cleanupErr)
 				return State{}, fmt.Errorf("%w; worktree cleanup failed at %s: %v", err, worktreeRoot, cleanupErr)
 			}
@@ -1055,6 +1106,10 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 	if s.closing[id] {
 		return State{}, errSessionClosing
 	}
+	directory := ""
+	if _, _, repo, err := s.sessionRepositoryLocked(id); err == nil {
+		directory = repo.Directory
+	}
 	worktreeRoot := ""
 	if removeWorktree && sess.WorktreeDirectory != "" {
 		if worktreeRoot, err = cleanSessionWorktree(sess.WorktreeDirectory); err != nil {
@@ -1075,7 +1130,7 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 		done = t.done
 	}
 	if worktreeRoot != "" {
-		directory, branch := p.Directory, sess.WorktreeBranch
+		branch := sess.WorktreeBranch
 		s.closing[id] = true
 		s.mu.Unlock()
 		// Let the agent finish its shutdown first, so it cannot write into the worktree while Git

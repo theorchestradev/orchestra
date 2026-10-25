@@ -141,7 +141,7 @@ if (!mac)
             <div>
               <label for="startup-view">Startup View</label>
               <p class="muted caption">
-                Open this view in the last selected project. Sessions stay stopped until you resume them.
+                Open this view in the last selected workspace. Sessions stay stopped until you resume them.
               </p>
             </div>
             <div class="theme-select general-select">
@@ -152,7 +152,7 @@ if (!mac)
               >
                 <option value="last">Last selection</option>
                 <option value="scratchpad">Scratchpad</option>
-                <option value="github">Issues &amp; PRs, if available</option></select
+                <option value="github">Work Items, if available</option></select
               ><Icon name="chevron.up.chevron.down" :size="10" />
             </div>
           </div>
@@ -480,7 +480,9 @@ if (!mac)
           <div class="setting-row arc-mode-setting">
             <div>
               <label for="arc-mode">Arc Mode</label>
-              <p class="muted caption">Show one project at a time, with project icons at the bottom of the sidebar.</p>
+              <p class="muted caption">
+                Show one workspace at a time, with workspace icons at the bottom of the sidebar.
+              </p>
             </div>
             <button
               id="arc-mode"

@@ -7,6 +7,11 @@ folder = root / 'project'
 folder.mkdir(exist_ok=True)
 subprocess.run(['/usr/bin/git', 'init', '-q', str(folder)], check=True)
 subprocess.run(['/usr/bin/git', '-C', str(folder), 'config', '--local', 'remote.origin.url', 'https://github.com/example/orchestra.git'], check=True)
+# A second repository in the same workspace, with its own GitHub remote.
+site = root / 'site'
+site.mkdir(exist_ok=True)
+subprocess.run(['/usr/bin/git', 'init', '-q', str(site)], check=True)
+subprocess.run(['/usr/bin/git', '-C', str(site), 'config', '--local', 'remote.origin.url', 'https://github.com/example/site.git'], check=True)
 bin_dir = root / 'bin'
 bin_dir.mkdir(exist_ok=True)
 python = shutil.which('python3')
@@ -68,7 +73,7 @@ else:
 print(json.dumps(result))
 ''')
 gh.chmod(0o700)
-pid, sid, peer, work, side = (str(uuid.uuid4()) for _ in range(5))
+pid, sid, peer, work, side, app_repo, site_repo = (str(uuid.uuid4()) for _ in range(7))
 # Default and the Work profile's Claude account are signed in; the long-named profile is not.
 profiles = [{'id':work,'name':'Work','emoji':'💼','folders':{a:str(root/'profiles'/'work'/a) for a in ('claude','codex')}},{'id':side,'name':'Side Projects and Open Source Contributions Account','folders':{a:str(root/'profiles'/'side-projects-and-open-source-contribut'/a) for a in ('claude','codex')}}]
 for profile in profiles:
@@ -96,6 +101,6 @@ long = worktree / 'frontend' / 'src' / 'components' / 'a-very-long-folder-name-f
 long.mkdir(parents=True)
 (long / 'SessionDiff.vue').write_text('<template><aside /></template>\n')
 (worktree / 'preview.png').write_bytes(b'\x89PNG\r\n\x1a\n\x00\x00')
-state = {'version':1,'selectedProjectID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'projects':[{'id':pid,'name':'Orchestra','directory':str(folder),'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'profileID':work,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base,'profileID':work},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False,'profileID':side}]}],'profiles':profiles}
+state = {'version':2,'selectedProjectID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'projects':[{'id':pid,'name':'Orchestra','repositories':[{'id':app_repo,'name':'project','directory':str(folder)},{'id':site_repo,'name':'site','directory':str(site)}],'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'profileID':work,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base,'profileID':work,'repositoryID':app_repo},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False,'profileID':side,'repositoryID':site_repo}]}],'profiles':profiles}
 (root/'state.json').write_text(json.dumps(state,indent=2))
 print(f'Fixture created at {root}. Launch with ORCHESTRA_STATE_FILE={root}/state.json, SHELL={shell}, and PATH={bin_dir}:$PATH.')

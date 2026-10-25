@@ -41,29 +41,29 @@ func repositoryFixture(t *testing.T, s *Store) *Project {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	p := projectFixture(t, s)
-	gitWorktreeFixture(t, p.Directory, "init", "-b", "main")
-	writeFixture(t, filepath.Join(p.Directory, "keep.txt"), "one\ntwo\nthree\n")
-	writeFixture(t, filepath.Join(p.Directory, "remove.txt"), "gone\n")
-	writeFixture(t, filepath.Join(p.Directory, "rename-me.txt"), strings.Repeat("stable line\n", 20))
-	writeFixture(t, filepath.Join(p.Directory, "image.bin"), "\x00\x01\x02")
-	commitFixture(t, p.Directory, "Fixture")
+	gitWorktreeFixture(t, p.Repositories[0].Directory, "init", "-b", "main")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "keep.txt"), "one\ntwo\nthree\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "remove.txt"), "gone\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "rename-me.txt"), strings.Repeat("stable line\n", 20))
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "image.bin"), "\x00\x01\x02")
+	commitFixture(t, p.Repositories[0].Directory, "Fixture")
 	return p
 }
 
 func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", "")
+	state, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	sess := state.Projects[0].Sessions[0]
-	if sess.WorktreeBase != gitWorktreeFixture(t, p.Directory, "rev-parse", "HEAD") {
+	if sess.WorktreeBase != gitWorktreeFixture(t, p.Repositories[0].Directory, "rev-parse", "HEAD") {
 		t.Fatalf("worktree base not recorded: %+v", sess)
 	}
 	// The project folder moves on after the worktree is created; that must not appear.
-	writeFixture(t, filepath.Join(p.Directory, "later.txt"), "project work\n")
-	commitFixture(t, p.Directory, "Later project work")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "later.txt"), "project work\n")
+	commitFixture(t, p.Repositories[0].Directory, "Later project work")
 	w := sess.WorktreeDirectory
 	writeFixture(t, filepath.Join(w, "committed.txt"), "session commit\n")
 	commitFixture(t, w, "Session work")
@@ -149,8 +149,8 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 	if err != nil || clean.Scope != "folder" || clean.Base != "HEAD" || clean.Files == nil || len(clean.Files) != 0 {
 		t.Fatalf("clean folder: %+v %v", clean, err)
 	}
-	writeFixture(t, filepath.Join(p.Directory, "keep.txt"), "changed\n")
-	writeFixture(t, filepath.Join(p.Directory, "draft.md"), "draft\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "keep.txt"), "changed\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "draft.md"), "draft\n")
 	diff, err := s.SessionDiff(sess.ID)
 	if err != nil || len(diff.Files) != 2 || diffFile(t, diff, "keep.txt").Status != "M" || !diffFile(t, diff, "draft.md").Untracked {
 		t.Fatalf("folder changes: %+v %v", diff, err)
@@ -168,7 +168,7 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 		t.Fatal("unknown session accepted")
 	}
 	// Sessions without a worktree, terminals included, open the project folder.
-	if folder, err := s.SessionFolder(terminal.ID); err != nil || folder != p.Directory {
+	if folder, err := s.SessionFolder(terminal.ID); err != nil || folder != p.Repositories[0].Directory {
 		t.Fatalf("project folder: %q %v", folder, err)
 	}
 	if _, err = s.SessionFolder("missing"); err == nil {
@@ -176,9 +176,9 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 	}
 	// A repository without commits compares against the empty tree.
 	empty := projectFixture(t, s)
-	gitWorktreeFixture(t, empty.Directory, "init", "-b", "main")
-	writeFixture(t, filepath.Join(empty.Directory, "first.txt"), "first\n")
-	gitWorktreeFixture(t, empty.Directory, "add", "first.txt")
+	gitWorktreeFixture(t, empty.Repositories[0].Directory, "init", "-b", "main")
+	writeFixture(t, filepath.Join(empty.Repositories[0].Directory, "first.txt"), "first\n")
+	gitWorktreeFixture(t, empty.Repositories[0].Directory, "add", "first.txt")
 	if diff, err = s.SessionDiff(sessionFixture(t, s, empty, "claude").ID); err != nil || len(diff.Files) != 1 || diff.Files[0].Status != "A" || diff.Files[0].Additions != 1 {
 		t.Fatalf("unborn repository: %+v %v", diff, err)
 	}
@@ -188,9 +188,9 @@ func TestSessionDiffTruncation(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
 	sess := sessionFixture(t, s, p, "claude")
-	writeFixture(t, filepath.Join(p.Directory, "keep.txt"), strings.Repeat("generated\n", maxDiffFileLines+1))
-	writeFixture(t, filepath.Join(p.Directory, "large.txt"), strings.Repeat("x", maxDiffFileBytes+1))
-	writeFixture(t, filepath.Join(p.Directory, "small.txt"), "small\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "keep.txt"), strings.Repeat("generated\n", maxDiffFileLines+1))
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "large.txt"), strings.Repeat("x", maxDiffFileBytes+1))
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "small.txt"), "small\n")
 	diff, err := s.SessionDiff(sess.ID)
 	if err != nil {
 		t.Fatal(err)
@@ -205,7 +205,7 @@ func TestSessionDiffTruncation(t *testing.T) {
 		t.Fatalf("small file or total flag: %+v %+v", f, diff)
 	}
 	for i := 0; i <= maxDiffFiles; i++ {
-		writeFixture(t, filepath.Join(p.Directory, "many", fmt.Sprintf("%04d.txt", i)), "x\n")
+		writeFixture(t, filepath.Join(p.Repositories[0].Directory, "many", fmt.Sprintf("%04d.txt", i)), "x\n")
 	}
 	if diff, err = s.SessionDiff(sess.ID); err != nil || len(diff.Files) != maxDiffFiles || !diff.Truncated {
 		t.Fatalf("file count limit: %d %v", len(diff.Files), err)

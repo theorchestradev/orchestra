@@ -16,7 +16,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			project := projectFixture(t, s)
 			session := sessionFixture(t, s, project, "pi")
 			s.mu.Lock()
-			s.state.Projects[0].Repository = "example/orchestra"
+			s.state.Projects[0].Repositories[0].GitHub = "example/orchestra"
 			s.mu.Unlock()
 			prefs := s.Snapshot().Preferences
 			prefs.DefaultAgent = "pi"

@@ -49,11 +49,11 @@ type SessionDiff struct {
 	Truncated bool       `json:"truncated,omitempty"`
 }
 
-// sessionFolder is where a session runs: its worktree, or the project folder without one.
+// sessionFolder is where a session runs: its worktree, or its repository folder without one.
 func sessionFolder(projectDirectory, worktreeDirectory string) (string, error) {
 	if worktreeDirectory == "" {
 		if info, err := os.Stat(projectDirectory); err != nil || !info.IsDir() {
-			return "", errors.New("The project folder is no longer available.")
+			return "", errors.New("The repository folder " + projectDirectory + " is no longer available.")
 		}
 		return projectDirectory, nil
 	}
@@ -66,12 +66,12 @@ func sessionFolder(projectDirectory, worktreeDirectory string) (string, error) {
 // SessionFolder returns the existing folder a session runs in, for opening it in other apps.
 func (s *Store) SessionFolder(id string) (string, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return "", err
 	}
-	projectDirectory, worktreeDirectory := p.Directory, sess.WorktreeDirectory
+	projectDirectory, worktreeDirectory := repo.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
 	return sessionFolder(projectDirectory, worktreeDirectory)
 }
@@ -79,12 +79,12 @@ func (s *Store) SessionFolder(id string) (string, error) {
 // SessionDiff only reads Git. It never starts, stops or writes to a session's process.
 func (s *Store) SessionDiff(id string) (SessionDiff, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return SessionDiff{}, err
 	}
-	agent, projectDirectory, worktreeDirectory, base := sess.Agent, p.Directory, sess.WorktreeDirectory, sess.WorktreeBase
+	agent, projectDirectory, worktreeDirectory, base := sess.Agent, repo.Directory, sess.WorktreeDirectory, sess.WorktreeBase
 	s.mu.Unlock()
 	return readSessionDiff(agent, projectDirectory, worktreeDirectory, base)
 }

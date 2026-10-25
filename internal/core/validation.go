@@ -27,8 +27,8 @@ func validProjectEmoji(emoji string) bool {
 }
 
 func validateState(state State) error {
-	if state.Version != 1 {
-		return errors.New("Unsupported saved workspace version.")
+	if state.Version != stateVersion {
+		return errors.New("Unsupported saved state version.")
 	}
 	profiles := map[string]bool{}
 	for _, p := range state.Profiles {
@@ -42,6 +42,7 @@ func validateState(state State) error {
 	}
 	projects := map[string]bool{}
 	sessions := map[string]bool{}
+	repositories := map[string]bool{}
 	for _, p := range state.Projects {
 		if p == nil {
 			return errors.New("Invalid saved project.")
@@ -50,8 +51,18 @@ func validateState(state State) error {
 			return errors.New("Invalid or duplicate saved project ID.")
 		}
 		projects[p.ID] = true
-		if strings.TrimSpace(p.Name) == "" || !filepath.IsAbs(p.Directory) {
-			return errors.New("Invalid project name or folder.")
+		if strings.TrimSpace(p.Name) == "" || p.Directory != "" || len(p.Repositories) == 0 {
+			return errors.New("Invalid workspace name or repositories.")
+		}
+		repos, folders := map[string]bool{}, map[string]bool{}
+		for _, repo := range p.Repositories {
+			if repo == nil || strings.TrimSpace(repo.Name) == "" || !filepath.IsAbs(repo.Directory) || folders[repo.Directory] {
+				return errors.New("Invalid saved repository name or folder.")
+			}
+			if _, err := uuid.Parse(repo.ID); err != nil || repositories[repo.ID] {
+				return errors.New("Invalid or duplicate saved repository ID.")
+			}
+			repositories[repo.ID], repos[repo.ID], folders[repo.Directory] = true, true, true
 		}
 		local := map[string]bool{}
 		for _, sess := range p.Sessions {
@@ -77,6 +88,9 @@ func validateState(state State) error {
 			}
 			if sess.GitHubItem != nil && sess.GitHubItem.Number <= 0 {
 				return errors.New("Invalid saved session GitHub item.")
+			}
+			if !repos[sess.RepositoryID] {
+				return errors.New("Saved session repository is unavailable.")
 			}
 			if sess.LoginAgent != "" && (sess.Agent != terminalAgent || loginCommands[sess.LoginAgent] == "") {
 				return errors.New("Invalid saved login session.")

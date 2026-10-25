@@ -40,7 +40,7 @@ orchestra scratchpad read [--json]
 orchestra scratchpad write (--text TEXT | --file PATH | --stdin) [--if-revision REV]
 orchestra scratchpad append (--text TEXT | --file PATH | --stdin)
 
-The Scratchpad belongs to the session's project. read --json includes the revision
+The Scratchpad belongs to the session's workspace. read --json includes the revision
 that write --if-revision expects. append adds the text on a new line.
 
 orchestra guide prints a guide for agents and works anywhere. Other commands

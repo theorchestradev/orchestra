@@ -134,7 +134,7 @@ const files = computed(() =>
 const scopeLabel = computed(() =>
   diff.value?.scope === 'worktree'
     ? 'Since the worktree started' + (props.session.worktreeBranch ? ' · ' + props.session.worktreeBranch : '')
-    : 'Uncommitted changes in the project folder',
+    : 'Uncommitted changes in the repository folder',
 )
 const scopeDetail = computed(() =>
   diff.value?.scope === 'worktree'
@@ -386,7 +386,7 @@ onBeforeUnmount(() => {
           {{
             diff.scope === 'worktree'
               ? 'No changes since the worktree started.'
-              : 'No uncommitted changes in the project folder.'
+              : 'No uncommitted changes in the repository folder.'
           }}
         </p>
       </div>
