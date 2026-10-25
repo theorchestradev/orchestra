@@ -899,9 +899,10 @@ func clampSessionName(name string) string {
 // CreateSession names the session sessionName when given, otherwise "<Agent name> <n>".
 // gitHubItem records the issue or pull request a Work on or Review session came from.
 // profileID chooses the session's agent accounts; empty is Default.
-// With a worktree, it first keeps local main up to date when the preference is on, and
+// With a worktree, branch names the new session branch, by default orchestra/<session name>,
+// and base is where it starts, by default the project's current commit. It first keeps local main up to date when the preference is on, and
 // otherwise emits "local-main-behind" when local main lags origin.
-func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID string) (State, error) {
+func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
 	s.mu.Lock()
 	directory, keepUpdated, notice := "", false, false
 	if p, err := s.projectLocked(projectID); err == nil && createWorktree && agent != terminalAgent {
@@ -917,7 +918,7 @@ func (s *Store) CreateSession(projectID, agent, sessionName, prompt string, crea
 	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
-	state, err := s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "")
+	state, err := s.createSessionLocked(projectID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
 	s.mu.Unlock()
 	if err == nil && notice {
 		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
@@ -974,7 +975,7 @@ func (s *Store) DismissLocalMainNotice(projectID string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent string) (State, error) {
+func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
 	p, err := s.projectLocked(projectID)
 	if err != nil {
 		return State{}, err
@@ -1013,9 +1014,14 @@ func (s *Store) createSessionLocked(projectID, agent, sessionName, prompt string
 		if !s.canSave {
 			return State{}, errors.New("Repair or import the saved workspace before creating a worktree.")
 		}
-		worktreeRoot = filepath.Join(s.worktreesDir, repositoryName(p), sess.ID[:8])
-		sess.WorktreeBranch = "orchestra/" + agent + "-" + sess.ID[:8]
-		sess.WorktreeDirectory, sess.WorktreeBase, err = createSessionWorktree(p.Directory, worktreeRoot, sess.WorktreeBranch)
+		if branch = strings.TrimSpace(branch); branch == "" {
+			branch = newSessionBranch(p.Directory, sessionName, agent)
+		} else if err = checkBranchName(p.Directory, branch); err != nil {
+			return State{}, err
+		}
+		worktreeRoot = worktreeFolder(filepath.Join(s.worktreesDir, repositoryName(p)), branch)
+		sess.WorktreeBranch = branch
+		sess.WorktreeDirectory, sess.WorktreeBase, err = createSessionWorktree(p.Directory, worktreeRoot, branch, strings.TrimSpace(base))
 		if err != nil {
 			s.log.Warn("worktree create failed", "project", p.ID, "session", sess.ID, "error", err)
 			return State{}, err

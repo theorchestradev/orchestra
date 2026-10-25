@@ -82,8 +82,8 @@ let state = {
           agent: 'claude',
           agentSessionID: sessionID,
           hasLaunched: true,
-          worktreeBranch: 'orchestra/claude-' + sessionID.slice(0, 8),
-          worktreeDirectory: '/tmp/orchestra-preview-worktrees/' + sessionID.slice(0, 8),
+          worktreeBranch: 'orchestra/claude-code-1',
+          worktreeDirectory: '/tmp/orchestra-preview-worktrees/claude-code-1',
           restored: true,
           running: false,
           activity: 'waiting',
@@ -433,6 +433,7 @@ export const backend = {
     state.preferences = structuredClone(preferences)
     return changed()
   },
+  WorktreeBranches: () => ({ current: 'main', branches: ['orchestra/claude-code-1', 'release/1.4', 'origin/main'] }),
   CanCreateWorktree: (pid) => !/no-git/.test(project(pid).directory) || !!project(pid).gitInitialized,
   DetectRepository: (pid) => {
     const p = project(pid)
@@ -578,7 +579,7 @@ export const backend = {
     p.gitInitialized = true
     return changed()
   },
-  CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID = '') => {
+  CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID = '', branch = '') => {
     if (createWorktree && agent !== 'terminal' && /no-git/.test(project(pid).directory))
       return Promise.reject(
         project(pid).gitInitialized
@@ -620,8 +621,20 @@ export const backend = {
     if (model) sess.model = model
     if (effort) sess.effort = effort
     if (createWorktree) {
-      sess.worktreeBranch = 'orchestra/' + agent + '-' + sess.id.slice(0, 8)
-      sess.worktreeDirectory = '/tmp/orchestra-preview-worktrees/' + sess.id
+      const slug = sess.name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '')
+      const taken = new Set(p.sessions.map((s) => s.worktreeBranch))
+      if (taken.has(branch.trim()))
+        return Promise.reject(`The branch ${branch.trim()} already exists. Choose another name.`)
+      let candidate = 'orchestra/' + (slug || agent)
+      for (let n = 2; taken.has(candidate); n++) candidate = `orchestra/${slug || agent}-${n}`
+      sess.worktreeBranch = branch.trim() || candidate
+      sess.worktreeDirectory =
+        '/tmp/orchestra-preview-worktrees/' + sess.worktreeBranch.replace(/^orchestra\//, '').replaceAll('/', '-')
     }
     p.sessions.push(sess)
     p.selectedSessionID = sess.id

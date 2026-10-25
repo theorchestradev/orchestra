@@ -56,7 +56,7 @@ func projectFixture(t *testing.T, s *Store) *Project {
 }
 func sessionFixture(t *testing.T, s *Store, p *Project, agent string) *Session {
 	t.Helper()
-	state, err := s.CreateSession(p.ID, agent, "", "", false, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, agent, "", "", false, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -701,7 +701,7 @@ func TestCreateSessionNames(t *testing.T) {
 		{"#28 " + long, "#28 " + strings.Repeat("é", maxSessionNameLength-5) + "…"},
 		{"#7 ", "#7"},
 	} {
-		state, err := s.CreateSession(p.ID, "claude", tc.name, "", false, nil, "", "", "")
+		state, err := s.CreateSession(p.ID, "claude", tc.name, "", false, nil, "", "", "", "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -723,17 +723,17 @@ func TestCreateSessionNames(t *testing.T) {
 func TestSessionGitHubItemPersists(t *testing.T) {
 	s := fixtureStore(t)
 	p := projectFixture(t, s)
-	if _, err := s.CreateSession(p.ID, "claude", "#22 Show sessions", "", false, &GitHubItem{Number: 22}, "", "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "claude", "#22 Show sessions", "", false, &GitHubItem{Number: 22}, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.CreateSession(p.ID, "pi", "#23 Review", "", false, &GitHubItem{Number: 23, PullRequest: true}, "", "", "")
+	state, err := s.CreateSession(p.ID, "pi", "#23 Review", "", false, &GitHubItem{Number: 23, PullRequest: true}, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CreateSession(p.ID, "claude", "", "", false, &GitHubItem{}, "", "", ""); err == nil {
+	if _, err = s.CreateSession(p.ID, "claude", "", "", false, &GitHubItem{}, "", "", "", "", ""); err == nil {
 		t.Fatal("accepted an invalid GitHub item")
 	}
-	if state, err = s.CreateSession(p.ID, terminalAgent, "", "", false, &GitHubItem{Number: 24}, "", "", ""); err != nil || state.Projects[0].Sessions[2].GitHubItem != nil {
+	if state, err = s.CreateSession(p.ID, terminalAgent, "", "", false, &GitHubItem{Number: 24}, "", "", "", "", ""); err != nil || state.Projects[0].Sessions[2].GitHubItem != nil {
 		t.Fatalf("terminal kept a GitHub item: %+v, %v", state.Projects[0].Sessions[2].GitHubItem, err)
 	}
 	issue, review := state.Projects[0].Sessions[0], state.Projects[0].Sessions[1]
@@ -760,7 +760,7 @@ func TestPlainTerminalLaunchAndDirectory(t *testing.T) {
 	s := fixtureStore(t)
 	p := projectFixture(t, s)
 	sender := sessionFixture(t, s, p, "claude")
-	state, err := s.CreateSession(p.ID, terminalAgent, "", "ignored prompt", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, terminalAgent, "", "ignored prompt", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

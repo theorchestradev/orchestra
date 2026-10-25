@@ -55,7 +55,7 @@ func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 		t.Fatal(err)
 	}
 	personal := sessionFixture(t, s, p, "claude")
-	state, err := s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", work.ID)
+	state, err := s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", work.ID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 	if personal.ProfileID != "" || working.ProfileID != work.ID {
 		t.Fatalf("session profiles = %q, %q", personal.ProfileID, working.ProfileID)
 	}
-	if _, err = s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", "missing"); err == nil {
+	if _, err = s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", "missing", "", ""); err == nil {
 		t.Fatal("unknown profile accepted")
 	}
 	for _, id := range []string{personal.ID, working.ID} {
@@ -227,7 +227,7 @@ func TestProfileFoldersOutliveTheUsersRCFiles(t *testing.T) {
 	}
 	p := projectFixture(t, s)
 	work := profileFixture(t, s, "Work")
-	state, err := s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", work.ID)
+	state, err := s.CreateSession(p.ID, "claude", "", "", false, nil, "", "", work.ID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

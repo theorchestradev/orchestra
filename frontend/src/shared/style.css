@@ -1167,33 +1167,6 @@ input::placeholder {
   max-height: 32px;
   overflow: hidden;
 }
-.agent-options {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.agent-options button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 11px 12px;
-  min-height: 44px;
-  width: 100%;
-  border: 1px solid var(--rule);
-  border-radius: 8px;
-  background: var(--surface);
-  font-size: 13px;
-  font-weight: 500;
-  text-align: left;
-}
-.agent-options button:hover {
-  background: var(--selection);
-}
-.agent-options img {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-}
 .settings-dialog {
   height: 100%;
   display: flex;
@@ -2555,11 +2528,6 @@ input::placeholder {
 .session-dialog .project-path {
   line-height: 13px;
 }
-.agent-options button {
-  border: 0;
-  padding: 12px;
-  box-shadow: inset 0 0 0 1px var(--rule);
-}
 .context-menu button:focus-visible {
   outline: none;
   background: var(--selection);
@@ -2877,10 +2845,6 @@ h2 {
 .modal.sheet label,
 .folder-field h3 {
   line-height: 16px;
-}
-
-.agent-options button:hover {
-  background: var(--surface);
 }
 .message-editor:focus-visible {
   border-color: var(--rule);
@@ -3301,9 +3265,6 @@ h2 {
 .general-settings .confirmation-setting + .confirmation-setting {
   border-top: 1px solid var(--rule);
   padding-top: 16px;
-}
-.agent-options button small {
-  margin-left: auto;
 }
 @media (max-width: 850px) {
   .general-settings .setting-row:has(select) {
@@ -4509,6 +4470,21 @@ h2 {
 .modal .session-profile .theme-select {
   width: 220px;
   max-width: 60%;
+}
+.session-agent img {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  pointer-events: none;
+}
+.modal .session-branch {
+  width: 220px;
+  max-width: 60%;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  background: var(--canvas);
+  border-radius: 8px;
 }
 .usage-toolbar .usage-profile {
   margin-left: auto;

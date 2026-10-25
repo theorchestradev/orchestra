@@ -129,12 +129,12 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	p.Directory = filepath.Join(root, "nested")
 	s.state.Projects[0].Directory = p.Directory
 	before := gitWorktreeFixture(t, root, "status", "--porcelain")
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	first := state.Projects[0].Sessions[0]
-	expected := filepath.Join(filepath.Dir(s.path), "Worktrees", filepath.Base(root), first.ID[:8], "nested")
+	expected := filepath.Join(filepath.Dir(s.path), "Worktrees", filepath.Base(root), "claude-code-1", "nested")
 	if first.WorktreeDirectory != expected || !strings.HasPrefix(first.WorktreeBranch, "orchestra/claude-") {
 		t.Fatalf("unexpected worktree metadata: %+v", first)
 	}
@@ -145,7 +145,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if gitWorktreeFixture(t, root, "branch", "--show-current") != "main" || gitWorktreeFixture(t, root, "status", "--porcelain") != before {
 		t.Fatal("worktree creation changed the original checkout")
 	}
-	state, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "")
+	state, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,7 +162,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if err = os.Mkdir(s.path, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil {
+	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err == nil {
 		t.Fatal("expected failed save")
 	}
 	after := s.Snapshot().Projects[0]
@@ -171,16 +171,97 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	}
 	// Refuse to touch a pre-existing branch or folder when preparing a checkout.
 	destination := filepath.Join(t.TempDir(), "checkout")
-	if _, _, err = createSessionWorktree(root, destination, first.WorktreeBranch); err == nil {
+	if _, _, err = createSessionWorktree(root, destination, first.WorktreeBranch, ""); err == nil {
 		t.Fatal("existing branch accepted")
 	}
 	if err = os.Mkdir(destination, 0700); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err = createSessionWorktree(root, destination, "orchestra/unused-fixture"); err == nil {
+	if _, _, err = createSessionWorktree(root, destination, "orchestra/unused-fixture", ""); err == nil {
 		t.Fatal("existing folder accepted")
 	}
 	gitWorktreeFixture(t, root, "show-ref", "--verify", "refs/heads/"+first.WorktreeBranch)
+}
+
+func TestBranchSlug(t *testing.T) {
+	for name, want := range map[string]string{
+		"Claude Code 2": "claude-code-2",
+		"#32 Meaningful branch names for worktree sessions": "32-meaningful-branch-names-for-worktree-sessions",
+		"Corrigir validação do Pull Request…":               "corrigir-validacao-do-pull-request",
+		"  --feat/x..lock~^:?*[\\  ":                        "feat-x-lock",
+		"日本語":                                               "",
+		"A very long session name that keeps going well past what a branch should hold": "a-very-long-session-name-that-keeps-going-well",
+	} {
+		if got := branchSlug(name); got != want || len(got) > maxBranchSlug {
+			t.Errorf("branchSlug(%q) = %q, want %q", name, got, want)
+		}
+	}
+}
+
+// Branch names come from the session name, never reuse a branch, and can be chosen with a base.
+func TestCreateSessionWorktreeBranchNames(t *testing.T) {
+	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	s := fixtureStore(t)
+	p := projectFixture(t, s)
+	root := p.Directory
+	gitWorktreeFixture(t, root, "init", "-b", "main")
+	commit := func(message string) string {
+		gitWorktreeFixture(t, root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", message)
+		return gitWorktreeFixture(t, root, "rev-parse", "HEAD")
+	}
+	first := commit("First")
+	gitWorktreeFixture(t, root, "branch", "release")
+	gitWorktreeFixture(t, root, "branch", "orchestra/32-fix-login")
+	head := commit("Second")
+
+	branches, err := s.WorktreeBranches(p.ID)
+	if err != nil || branches.Current != "main" || strings.Join(branches.Branches, ",") != "orchestra/32-fix-login,release" {
+		t.Fatalf("unexpected branches: %+v %v", branches, err)
+	}
+	sessions := func() []*Session { return s.Snapshot().Projects[0].Sessions }
+	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := sessions()[0]; got.WorktreeBranch != "orchestra/claude-code-1" || got.WorktreeBase != head {
+		t.Fatalf("unexpected default branch: %+v", got)
+	}
+	// An existing branch keeps its commits; the new session gets the next free name.
+	if _, err = s.CreateSession(p.ID, "claude", "#32 Fix login", "", true, &GitHubItem{Number: 32}, "", "", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if got := sessions()[1].WorktreeBranch; got != "orchestra/32-fix-login-2" || gitWorktreeFixture(t, root, "rev-parse", "orchestra/32-fix-login") != first {
+		t.Fatalf("existing branch reused or moved: %s", got)
+	}
+	// The checkout folder follows the branch and never reuses an existing folder.
+	folders := filepath.Join(filepath.Dir(s.path), "Worktrees", filepath.Base(root))
+	if err = os.MkdirAll(filepath.Join(folders, "feat-login-page"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "", " feat/login-page ", "release"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sessions()[1].WorktreeDirectory; got != filepath.Join(folders, "32-fix-login-2") {
+		t.Fatalf("unexpected folder: %s", got)
+	}
+	if got := sessions()[2]; got.WorktreeBranch != "feat/login-page" || got.WorktreeDirectory != filepath.Join(folders, "feat-login-page-2") || got.WorktreeBase != first || gitWorktreeFixture(t, got.WorktreeDirectory, "rev-parse", "HEAD") != first {
+		t.Fatalf("chosen branch or base ignored: %+v", got)
+	}
+	for _, tc := range []struct{ branch, base, message string }{
+		{"release", "", "The branch release already exists"},
+		{"bad..name", "", "is not a valid branch name"},
+		{"-f", "", "is not a valid branch name"},
+		{"HEAD", "", "is not a valid branch name"},
+		{"feat/other", "missing", "The base branch missing does not exist"},
+		{"feat/other", "--all", "The base branch --all does not exist"},
+	} {
+		if _, err = s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "", tc.branch, tc.base); err == nil || !strings.Contains(err.Error(), tc.message) {
+			t.Errorf("%q from %q: %v", tc.branch, tc.base, err)
+		}
+	}
+	if len(sessions()) != 3 || gitWorktreeFixture(t, root, "rev-parse", "release") != first || gitWorktreeFixture(t, root, "branch", "--list", "feat/other") != "" {
+		t.Fatal("a rejected branch created a session or changed a branch")
+	}
 }
 
 func TestCreateSessionWorktreeRequiresCommittedProject(t *testing.T) {
@@ -202,7 +283,7 @@ func TestCreateSessionWorktreeRequiresCommittedProject(t *testing.T) {
 				}
 				s.state.Projects[0].Directory = p.Directory
 			}
-			if _, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", ""); err == nil || len(s.Snapshot().Projects[0].Sessions) != 0 {
+			if _, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "", "", ""); err == nil || len(s.Snapshot().Projects[0].Sessions) != 0 {
 				t.Fatal("invalid worktree creation was accepted or left a session behind")
 			}
 			if kind == "uncommitted-subfolder" && (strings.Count(gitWorktreeFixture(t, root, "worktree", "list", "--porcelain"), "worktree ") != 1 || gitWorktreeFixture(t, root, "branch", "--list", "orchestra/*") != "") {
@@ -220,10 +301,10 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	p := projectFixture(t, s)
 	gitWorktreeFixture(t, p.Directory, "init", "-b", "main")
 	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "pi", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -277,7 +358,7 @@ func TestCloseSessionReleasesLockDuringWorktreeRemoval(t *testing.T) {
 	p := projectFixture(t, s)
 	gitWorktreeFixture(t, p.Directory, "init", "-b", "main")
 	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +406,7 @@ func TestInitializeGitRepository(t *testing.T) {
 	if err := os.WriteFile(file, []byte("existing"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
 		t.Fatalf("non-repository error was not recognized: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(p.Directory, ".git")); !os.IsNotExist(err) {
@@ -343,12 +424,12 @@ func TestInitializeGitRepository(t *testing.T) {
 	if _, err := s.InitializeGitRepository(p.ID); err == nil || !strings.Contains(err.Error(), "already") {
 		t.Fatalf("existing repository was reinitialized: %v", err)
 	}
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "Commit the repository") {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err == nil || !strings.HasPrefix(err.Error(), "Commit the repository") {
 		t.Fatalf("missing initial commit was not explained: %v", err)
 	}
 	gitWorktreeFixture(t, p.Directory, "add", "keep.txt")
 	gitWorktreeFixture(t, p.Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "-m", "Fixture")
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 
@@ -375,7 +456,7 @@ func TestInitializeGitRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
-	if _, err = s.CreateSession(other.ID, "claude", "", "", true, nil, "", "", ""); err == nil || strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
+	if _, err = s.CreateSession(other.ID, "claude", "", "", true, nil, "", "", "", "", ""); err == nil || strings.HasPrefix(err.Error(), "A worktree requires a Git repository") {
 		t.Fatalf("unrelated Git failure offered initialization: %v", err)
 	}
 	if _, err = s.InitializeGitRepository(other.ID); err == nil || !strings.HasPrefix(err.Error(), "Could not check") {
@@ -483,7 +564,7 @@ func TestCreateSessionLocalMainBehind(t *testing.T) {
 	}
 	p, latest := localMainFixture(t, s)
 	gitWorktreeFixture(t, p.Directory, "fetch", "--quiet", "origin")
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if len(notices) != 1 || notices[0] != (LocalMainBehind{p.ID, "main", 1}) {
@@ -492,7 +573,7 @@ func TestCreateSessionLocalMainBehind(t *testing.T) {
 	if _, err := s.DismissLocalMainNotice(p.ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil || len(notices) != 1 {
+	if _, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil || len(notices) != 1 {
 		t.Fatalf("dismissed notice shown again: %v %+v", err, notices)
 	}
 	state, err := s.KeepLocalMainUpToDate(p.ID)
@@ -501,7 +582,7 @@ func TestCreateSessionLocalMainBehind(t *testing.T) {
 	}
 	// A failed fetch never blocks creating the session.
 	gitWorktreeFixture(t, p.Directory, "remote", "set-url", "origin", filepath.Join(t.TempDir(), "missing.git"))
-	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", ""); err != nil || len(notices) != 1 {
+	if _, err = s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", ""); err != nil || len(notices) != 1 {
 		t.Fatalf("session creation failed with an unreachable origin: %v %+v", err, notices)
 	}
 }

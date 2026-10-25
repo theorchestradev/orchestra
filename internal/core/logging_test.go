@@ -92,7 +92,7 @@ func TestLogsOmitPromptsAndNotes(t *testing.T) {
 	t.Setenv("SHELL", shell)
 	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
 	p := projectFixture(t, s)
-	state, err := s.CreateSession(p.ID, "claude", "", "private initial prompt", false, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "private initial prompt", false, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

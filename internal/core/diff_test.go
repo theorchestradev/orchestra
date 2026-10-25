@@ -53,7 +53,7 @@ func repositoryFixture(t *testing.T, s *Store) *Project {
 func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

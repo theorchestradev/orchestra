@@ -117,6 +117,11 @@ const visitedTerminals = ref(new Set()),
 const scratchpadView = ref(null),
   quitting = ref(false),
   newWorktree = ref(true),
+  sessionAgent = ref(''),
+  // New Session's branch name (empty names it after the session) and base (empty is the current commit).
+  newBranch = ref(''),
+  newBase = ref(''),
+  worktreeBranches = ref({ current: '', branches: [] }),
   // False when the New Session project folder is not in a Git repository, so it cannot have worktrees.
   worktreeAvailable = ref(true),
   removeWorktree = ref(false),
@@ -328,6 +333,9 @@ function openModal(kind, p = project.value) {
   }
   if (kind === 'session') {
     newWorktree.value = true
+    sessionAgent.value = sessionAgents.value[0].id
+    newBranch.value = newBase.value = ''
+    worktreeBranches.value = { current: '', branches: [] }
     gitInitialized.value = offerGitInit.value = false
     worktreeAvailable.value = true
     if (p) sessionProjectID.value = p.id
@@ -348,6 +356,11 @@ async function checkWorktree(id) {
   // Initialize Git Repository stays reachable now that the worktree error no longer appears.
   offerGitInit.value = !available
   if (!available) newWorktree.value = false
+  else loadWorktreeBranches(id)
+}
+async function loadWorktreeBranches(id) {
+  const branches = await call('WorktreeBranches', id).catch(() => null)
+  if (branches && modal.value === 'session' && modalProject.value?.id === id) worktreeBranches.value = branches
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -554,6 +567,8 @@ async function createSession(
   model = '',
   effort = '',
   profileID = (modalProject.value || project.value)?.profileID || '',
+  branch = '',
+  base = '',
 ) {
   busy.value = true
   try {
@@ -569,6 +584,8 @@ async function createSession(
         model,
         effort,
         profileID,
+        branch,
+        base,
       ),
     )
     visitedTerminals.value.add(state.projects.find((p) => p.id === state.selectedProjectID).selectedSessionID)
@@ -591,8 +608,9 @@ async function initializeGit() {
     gitInitialized.value = true
     // Initializing here means the user wants a worktree, so offer it again as the note describes.
     worktreeAvailable.value = newWorktree.value = true
+    loadWorktreeBranches(modalProject.value.id)
     // The button goes away, so keep keyboard focus inside the dialog.
-    nextTick(() => document.querySelector('.session-dialog .agent-options :is([autofocus], button)')?.focus())
+    nextTick(() => document.querySelector('#session-agent')?.focus())
   } catch (e) {
     formError.value = String(e)
   } finally {
@@ -1745,11 +1763,27 @@ onBeforeUnmount(() => {
       </form></Modal
     >
     <Modal v-else-if="modal === 'session'" label="New Session" @close="!busy && closeModal()"
-      ><div class="session-dialog">
+      ><form
+        class="session-dialog"
+        @submit.prevent="
+          createSession(sessionAgent, '', newWorktree, '', null, '', '', sessionProfileID, newBranch, newBase)
+        "
+      >
         <h2>New Session</h2>
         <div>
           <p>Choose an agent for {{ projectTitle(modalProject) }}.</p>
           <p class="muted caption project-path">{{ modalProject?.directory }}</p>
+        </div>
+        <div class="setting-row session-profile">
+          <label for="session-agent">Agent</label>
+          <div class="theme-select session-agent">
+            <img :src="agentIcon(sessionAgent, shownPreferences.appearance)" alt="" />
+            <select id="session-agent" v-model="sessionAgent" :disabled="busy" autofocus>
+              <option v-for="agent in sessionAgents" :key="agent.id" :value="agent.id">
+                {{ agent.name }}{{ agent.id === preferences.defaultAgent ? ' (Default)' : '' }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
         </div>
         <label class="worktree-option" for="new-worktree"
           ><input
@@ -1764,11 +1798,39 @@ onBeforeUnmount(() => {
             ><small v-if="!worktreeAvailable" id="worktree-description" class="muted"
               >Worktrees require a Git repository. This folder isn’t one, so the session starts in it.</small
             ><small v-else id="worktree-description" class="muted"
-              >Start on a new branch from the current commit. Uncommitted changes stay in the original folder. Closing
-              the session removes the worktree unless you choose to keep it.</small
+              >Start on a new branch. Uncommitted changes stay in the original folder. Closing the session removes the
+              worktree unless you choose to keep it.</small
             ></span
           ></label
         >
+        <template v-if="newWorktree && worktreeAvailable">
+          <div class="setting-row session-profile">
+            <label for="session-branch">Branch Name</label>
+            <input
+              id="session-branch"
+              v-model="newBranch"
+              class="session-branch"
+              :disabled="busy"
+              placeholder="Named after the session"
+              spellcheck="false"
+              autocapitalize="off"
+              autocomplete="off"
+            />
+          </div>
+          <div class="setting-row session-profile">
+            <label for="session-base">Start From</label>
+            <div class="theme-select general-select">
+              <select id="session-base" v-model="newBase" :disabled="busy">
+                <option value="">
+                  {{ worktreeBranches.current ? worktreeBranches.current + ' (current)' : 'Current commit' }}
+                </option>
+                <option v-for="branch in worktreeBranches.branches" :key="branch" :value="branch">
+                  {{ branch }}
+                </option></select
+              ><Icon name="chevron.up.chevron.down" :size="10" />
+            </div>
+          </div>
+        </template>
         <div v-if="workspace.profiles.length" class="setting-row session-profile">
           <label for="session-profile">Profile</label>
           <div class="theme-select general-select">
@@ -1780,25 +1842,11 @@ onBeforeUnmount(() => {
             ><Icon name="chevron.up.chevron.down" :size="10" />
           </div>
         </div>
-        <div class="agent-options" @keydown="menuKeys">
-          <button
-            v-for="agent in sessionAgents"
-            :key="agent.id"
-            :autofocus="agent.id === preferences.defaultAgent"
-            :data-default-action="agent.id === preferences.defaultAgent || undefined"
-            :disabled="busy"
-            :aria-label="'Start a ' + agent.name + ' session'"
-            @click="createSession(agent.id, '', newWorktree, '', null, '', '', sessionProfileID)"
-          >
-            <img :src="agentIcon(agent.id, shownPreferences.appearance)" alt="" /><span>{{ agent.name }}</span
-            ><small v-if="agent.id === preferences.defaultAgent" class="muted caption">Default</small>
-          </button>
-        </div>
         <p v-if="busy && newWorktree && !initializingGit" class="muted caption" role="status">Creating worktree…</p>
         <p v-if="initializingGit" class="muted caption" role="status">Initializing Git…</p>
         <p v-if="gitInitialized" class="muted caption" role="status">
-          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then choose an agent
-          again.
+          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then create the
+          session again.
         </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <div v-if="offerGitInit" class="git-init">
@@ -1806,6 +1854,7 @@ onBeforeUnmount(() => {
             Runs git init in this project folder. Files stay as they are, and nothing is staged or committed.
           </p>
           <button
+            type="button"
             class="standard-button"
             :disabled="busy"
             aria-describedby="git-init-description"
@@ -1814,8 +1863,13 @@ onBeforeUnmount(() => {
             Initialize Git Repository
           </button>
         </div>
-        <footer><button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button></footer>
-      </div></Modal
+        <footer>
+          <button type="button" class="standard-button" :disabled="busy" @click="closeModal">Cancel</button
+          ><button type="submit" class="standard-button primary" :disabled="busy || !sessionAgent">
+            Create Session
+          </button>
+        </footer>
+      </form></Modal
     >
     <Modal v-else-if="modal === 'rename'" :label="'Edit ' + renameKind" @close="closeModal"
       ><form class="rename-dialog" @submit.prevent="rename">

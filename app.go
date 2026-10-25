@@ -378,12 +378,12 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID string) (core.State, error) {
+func (a *App) CreateSession(project, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID)
+	state, err := a.store.CreateSession(project, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
 	if err == nil && gitHubItem != nil {
 		action := "work_on"
 		if gitHubItem.PullRequest {
@@ -400,6 +400,14 @@ func (a *App) CanCreateWorktree(project string) (bool, error) {
 		return false, err
 	}
 	return a.store.CanCreateWorktree(project)
+}
+
+// WorktreeBranches lists the branches a new session worktree can start from.
+func (a *App) WorktreeBranches(project string) (core.WorktreeBranches, error) {
+	if err := a.ready(); err != nil {
+		return core.WorktreeBranches{}, err
+	}
+	return a.store.WorktreeBranches(project)
 }
 
 // KeepLocalMainUpToDate and DismissLocalMainNotice back the notice shown when a new session

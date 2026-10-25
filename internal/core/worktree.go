@@ -73,9 +73,126 @@ func (s *Store) CanCreateWorktree(projectID string) (bool, error) {
 	return !isNotGitRepository(err), nil
 }
 
-// Worktrees share Git history but never copy uncommitted project changes.
+// maxBranchSlug keeps generated branch names short enough to read in the sidebar.
+const maxBranchSlug = 48
+
+// accents folds common accented letters so "Corrigir validação" reads corrigir-validacao.
+var accents = strings.NewReplacer(
+	"á", "a", "à", "a", "â", "a", "ã", "a", "ä", "a", "å", "a",
+	"é", "e", "è", "e", "ê", "e", "ë", "e",
+	"í", "i", "ì", "i", "î", "i", "ï", "i",
+	"ó", "o", "ò", "o", "ô", "o", "õ", "o", "ö", "o",
+	"ú", "u", "ù", "u", "û", "u", "ü", "u",
+	"ç", "c", "ñ", "n", "ß", "ss",
+)
+
+// branchSlug turns a session name into lowercase words joined by hyphens. It keeps only
+// ASCII letters and digits, so the result is always a valid branch name component.
+func branchSlug(name string) string {
+	var b strings.Builder
+	for _, r := range accents.Replace(strings.ToLower(name)) {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		} else if b.Len() > 0 && !strings.HasSuffix(b.String(), "-") {
+			b.WriteByte('-')
+		}
+	}
+	slug := strings.TrimSuffix(b.String(), "-")
+	if len(slug) > maxBranchSlug {
+		slug = slug[:maxBranchSlug]
+		if cut := strings.LastIndexByte(slug, '-'); cut > 0 {
+			slug = slug[:cut]
+		}
+	}
+	return slug
+}
+
+func branchExists(directory, branch string) bool {
+	_, err := runCommand(directory, "git", "show-ref", "--verify", "--quiet", "refs/heads/"+branch)
+	return err == nil
+}
+
+// newSessionBranch names a new worktree branch orchestra/<session name>, adding -2, -3 and so on
+// so that an existing branch is never reused.
+func newSessionBranch(directory, sessionName, agent string) string {
+	slug := branchSlug(sessionName)
+	if slug == "" {
+		slug = agent
+	}
+	branch := "orchestra/" + slug
+	for n := 2; branchExists(directory, branch); n++ {
+		branch = fmt.Sprintf("orchestra/%s-%d", slug, n)
+	}
+	return branch
+}
+
+// worktreeFolder names a session checkout in parent after its branch, without the orchestra/
+// prefix and with slashes as hyphens. It adds -2, -3 and so on so an existing folder is never
+// reused; other errors are left for createSessionWorktree to report.
+func worktreeFolder(parent, branch string) string {
+	name := strings.ReplaceAll(strings.TrimPrefix(branch, "orchestra/"), "/", "-")
+	folder := filepath.Join(parent, name)
+	for n := 2; ; n++ {
+		if _, err := os.Lstat(folder); err != nil {
+			return folder
+		}
+		folder = filepath.Join(parent, fmt.Sprintf("%s-%d", name, n))
+	}
+}
+
+// checkBranchName accepts the names git branch would create, but no option-like names.
+func checkBranchName(directory, branch string) error {
+	if branch == "HEAD" || strings.HasPrefix(branch, "-") {
+		return fmt.Errorf("%q is not a valid branch name.", branch)
+	}
+	if _, err := runCommand(directory, "git", "check-ref-format", "refs/heads/"+branch); err != nil {
+		return fmt.Errorf("%q is not a valid branch name.", branch)
+	}
+	return nil
+}
+
+// WorktreeBranches lists what a new session worktree can start from. Current is the
+// checked-out branch, empty when detached; Branches holds the other local branches, then
+// remote ones.
+type WorktreeBranches struct {
+	Current  string   `json:"current"`
+	Branches []string `json:"branches"`
+}
+
+// WorktreeBranches reads the project's branches for New Session's base choice.
+func (s *Store) WorktreeBranches(projectID string) (WorktreeBranches, error) {
+	s.mu.Lock()
+	p, err := s.projectLocked(projectID)
+	if err != nil {
+		s.mu.Unlock()
+		return WorktreeBranches{}, err
+	}
+	directory := p.Directory
+	s.mu.Unlock()
+	result := WorktreeBranches{Branches: []string{}}
+	if current, err := runCommand(directory, "git", "branch", "--show-current"); err == nil {
+		result.Current = strings.TrimSpace(string(current))
+	}
+	refs, err := runCommand(directory, "git", "for-each-ref", "--format=%(refname)", "refs/heads", "refs/remotes")
+	if err != nil {
+		return result, nil
+	}
+	for _, ref := range strings.Split(strings.TrimSpace(string(refs)), "\n") {
+		name, local := strings.CutPrefix(ref, "refs/heads/")
+		if !local {
+			name, _ = strings.CutPrefix(ref, "refs/remotes/")
+		}
+		if name != "" && name != result.Current && !strings.HasSuffix(ref, "/HEAD") {
+			result.Branches = append(result.Branches, name)
+		}
+	}
+	return result, nil
+}
+
+// Worktrees share Git history but never copy uncommitted project changes. The session
+// branch starts at base, a branch or other commit name, or at HEAD when base is empty.
 // It returns the working folder and the commit the session branch starts from.
-func createSessionWorktree(directory, destination, branch string) (string, string, error) {
+func createSessionWorktree(directory, destination, branch, base string) (string, string, error) {
 	root, err := gitTopLevel(directory)
 	if isNotGitRepository(err) {
 		// New Session offers Initialize Git Repository for this message; keep it stable.
@@ -84,11 +201,19 @@ func createSessionWorktree(directory, destination, branch string) (string, strin
 	if err != nil {
 		return "", "", fmt.Errorf("Could not read the project's Git repository: %w", err)
 	}
-	head, err := runCommand(directory, "git", "rev-parse", "--verify", "HEAD^{commit}")
-	if err != nil {
-		return "", "", fmt.Errorf("Commit the repository before creating a worktree: %w", err)
+	if base == "" {
+		head, err := runCommand(directory, "git", "rev-parse", "--verify", "HEAD^{commit}")
+		if err != nil {
+			return "", "", fmt.Errorf("Commit the repository before creating a worktree: %w", err)
+		}
+		base = strings.TrimSpace(string(head))
+	} else {
+		commit, err := runCommand(directory, "git", "rev-parse", "--verify", "--quiet", base+"^{commit}")
+		if err != nil || strings.HasPrefix(base, "-") {
+			return "", "", fmt.Errorf("The base branch %s does not exist.", base)
+		}
+		base = strings.TrimSpace(string(commit))
 	}
-	base := strings.TrimSpace(string(head))
 	// Resolve symlinks so a project opened through /var or another alias keeps its subfolder.
 	projectDirectory, err := filepath.EvalSymlinks(directory)
 	if err != nil {
@@ -102,8 +227,8 @@ func createSessionWorktree(directory, destination, branch string) (string, strin
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", "", errors.New("The project folder is outside the Git repository.")
 	}
-	if _, err = runCommand(directory, "git", "show-ref", "--verify", "refs/heads/"+branch); err == nil {
-		return "", "", errors.New("The session branch already exists. Create another session to use a new branch.")
+	if branchExists(directory, branch) {
+		return "", "", fmt.Errorf("The branch %s already exists. Choose another name.", branch)
 	}
 	if _, err = os.Lstat(destination); !os.IsNotExist(err) {
 		return "", "", errors.New("The session worktree folder already exists or is inaccessible.")

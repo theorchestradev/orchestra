@@ -82,8 +82,8 @@ if not (folder / 'README.md').exists():
  (folder / 'legacy.txt').write_text('Remove me\n')
  (folder / 'NOTES.md').write_text('Notes that move into docs/.\n' * 8)
  git('add', '-A'); git('commit', '-q', '-m', 'Fixture')
-branch = 'orchestra/claude-' + sid[:8]
-worktree = root / 'Worktrees' / 'project' / sid[:8]
+branch = 'orchestra/claude-code-1'
+worktree = root / 'Worktrees' / 'project' / 'claude-code-1'
 base = git('rev-parse', 'HEAD').stdout.decode().strip()
 git('worktree', 'add', '-q', '-b', branch, str(worktree), base)
 (worktree / 'docs').mkdir()

@@ -46,7 +46,7 @@ func TestSessionPullRequestFindsBranchPullRequest(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
 	dir, respond := pullRequestFixture(t)
-	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	stored, _ := s.projectLocked(p.ID)
 	stored.Repository = "fixture/repository"
 	s.mu.Unlock()
-	state, err := s.CreateSession(p.ID, "claude", "", "", false, &GitHubItem{Number: 42, PullRequest: true}, "", "", "")
+	state, err := s.CreateSession(p.ID, "claude", "", "", false, &GitHubItem{Number: 42, PullRequest: true}, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
