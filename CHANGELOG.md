@@ -4,6 +4,22 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.11.0 — 2026-10-24
+
+### New
+
+- **Muse Code.** Start Muse Code sessions alongside the other agents. They use
+  Muse's built-in auto-review permissions, report their status in the sidebar
+  and resume where they left off. Profiles cannot choose a Muse account yet.
+- **Reorder projects in Arc layout.** Drag a project's icon in the spaces bar
+  to move it to another position.
+- **Rename Session from the command bar.**
+
+### Fixed
+
+- **Dragging a project icon no longer quits Orchestra.** Releasing a dragged
+  project icon over the window in Arc layout made the app crash.
+
 ## 0.10.0 — 2026-10-23
 
 ### New
