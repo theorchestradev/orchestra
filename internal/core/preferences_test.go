@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -33,7 +34,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			defer reopened.Shutdown()
 			state := reopened.Snapshot()
 			p := state.Projects[0]
-			if state.Preferences != prefs {
+			if !reflect.DeepEqual(state.Preferences, prefs) {
 				t.Fatalf("preferences changed on reopen: %+v", state.Preferences)
 			}
 			if p.SelectedSessionID != session.ID || p.Sessions[0].Running || !p.Sessions[0].Restored {
@@ -48,7 +49,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 				if _, err := s.SetPreferences(invalid); err == nil {
 					t.Fatal("accepted invalid general preference")
 				}
-				if s.Snapshot().Preferences != prefs {
+				if !reflect.DeepEqual(s.Snapshot().Preferences, prefs) {
 					t.Fatal("invalid preference changed saved settings")
 				}
 			}
@@ -62,7 +63,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			changed.DefaultAgent = "codex"
 			_, err = s.SetPreferences(changed)
 			s.path = oldPath
-			if err == nil || s.Snapshot().Preferences != prefs {
+			if err == nil || !reflect.DeepEqual(s.Snapshot().Preferences, prefs) {
 				t.Fatal("failed save changed live preferences")
 			}
 		})
@@ -98,7 +99,7 @@ func TestAppIconPreferences(t *testing.T) {
 	before := s.Snapshot().Preferences
 	invalid := before
 	invalid.AppIcon = "../other"
-	if _, err := s.SetPreferences(invalid); err == nil || s.Snapshot().Preferences != before {
+	if _, err := s.SetPreferences(invalid); err == nil || !reflect.DeepEqual(s.Snapshot().Preferences, before) {
 		t.Fatal("invalid icon accepted or changed preferences")
 	}
 	// Existing workspaces have no appIcon; invalid saved values also fall back to Color.
@@ -244,6 +245,32 @@ func TestOpenInAppPreference(t *testing.T) {
 	}
 }
 
+func TestSidebarTabsPreference(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	if len(prefs.SidebarTabs) != 0 {
+		t.Fatalf("new installs should use the default tab order: %v", prefs.SidebarTabs)
+	}
+	prefs.SidebarTabs = []string{"PR", "Changes", "Files"}
+	if _, err := s.SetPreferences(prefs); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	if got := reopened.Snapshot().Preferences.SidebarTabs; strings.Join(got, ",") != "PR,Changes,Files" {
+		t.Fatalf("sidebar tab order was not restored: %v", got)
+	}
+	for _, tabs := range [][]string{{"Changes", "Changes"}, {"Terminal"}} {
+		prefs.SidebarTabs = tabs
+		if _, err := s.SetPreferences(prefs); err == nil {
+			t.Fatalf("accepted sidebar tabs %v", tabs)
+		}
+	}
+}
+
 func TestUsageStatusPreferences(t *testing.T) {
 	s := fixtureStore(t)
 	prefs := s.Snapshot().Preferences
@@ -317,7 +344,7 @@ func TestLegacyPreferencesAndUnavailableStartupView(t *testing.T) {
 	defer reopened.Shutdown()
 	inherited := normalized
 	inherited.TerminalPaddingX, inherited.TerminalPaddingY = 12, 8
-	if reopened.Snapshot().Preferences != inherited {
+	if !reflect.DeepEqual(reopened.Snapshot().Preferences, inherited) {
 		t.Fatal("old workspace did not inherit new defaults")
 	}
 	normalized.StartupView = "github"

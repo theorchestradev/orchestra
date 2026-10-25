@@ -35,6 +35,19 @@ export function splitPath(path) {
   return { folder: path.slice(0, index), name: path.slice(index) }
 }
 
+export const sidebarTabs = ['Changes', 'Files', 'PR']
+
+// The saved tab order, with tabs it lacks in their default order at the end.
+export function orderedSidebarTabs(saved) {
+  return [...new Set([...(saved || []).filter((tab) => sidebarTabs.includes(tab)), ...sidebarTabs])]
+}
+
+export function moveSidebarTab(order, tab, index) {
+  const next = order.filter((t) => t !== tab)
+  next.splice(index, 0, tab)
+  return next
+}
+
 export function clampDiffWidth(width) {
   return Math.round(Math.max(minDiffWidth, Math.min(maxDiffWidth, width)))
 }

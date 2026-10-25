@@ -97,11 +97,13 @@ type Preferences struct {
 	SidebarWidth          float64 `json:"sidebarWidth"`
 	DiffPaneWidth         float64 `json:"diffPaneWidth"`
 	DiffPaneOpen          bool    `json:"diffPaneOpen"`
-	DefaultAgent          string  `json:"defaultAgent"`
-	StartupView           string  `json:"startupView"`
-	ConfirmQuit           bool    `json:"confirmQuit"`
-	ConfirmSessionClose   bool    `json:"confirmSessionClose"`
-	GitHubRefreshInterval int     `json:"gitHubRefreshInterval"`
+	// SidebarTabs is the order of the session sidebar's tabs; empty means Changes, Files, PR.
+	SidebarTabs           []string `json:"sidebarTabs,omitempty"`
+	DefaultAgent          string   `json:"defaultAgent"`
+	StartupView           string   `json:"startupView"`
+	ConfirmQuit           bool     `json:"confirmQuit"`
+	ConfirmSessionClose   bool     `json:"confirmSessionClose"`
+	GitHubRefreshInterval int      `json:"gitHubRefreshInterval"`
 	// DeliverRequests lets Store submit queued inbox requests once the recipient agent is free.
 	DeliverRequests bool `json:"deliverRequests"`
 	// AttentionSound plays a sound when an agent finishes its turn or asks for permission.
@@ -854,6 +856,13 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	// An app id from internal/apps; opening rejects ids it does not know.
 	if len(p.OpenInApp) > 40 || strings.Trim(p.OpenInApp, "abcdefghijklmnopqrstuvwxyz0123456789-") != "" {
 		return State{}, errors.New("Unknown app.")
+	}
+	seen := map[string]bool{}
+	for _, tab := range p.SidebarTabs {
+		if (tab != "Changes" && tab != "Files" && tab != "PR") || seen[tab] {
+			return State{}, errors.New("Invalid sidebar tab order.")
+		}
+		seen[tab] = true
 	}
 	previous := s.state.Preferences
 	p.TelemetryEnabled = previous.TelemetryEnabled

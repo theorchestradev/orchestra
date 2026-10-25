@@ -4692,6 +4692,29 @@ h2 {
   color: var(--text);
   background: var(--selection);
 }
+.session-pane-tabs-sorting {
+  cursor: grabbing;
+  user-select: none;
+}
+.session-pane-tabs-sorting button {
+  cursor: grabbing;
+  transition: transform 0.16s ease;
+}
+.session-pane-tabs-sorting .session-pane-tab-dragging {
+  position: relative;
+  z-index: 1;
+  transition: none;
+  background: var(--surface);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
+}
+.session-pane-tabs-sorting .session-pane-tab-dragging[aria-selected='true'] {
+  background: var(--selection);
+}
+@media (prefers-reduced-motion: reduce) {
+  .session-pane-tabs-sorting button {
+    transition: none;
+  }
+}
 .session-changes,
 .session-files,
 .session-pull-request {
