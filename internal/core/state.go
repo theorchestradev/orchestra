@@ -289,7 +289,7 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 		}
 		// Earlier versions cannot read the new format, so the original stays beside it.
 		if err == nil && migrated {
-			err = atomicWrite(path+".bkp", data, 0600)
+			err = atomicWrite(strings.TrimSuffix(path, ".json")+".bkp.json", data, 0600)
 		}
 		if err != nil {
 			s.log.Warn("saved workspace unreadable", "error", err)
