@@ -945,20 +945,17 @@ input::placeholder {
 }
 .modal-backdrop {
   position: fixed;
-  inset: 52px 0 0;
+  inset: 0;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgb(0 0 0 / 0.38);
-  padding: 24px;
+  background: rgb(0 0 0 / 0.42);
+  /* Covers the title bar too; the top padding keeps dialogs clear of the traffic lights. */
+  padding: 76px 24px 24px;
 }
 .app-shell[data-appearance='light'] .modal-backdrop {
-  background: rgb(0 0 0 / 0.16);
-}
-.modal-backdrop.settings {
-  inset: 0;
-  padding-top: 76px;
+  background: rgb(0 0 0 / 0.22);
 }
 .modal {
   background: var(--canvas);
@@ -984,12 +981,6 @@ input::placeholder {
 .modal-backdrop.command {
   align-items: flex-start;
   padding-top: min(160px, calc((100vh - 52px) * 0.16));
-}
-.modal-backdrop:is(.settings, .command) {
-  background: rgb(0 0 0 / 0.42);
-}
-.app-shell[data-appearance='light'] .modal-backdrop:is(.settings, .command) {
-  background: rgb(0 0 0 / 0.22);
 }
 .project-dialog,
 .session-dialog,
@@ -2448,7 +2439,6 @@ input::placeholder {
   outline: none;
 }
 .modal-backdrop.command {
-  inset: 0;
   padding-top: calc(52px + min(160px, (100vh - 52px) * 0.16));
 }
 /* A real border stays visible around Settings' opaque inner panels. */
