@@ -28,7 +28,8 @@ Download the latest release:
 
 - **macOS 13 or later:**
   [Orchestra-macos-universal.dmg](https://github.com/theorchestradev/orchestra/releases/latest/download/Orchestra-macos-universal.dmg)
-  (Apple silicon and Intel).
+  (Apple silicon and Intel), or with [Homebrew](https://brew.sh):
+  `brew install --cask theorchestradev/tap/orchestra`.
 - **Linux x86_64:** `Orchestra-…-linux-x86_64.tar.gz`. Needs GTK 3 and WebKitGTK 4.1
   (`libgtk-3-0 libwebkit2gtk-4.1-0` on Ubuntu 22.04 or later).
   The optional attention sound also needs GStreamer's good plugins (`gstreamer1.0-plugins-good`).
