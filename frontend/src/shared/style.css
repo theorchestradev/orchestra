@@ -3697,6 +3697,26 @@ h2 {
   line-height: 1;
   padding-bottom: 3px;
 }
+.arc-spaces-sorting {
+  cursor: grabbing;
+  user-select: none;
+}
+.arc-spaces-sorting > .arc-space {
+  cursor: grabbing;
+  transition: transform 0.16s ease;
+}
+.arc-spaces-sorting > .arc-space-dragging {
+  z-index: 2;
+  transition: none;
+  background: var(--selection);
+  color: var(--text);
+  box-shadow: 0 3px 10px rgb(0 0 0 / 0.2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .arc-spaces-sorting > .arc-space {
+    transition: none;
+  }
+}
 .arc-mode-setting > div,
 .translucent-setting > div,
 .theme-setting > div:first-child {
