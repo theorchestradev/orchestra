@@ -1,6 +1,7 @@
 <script>
-// Open modals, innermost last. Only the innermost one handles Escape and Tab, so a dialog opened
-// from Settings closes alone.
+// Open modals, innermost last. Only the innermost one handles Escape, Tab and Command-Return, so a
+// dialog opened from Settings closes alone. Command-Return clicks the dialog's main action: the
+// enabled button marked data-default-action, or else its form's submit button.
 const stack = []
 </script>
 <script setup>
@@ -16,6 +17,16 @@ function keys(event) {
     event.preventDefault()
     event.stopPropagation()
     emit('close')
+  }
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    const action = element.value.querySelector(
+      '[data-default-action]:not(:disabled), button[type="submit"]:not(:disabled)',
+    )
+    if (action) {
+      event.preventDefault()
+      event.stopPropagation()
+      action.click()
+    }
   }
   if (event.key === 'Tab') {
     const focusable = [

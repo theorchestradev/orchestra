@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -185,7 +186,7 @@ func TestUpdatePreferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Shutdown()
-	if reopened.Snapshot().Preferences != prefs {
+	if !reflect.DeepEqual(reopened.Snapshot().Preferences, prefs) {
 		t.Fatalf("update preferences changed on reopen: %+v", reopened.Snapshot().Preferences)
 	}
 	invalid := prefs

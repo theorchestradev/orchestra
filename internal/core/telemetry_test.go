@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/google/uuid"
@@ -68,7 +69,7 @@ func TestTelemetryConsentIdentityPersistence(t *testing.T) {
 	if err := os.WriteFile(filepath.Dir(s.path), []byte("file"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.SetTelemetryConsent(false); err == nil || s.Snapshot().Preferences != previous {
+	if _, err := s.SetTelemetryConsent(false); err == nil || !reflect.DeepEqual(s.Snapshot().Preferences, previous) {
 		t.Fatal("failed consent save changed persisted preferences")
 	}
 }

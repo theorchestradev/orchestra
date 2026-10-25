@@ -260,7 +260,7 @@ async function remove() {
           <p v-if="removeError" class="error" role="alert">{{ removeError }}</p>
           <footer>
             <button class="standard-button" autofocus @click="removal = null">Cancel</button
-            ><button class="standard-button destructive" @click="remove">Remove Profile</button>
+            ><button class="standard-button destructive" data-default-action @click="remove">Remove Profile</button>
           </footer>
         </div></Modal
       >

@@ -770,7 +770,13 @@ if (!mac)
           <p v-if="duplicateError" class="error" role="alert">{{ duplicateError }}</p>
           <footer>
             <button type="button" class="standard-button" @click="reveal(created.id)">{{ revealLabel }}</button
-            ><button ref="doneButton" type="button" class="standard-button primary" @click="duplicating = false">
+            ><button
+              ref="doneButton"
+              type="button"
+              class="standard-button primary"
+              data-default-action
+              @click="duplicating = false"
+            >
               Done
             </button>
           </footer>

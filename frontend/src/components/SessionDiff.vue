@@ -13,7 +13,10 @@ import {
   diffPlaceholder,
   minDiffWidth,
   maxDiffWidth,
+  orderedSidebarTabs,
+  moveSidebarTab,
 } from '../shared/diff'
+import { sidebarDragLayout } from '../shared/sidebarDrag'
 import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
 import SessionFiles from './SessionFiles.vue'
@@ -23,6 +26,8 @@ const props = defineProps({
   width: Number,
   selectedPath: String,
   tab: { type: String, default: 'Changes' },
+  // The saved tab order from preferences.
+  tabOrder: Array,
   // The project's GitHub repository; the PR tab is only offered with one.
   repository: String,
   // Session choices for Resolve conflicts in the PR tab.
@@ -30,8 +35,8 @@ const props = defineProps({
   profiles: Array,
   profileId: String,
 })
-const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab', 'resolve'])
-const tabs = computed(() => (props.repository ? ['Changes', 'Files', 'PR'] : ['Changes', 'Files']))
+const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab', 'reorder', 'resolve'])
+const tabs = computed(() => orderedSidebarTabs(props.tabOrder).filter((tab) => tab !== 'PR' || props.repository))
 const activeTab = computed({
     get: () => (tabs.value.includes(props.tab) ? props.tab : 'Changes'),
     set: (tab) => emit('tab', tab),
@@ -54,6 +59,63 @@ function switchTab(event, step) {
     index = tabs.value.indexOf(activeTab.value)
   activeTab.value = tabs.value[(index + step + tabs.value.length) % tabs.value.length]
   nextTick(() => parent.querySelector('[aria-selected="true"]')?.focus())
+}
+// Tabs reorder by dragging them, or with Option-Left and Option-Right while one has focus.
+const tabDrag = ref(null)
+let tabPointer = null,
+  ignoreTabClick = false
+function moveTab(tab, index) {
+  emit('reorder', orderedSidebarTabs(moveSidebarTab(tabs.value, tab, index)))
+}
+function shiftTab(tab, step) {
+  const index = tabs.value.indexOf(tab) + step
+  if (index >= 0 && index < tabs.value.length) moveTab(tab, index)
+}
+function beginTabDrag(event, tab) {
+  ignoreTabClick = false
+  if (event.button !== 0 || tabPointer) return
+  tabPointer = {
+    tab,
+    pointer: event.pointerId,
+    element: event.currentTarget,
+    startX: event.clientX,
+    from: tabs.value.indexOf(tab),
+    // sidebarDragLayout works on one axis; tabs lay out horizontally.
+    rows: [...event.currentTarget.parentElement.children].map((el) => {
+      const rect = el.getBoundingClientRect()
+      return { top: rect.left, bottom: rect.right }
+    }),
+  }
+  event.currentTarget.setPointerCapture(event.pointerId)
+}
+function moveTabDrag(event) {
+  const d = tabPointer
+  if (!d || event.pointerId !== d.pointer) return
+  const delta = event.clientX - d.startX
+  if (!tabDrag.value && Math.abs(delta) < 5) return
+  ignoreTabClick = true
+  tabDrag.value = { tab: d.tab, ...sidebarDragLayout(d.rows, d.from, delta) }
+}
+function finishTabDrag(event) {
+  const d = tabPointer
+  if (!d || event.pointerId !== d.pointer) return
+  const index = tabDrag.value?.index
+  cancelTabDrag()
+  if (index !== undefined && index !== d.from) moveTab(d.tab, index)
+}
+function cancelTabDrag() {
+  const d = tabPointer
+  tabPointer = null
+  tabDrag.value = null
+  if (d?.element.hasPointerCapture(d.pointer)) d.element.releasePointerCapture(d.pointer)
+}
+function tabStyle(tab, index) {
+  const d = tabDrag.value
+  if (!d) return
+  return { transform: `translateX(${(d.tab === tab ? d.y : d.offsets[index]) || 0}px)` }
+}
+function clickTab(tab) {
+  if (!ignoreTabClick) activeTab.value = tab
 }
 const markers = { add: '+', del: '-', context: ' ', note: '' }
 const diff = ref(null),
@@ -219,9 +281,15 @@ onBeforeUnmount(() => {
     />
     <header class="diff-header">
       <div class="diff-title">
-        <div class="session-pane-tabs" role="tablist" aria-label="Session sidebar">
+        <div
+          class="session-pane-tabs"
+          :class="{ 'session-pane-tabs-sorting': tabDrag }"
+          role="tablist"
+          aria-label="Session sidebar"
+          @dragstart.prevent
+        >
           <button
-            v-for="tab in tabs"
+            v-for="(tab, index) in tabs"
             :id="`session-tab-${tab}`"
             :key="tab"
             role="tab"
@@ -229,9 +297,18 @@ onBeforeUnmount(() => {
             :aria-controls="`session-panel-${tab}`"
             :aria-label="tab === 'PR' ? tabName(tab) : undefined"
             :tabindex="activeTab === tab ? 0 : -1"
-            @click="activeTab = tab"
-            @keydown.left.prevent="switchTab($event, -1)"
-            @keydown.right.prevent="switchTab($event, 1)"
+            :class="{ 'session-pane-tab-dragging': tabDrag?.tab === tab }"
+            :style="tabStyle(tab, index)"
+            @click="clickTab(tab)"
+            @pointerdown="beginTabDrag($event, tab)"
+            @pointermove="moveTabDrag"
+            @pointerup="finishTabDrag"
+            @pointercancel="cancelTabDrag"
+            @lostpointercapture="cancelTabDrag"
+            @keydown.left.exact.prevent="switchTab($event, -1)"
+            @keydown.right.exact.prevent="switchTab($event, 1)"
+            @keydown.alt.left.prevent="shiftTab(tab, -1)"
+            @keydown.alt.right.prevent="shiftTab(tab, 1)"
           >
             <Icon v-if="tab === 'PR'" name="arrow.triangle.pull" :size="11" />{{ tabLabel(tab) }}
           </button>

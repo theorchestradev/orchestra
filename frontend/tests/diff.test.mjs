@@ -1,6 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { parsePatch, splitPath, clampDiffWidth, diffPlaceholder } from '../src/shared/diff.js'
+import {
+  parsePatch,
+  splitPath,
+  clampDiffWidth,
+  diffPlaceholder,
+  orderedSidebarTabs,
+  moveSidebarTab,
+} from '../src/shared/diff.js'
 import { diffTokens, terminalTheme } from '../src/shared/appearance.js'
 
 test('patches parse into hunks with old and new line numbers', () => {
@@ -57,4 +64,12 @@ test('diff colors follow each theme and appearance', () => {
     diffTokens({ theme: 'dracula', appearance: 'dark' })['--diff-added'],
     diffTokens({ theme: 'system', appearance: 'light' })['--diff-added'],
   )
+})
+
+test('sidebar tabs keep a saved order and add missing tabs at the end', () => {
+  assert.deepEqual(orderedSidebarTabs(), ['Changes', 'Files', 'PR'])
+  assert.deepEqual(orderedSidebarTabs(['PR', 'Files']), ['PR', 'Files', 'Changes'])
+  assert.deepEqual(orderedSidebarTabs(['Files', 'Unknown', 'Files']), ['Files', 'Changes', 'PR'])
+  assert.deepEqual(moveSidebarTab(['Changes', 'Files', 'PR'], 'PR', 0), ['PR', 'Changes', 'Files'])
+  assert.deepEqual(moveSidebarTab(['Changes', 'Files', 'PR'], 'Changes', 2), ['Files', 'PR', 'Changes'])
 })

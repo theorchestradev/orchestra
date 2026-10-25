@@ -1443,11 +1443,13 @@ onBeforeUnmount(() => {
         :session="session"
         :selected-path="activeFile?.path"
         :tab="sidebarTab"
+        :tab-order="preferences.sidebarTabs"
         :repository="project?.repository"
         :default-agent="preferences.defaultAgent"
         :profiles="workspace.profiles"
         :profile-id="project?.profileID || ''"
         @tab="sidebarTab = $event"
+        @reorder="changePreferences({ ...preferences, sidebarTabs: $event })"
         @resolve="resolveConflicts"
         @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"
@@ -1783,6 +1785,7 @@ onBeforeUnmount(() => {
             v-for="agent in sessionAgents"
             :key="agent.id"
             :autofocus="agent.id === preferences.defaultAgent"
+            :data-default-action="agent.id === preferences.defaultAgent || undefined"
             :disabled="busy"
             :aria-label="'Start a ' + agent.name + ' session'"
             @click="createSession(agent.id, '', newWorktree, '', null, '', '', sessionProfileID)"
@@ -1888,6 +1891,7 @@ onBeforeUnmount(() => {
           <button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button
           ><button
             class="standard-button destructive"
+            data-default-action
             :disabled="busy || !removalProject"
             @click="confirmRemoveProject"
           >
@@ -1903,7 +1907,12 @@ onBeforeUnmount(() => {
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button
-          ><button class="standard-button destructive" :disabled="busy" @click="confirmDeleteScratchpad">
+          ><button
+            class="standard-button destructive"
+            data-default-action
+            :disabled="busy"
+            @click="confirmDeleteScratchpad"
+          >
             Delete Scratchpad
           </button>
         </footer>
@@ -1932,7 +1941,7 @@ onBeforeUnmount(() => {
         >
         <footer>
           <button class="standard-button" @click="closeModal">Cancel</button
-          ><button class="standard-button destructive" @click="confirmClose">Close Session</button>
+          ><button class="standard-button destructive" data-default-action @click="confirmClose">Close Session</button>
         </footer>
       </div></Modal
     >
@@ -1964,6 +1973,7 @@ onBeforeUnmount(() => {
           ><button
             class="standard-button"
             :class="keptSessionCount ? 'primary' : 'destructive'"
+            data-default-action
             :disabled="quitting"
             @click="finishQuit(false)"
           >
@@ -1990,7 +2000,7 @@ onBeforeUnmount(() => {
           Codex has not sent status events. In its terminal, review and trust the Orchestra hooks at startup, or type
           /hooks to review them now. Then submit a prompt to update the indicator.
         </p>
-        <footer><button class="standard-button" @click="closeModal">OK</button></footer>
+        <footer><button class="standard-button" data-default-action @click="closeModal">OK</button></footer>
       </div></Modal
     >
     <Modal
