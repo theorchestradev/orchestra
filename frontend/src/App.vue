@@ -1232,6 +1232,7 @@ onBeforeUnmount(() => {
         :project-icons="projectIcons"
         :selected-id="sidebarProjects[0]?.id"
         :settings-open="modal === 'settings'"
+        :reorder="(id, index) => move('project', id, index)"
         @select="select($event, 'project')"
         @options="projectMenu($event.event, $event.project, 'project')"
         @settings="openModal('settings')"

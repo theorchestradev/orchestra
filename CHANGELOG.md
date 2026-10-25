@@ -14,6 +14,22 @@ let Orchestra update itself when you ask it to.
   shown, faster while checks run. Copy a failing check to get its output,
   annotations and the end of its log, ready to paste into the agent.
 
+## 0.11.0 — 2026-10-24
+
+### New
+
+- **Muse Code.** Start Muse Code sessions alongside the other agents. They use
+  Muse's built-in auto-review permissions, report their status in the sidebar
+  and resume where they left off. Profiles cannot choose a Muse account yet.
+- **Reorder projects in Arc layout.** Drag a project's icon in the spaces bar
+  to move it to another position.
+- **Rename Session from the command bar.**
+
+### Fixed
+
+- **Dragging a project icon no longer quits Orchestra.** Releasing a dragged
+  project icon over the window in Arc layout made the app crash.
+
 ## 0.10.0 — 2026-10-23
 
 ### New

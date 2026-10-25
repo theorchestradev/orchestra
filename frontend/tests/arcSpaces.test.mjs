@@ -6,6 +6,7 @@ import * as Vue from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { renderToString } from '@vue/server-renderer'
 import { spaceSymbol } from '../src/shared/project.js'
+import { sidebarDragLayout } from '../src/shared/sidebarDrag.js'
 
 test('Arc spaces prefer emoji, then the project favicon, then the initial, and keep compact dots', async () => {
   const template = readFileSync(new URL('../src/components/ArcSpaces.vue', import.meta.url), 'utf8').match(
@@ -20,6 +21,14 @@ test('Arc spaces prefer emoji, then the project favicon, then the initial, and k
     compact: false,
     spaceSymbol,
     focusSpace() {},
+    drag: null,
+    spaceStyle() {},
+    begin() {},
+    move() {},
+    finish() {},
+    cancel() {},
+    lostCapture() {},
+    click() {},
   }
   const html = () =>
     renderToString(Vue.createSSRApp({ render, setup: () => state, components: { Icon: { render: () => null } } }))
@@ -136,4 +145,72 @@ test('project spaces compact when crowded, reveal selection and preserve keyboar
   }
   cleanup()
   assert.equal(disconnected, true)
+})
+
+test('dragging a space past its neighbour reorders projects and swallows the click', async () => {
+  const source = readFileSync(new URL('../src/components/ArcSpaces.vue', import.meta.url), 'utf8')
+    .match(/<script setup>([\s\S]*?)<\/script>/)[1]
+    .replace(/^import .*$/gm, '')
+  const props = reactive({
+    projects: ['a', 'b', 'c'].map((id) => ({ id })),
+    selectedId: 'a',
+    reorder: async (id, index) => moves.push([id, index]),
+  })
+  const moves = [],
+    listeners = {}
+  const spans = [0, 36, 72].map((left) => ({ getBoundingClientRect: () => ({ left, right: left + 30 }) }))
+  const nav = {
+    scrollLeft: 0,
+    children: spans,
+    querySelector: () => null,
+    getBoundingClientRect: () => ({ left: 0, right: 300 }),
+  }
+  const button = { setPointerCapture() {}, hasPointerCapture: () => false }
+  const spaces = new Function(
+    'ref',
+    'computed',
+    'watch',
+    'nextTick',
+    'onMounted',
+    'onBeforeUnmount',
+    'defineProps',
+    'defineEmits',
+    'ResizeObserver',
+    'sidebarDragLayout',
+    'addEventListener',
+    'removeEventListener',
+    'requestAnimationFrame',
+    'cancelAnimationFrame',
+    source + '\nreturn {spaces, drag, begin, move, finish, click}',
+  )(
+    ref,
+    computed,
+    watch,
+    nextTick,
+    () => {},
+    () => {},
+    () => props,
+    () => () => {},
+    class {
+      observe() {}
+    },
+    sidebarDragLayout,
+    (type, fn) => (listeners[type] = fn),
+    (type) => delete listeners[type],
+    () => 1,
+    () => {},
+  )
+  spaces.spaces.value = markRaw(nav)
+  const pointer = { pointerId: 1, button: 0, clientY: 10, currentTarget: button, preventDefault() {} }
+  spaces.begin({ ...pointer, clientX: 10 }, props.projects[0])
+  spaces.move({ ...pointer, clientX: 60 })
+  assert.equal(spaces.drag.value.index, 1)
+  assert.deepEqual(spaces.drag.value.offsets, [0, -36, 0])
+  await spaces.finish({ ...pointer, clientX: 60 })
+  assert.deepEqual(moves, [['a', 1]])
+  assert.equal(spaces.drag.value, null)
+  assert.deepEqual(Object.keys(listeners), [])
+  let stopped = false
+  spaces.click({ detail: 1, preventDefault() {}, stopPropagation: () => (stopped = true) })
+  assert.equal(stopped, true)
 })
