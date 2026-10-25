@@ -1,16 +1,37 @@
 <script>
 // Open modals, innermost last. Only the innermost one handles Escape, Tab and Command-Return, so a
 // dialog opened from Settings closes alone. Command-Return clicks the dialog's main action: the
-// enabled button marked data-default-action, or else its form's submit button.
+// enabled button marked data-default-action, or else its form's submit button. That button shows
+// the shortcut so the action it triggers is visible.
 const stack = []
 </script>
 <script setup>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { mac, shortcutLabel } from '../shared/platform.js'
 const props = defineProps({ label: String, kind: { type: String, default: 'sheet' } })
 const emit = defineEmits(['close'])
 const element = ref(null)
 let previous
 const token = {}
+let observer
+// Buttons inside a nested dialog belong to that dialog.
+function defaultAction() {
+  return [
+    ...element.value.querySelectorAll('[data-default-action]:not(:disabled), button[type="submit"]:not(:disabled)'),
+  ].find((button) => button.closest('.modal') === element.value)
+}
+function markDefaultAction() {
+  const action = defaultAction()
+  for (const button of element.value.querySelectorAll('[data-shortcut]'))
+    if (button !== action && button.closest('.modal') === element.value) {
+      button.removeAttribute('data-shortcut')
+      button.removeAttribute('aria-keyshortcuts')
+    }
+  if (action && !action.hasAttribute('data-shortcut')) {
+    action.setAttribute('data-shortcut', shortcutLabel('⌘↩'))
+    action.setAttribute('aria-keyshortcuts', mac ? 'Meta+Enter' : 'Control+Enter')
+  }
+}
 function keys(event) {
   if (stack.at(-1) !== token) return
   if (event.key === 'Escape') {
@@ -19,9 +40,7 @@ function keys(event) {
     emit('close')
   }
   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-    const action = element.value.querySelector(
-      '[data-default-action]:not(:disabled), button[type="submit"]:not(:disabled)',
-    )
+    const action = defaultAction()
     if (action) {
       event.preventDefault()
       event.stopPropagation()
@@ -51,6 +70,9 @@ onMounted(() => {
   previous = document.activeElement
   stack.push(token)
   document.addEventListener('keydown', keys, true)
+  markDefaultAction()
+  observer = new MutationObserver(markDefaultAction)
+  observer.observe(element.value, { subtree: true, childList: true, attributeFilter: ['disabled'] })
   ;(
     element.value.querySelector('[autofocus]') ||
     element.value.querySelector('input,textarea') ||
@@ -59,6 +81,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', keys, true)
+  observer.disconnect()
   stack.splice(stack.indexOf(token), 1)
   previous?.focus()
 })

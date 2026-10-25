@@ -136,6 +136,12 @@ hr {
   line-height: 1.3;
   white-space: nowrap;
 }
+.standard-button[data-shortcut]::after {
+  content: attr(data-shortcut);
+  content: attr(data-shortcut) / '';
+  font-size: 0.85em;
+  opacity: 0.65;
+}
 .standard-button:hover:not(:disabled) {
   background: var(--selection);
 }
