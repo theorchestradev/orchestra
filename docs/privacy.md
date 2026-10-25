@@ -29,7 +29,7 @@ no autocapture, session replay, person identification or analytics SDK.
 | `project_added` | `has_github_repository`: boolean |
 | `session_started` | `agent`: `claude`, `codex`, `pi`, `vibe`, `opencode`, `antigravity`, `grok`, `cline`, `omp`, `kilo`, `muse`, `terminal`; `worktree`: boolean; `from_github_item`: boolean |
 | `session_ended` | `agent`: `claude`, `codex`, `pi`, `vibe`, `opencode`, `antigravity`, `grok`, `cline`, `omp`, `kilo`, `muse`, `terminal`; `exit_kind`: `normal`, `error`, `killed`; `duration_bucket`: `under_1m`, `1-5m`, `5-30m`, `30m+` |
-| `feature_used` | `feature`: `scratchpad_read`, `scratchpad_cli`, `inbox_execute`, `inbox_auto_delivery`, `diff_view`, `command_bar`, `emoji_picker` |
+| `feature_used` | `feature`: `scratchpad_read`, `scratchpad_cli`, `inbox_execute`, `inbox_auto_delivery`, `diff_view`, `pull_request_view`, `command_bar`, `emoji_picker` |
 | `github_action` | `action`: `work_on`, `review`, `edit_metadata` |
 | `update_installed` | `from_version`: release version; `to_version`: release version |
 | `error_shown` | `code`: `operation_failed`, `session_start_failed`, `session_exit_error` |

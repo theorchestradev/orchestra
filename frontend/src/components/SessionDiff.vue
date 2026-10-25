@@ -17,18 +17,38 @@ import {
 import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
 import SessionFiles from './SessionFiles.vue'
+import SessionPullRequest, { loadPullRequest, pullRequests } from './SessionPullRequest.vue'
 const props = defineProps({
   session: Object,
   width: Number,
   selectedPath: String,
   tab: { type: String, default: 'Changes' },
+  // The project's GitHub repository; the PR tab is only offered with one.
+  repository: String,
 })
 const emit = defineEmits(['close', 'resize', 'resized', 'open-file', 'tab'])
-const activeTab = computed({ get: () => props.tab, set: (tab) => emit('tab', tab) }),
-  fileBrowser = ref(null)
-function switchTab(event) {
-  const parent = event.currentTarget.parentElement
-  activeTab.value = activeTab.value === 'Changes' ? 'Files' : 'Changes'
+const tabs = computed(() => (props.repository ? ['Changes', 'Files', 'PR'] : ['Changes', 'Files']))
+const activeTab = computed({
+    get: () => (tabs.value.includes(props.tab) ? props.tab : 'Changes'),
+    set: (tab) => emit('tab', tab),
+  }),
+  fileBrowser = ref(null),
+  pullRequest = ref(null)
+const pullRequestNumber = computed(() => pullRequests.get(props.session.id)?.number)
+const tabLabel = (tab) => (tab === 'PR' && pullRequestNumber.value ? String(pullRequestNumber.value) : tab)
+const tabName = (tab) =>
+  tab === 'PR' ? (pullRequestNumber.value ? `Pull Request #${pullRequestNumber.value}` : 'Pull Request') : tab
+// Files and PR expose their own refresh and loading state.
+const activePanel = computed(() => ({ Files: fileBrowser.value, PR: pullRequest.value })[activeTab.value])
+const panelLoading = computed(() => (activeTab.value === 'Changes' ? loading.value : activePanel.value?.loading))
+function refreshActive() {
+  if (activeTab.value === 'Changes') refresh()
+  else activePanel.value?.refresh()
+}
+function switchTab(event, step) {
+  const parent = event.currentTarget.parentElement,
+    index = tabs.value.indexOf(activeTab.value)
+  activeTab.value = tabs.value[(index + step + tabs.value.length) % tabs.value.length]
   nextTick(() => parent.querySelector('[aria-selected="true"]')?.focus())
 }
 const markers = { add: '+', del: '-', context: ' ', note: '' }
@@ -154,8 +174,18 @@ watch(
     refresh()
   },
 )
+// The PR tab shows the pull request number before it is opened, so read its status once.
+watch(
+  () => [props.session.id, props.repository],
+  ([id, repository]) => {
+    if (repository && !pullRequests.has(id)) loadPullRequest(id).catch(() => {})
+  },
+  { immediate: true },
+)
 // An agent turn finishing or a process exiting usually means files changed.
 watch([() => props.session.activity, () => props.session.running], () => {
+  // A finished turn may have pushed a branch, so keep the tab label current.
+  if (props.repository && activeTab.value !== 'PR') loadPullRequest(props.session.id).catch(() => {})
   clearTimeout(activityTimer)
   activityTimer = setTimeout(refresh, 400)
 })
@@ -170,12 +200,12 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <aside class="diff-pane" :aria-label="activeTab" :style="{ '--diff-pane-width': width + 'px' }">
+  <aside class="diff-pane" :aria-label="tabName(activeTab)" :style="{ '--diff-pane-width': width + 'px' }">
     <div
       class="diff-resizer"
       role="separator"
       tabindex="0"
-      :aria-label="`Resize ${activeTab}`"
+      :aria-label="`Resize ${tabName(activeTab)}`"
       aria-orientation="vertical"
       :aria-valuenow="width"
       :aria-valuemin="minDiffWidth"
@@ -187,27 +217,28 @@ onBeforeUnmount(() => {
       <div class="diff-title">
         <div class="session-pane-tabs" role="tablist" aria-label="Session sidebar">
           <button
-            v-for="tab in ['Changes', 'Files']"
+            v-for="tab in tabs"
             :id="`session-tab-${tab}`"
             :key="tab"
             role="tab"
             :aria-selected="activeTab === tab"
             :aria-controls="`session-panel-${tab}`"
+            :aria-label="tab === 'PR' ? tabName(tab) : undefined"
             :tabindex="activeTab === tab ? 0 : -1"
             @click="activeTab = tab"
-            @keydown.left.prevent="switchTab"
-            @keydown.right.prevent="switchTab"
+            @keydown.left.prevent="switchTab($event, -1)"
+            @keydown.right.prevent="switchTab($event, 1)"
           >
-            {{ tab }}
+            <Icon v-if="tab === 'PR'" name="arrow.triangle.pull" :size="11" />{{ tabLabel(tab) }}
           </button>
         </div>
         <span class="spacer" /><button
           class="icon-button"
-          :class="{ spinning: activeTab === 'Changes' ? loading : fileBrowser?.loading }"
-          :aria-label="`Refresh ${activeTab}`"
-          :title="`Refresh ${activeTab}`"
-          :disabled="activeTab === 'Changes' ? loading : fileBrowser?.loading"
-          @click="activeTab === 'Changes' ? refresh() : fileBrowser?.refresh()"
+          :class="{ spinning: panelLoading }"
+          :aria-label="`Refresh ${tabName(activeTab)}`"
+          :title="`Refresh ${tabName(activeTab)}`"
+          :disabled="panelLoading"
+          @click="refreshActive"
         >
           <Icon name="arrow.clockwise" :size="14" /></button
         ><button
@@ -238,6 +269,14 @@ onBeforeUnmount(() => {
       :session="session"
       :selected-path="selectedPath"
       @open="emit('open-file', $event)"
+    />
+    <SessionPullRequest
+      v-if="activeTab === 'PR'"
+      id="session-panel-PR"
+      ref="pullRequest"
+      role="tabpanel"
+      aria-labelledby="session-tab-PR"
+      :session="session"
     />
     <div
       v-show="activeTab === 'Changes'"

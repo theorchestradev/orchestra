@@ -80,6 +80,12 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       shortcut: shortcut('diff'),
     },
     project && { id: 'files', group: 'App', name: 'Toggle Files', icon: 'folder', shortcut: shortcut('files') },
+    project?.repository && {
+      id: 'pullRequest',
+      group: 'App',
+      name: 'Toggle Pull Request',
+      icon: 'arrow.triangle.pull',
+    },
     {
       id: 'appearance',
       group: 'App',
