@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTerminal } from '../shared/appearance'
 import { shortcutLabel } from '../shared/platform'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
+import { repositories, sessionRepository } from '../shared/project'
 import Icon from './Icon.vue'
 import UsageStatus from './UsageStatus.vue'
 const props = defineProps({
@@ -46,6 +47,14 @@ const usageProfileID = computed(() => {
   const id = (props.session || props.project)?.profileID || ''
   return findProfile(props.profiles, id) ? id : ''
 })
+// The session's repository, fixed for its life; without a session, the workspace's only one.
+const repository = computed(() =>
+  props.session
+    ? sessionRepository(props.project, props.session)
+    : repositories(props.project).length === 1
+      ? repositories(props.project)[0]
+      : null,
+)
 const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
 const inbox = computed(() =>
   [
@@ -60,7 +69,13 @@ const inbox = computed(() =>
   <footer class="status-bar" aria-label="Status bar">
     <div class="status-context">
       <template v-if="project"
-        ><span class="status-item truncate" :title="project.directory"
+        ><span
+          class="status-item truncate"
+          :title="
+            repositories(project)
+              .map((r) => r.directory)
+              .join('\n')
+          "
           ><span v-if="project.emoji" class="status-emoji" aria-hidden="true">{{ project.emoji }}</span
           ><img v-else-if="projectIcon" class="status-project-icon" :src="projectIcon" alt="" /><Icon
             v-else
@@ -68,10 +83,11 @@ const inbox = computed(() =>
             :size="12"
           /><span class="truncate">{{ project.name }}</span></span
         ><span
-          v-if="project.repository"
+          v-if="repository"
           class="status-item status-optional truncate"
-          :title="'GitHub repository ' + project.repository"
-          >{{ project.repository }}</span
+          :title="repository.directory + (repository.gitHub ? ' · GitHub repository ' + repository.gitHub : '')"
+          ><Icon name="folder" :size="12" /><span class="visually-hidden">Repository: </span
+          ><span class="truncate">{{ repository.gitHub || repository.name }}</span></span
         ></template
       >
       <template v-if="session"
@@ -93,10 +109,10 @@ const inbox = computed(() =>
           :title="
             session.worktreeBranch
               ? session.worktreeBranch + ' · ' + session.worktreeDirectory
-              : 'Runs in the project folder'
+              : 'Runs in the ' + (repository?.name || 'repository') + ' folder'
           "
           ><Icon name="arrow.triangle.branch" :size="12" /><span class="truncate">{{
-            session.worktreeBranch || 'Project folder'
+            session.worktreeBranch || 'Repository folder'
           }}</span></span
         ><span v-if="session.exitMessage" class="status-item status-optional truncate" :title="session.exitMessage">{{
           session.exitMessage
@@ -104,7 +120,7 @@ const inbox = computed(() =>
       >
       <span v-else-if="destination === 'github' || destination === 'scratchpad'" class="status-item"
         ><Icon :name="destination === 'github' ? 'list.bullet.rectangle' : 'note.text'" :size="12" />{{
-          destination === 'github' ? 'GitHub' : project.scratchpadName || 'Scratchpad'
+          destination === 'github' ? 'Work Items' : project.scratchpadName || 'Scratchpad'
         }}</span
       >
     </div>
@@ -112,7 +128,7 @@ const inbox = computed(() =>
       <span
         class="status-item"
         :title="
-          summary.running + ' running ' + (summary.running === 1 ? 'session' : 'sessions') + ' across all projects'
+          summary.running + ' running ' + (summary.running === 1 ? 'session' : 'sessions') + ' across all workspaces'
         "
         ><template v-if="summary.running"
           ><span v-if="summary.working" class="status-item"

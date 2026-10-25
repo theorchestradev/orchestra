@@ -2,7 +2,18 @@
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, copy, openURL } from '../shared/api'
 import { relativeDate } from '../shared/appearance'
-import { canWorkOn, descriptionSource, isPermissionError, itemSessions, pullConflict } from '../shared/github'
+import {
+  canWorkOn,
+  descriptionSource,
+  isPermissionError,
+  itemKey,
+  itemSessions,
+  matchesWorkItem,
+  pullConflict,
+  workItemAssignees,
+  workItems,
+} from '../shared/github'
+import { gitHubRepositories } from '../shared/project'
 import { sanitize } from '../shared/markdown'
 import { shortcutLabel } from '../shared/platform'
 import { refreshDelay } from '../shared/pullRequest'
@@ -30,9 +41,14 @@ const detailElement = ref(null),
 const state = ref('open'),
   pull = ref(false),
   search = ref(''),
+  // The source and assignee filters; '' shows all, and '-' items without assignees.
+  source = ref(''),
+  assignee = ref(''),
   items = ref([]),
   loading = ref(false),
   error = ref(''),
+  // Sources that failed while others loaded: [{ name, message }].
+  sourceErrors = ref([]),
   selected = ref(null),
   content = ref(null),
   detailsLoading = ref(false),
@@ -46,15 +62,18 @@ let request = 0,
   detailRequest = 0,
   checksRequest = 0,
   checksTimer
+// Work Items lists each GitHub repository of the workspace; GitLab and Linear can join as sources.
+const sources = computed(() => gitHubRepositories(props.project))
+const sourceKey = computed(() => sources.value.map((r) => r.id + ':' + r.gitHub).join(','))
+const repositoryOf = (item) => sources.value.find((r) => r.id === item?.repositoryID)
+const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
 const visibleItems = computed(() =>
-  items.value.filter(
-    (item) =>
-      Boolean(item.pull_request) === pull.value &&
-      (!search.value ||
-        item.title.toLowerCase().includes(search.value.toLowerCase()) ||
-        ('#' + item.number).includes(search.value)),
-  ),
+  items.value.filter((item) => matchesWorkItem(item, { ...filters.value, pull: pull.value })),
 )
+const typeCount = (type) => items.value.filter((item) => matchesWorkItem(item, { ...filters.value, pull: type })).length
+const assignees = computed(() => workItemAssignees(items.value))
+// Rows name their source when several repositories are listed.
+const showsSource = computed(() => sources.value.length > 1)
 const status = (item) =>
   item.merged || item.pull_request?.merged_at
     ? 'Merged'
@@ -86,14 +105,22 @@ async function load(background = false) {
     items.value = []
   }
   error.value = ''
-  try {
-    const result = await call('GitHubItems', props.project.id, state.value)
-    if (token === request) items.value = result
-  } catch (e) {
-    if (token === request) error.value = String(e)
-  } finally {
-    if (token === request) loading.value = false
-  }
+  const repositories = sources.value
+  const results = await Promise.allSettled(
+    repositories.map((repo) => call('GitHubItems', props.project.id, repo.id, state.value)),
+  )
+  if (token !== request) return
+  const loaded = results.flatMap((r, i) =>
+    r.status === 'fulfilled' ? [{ repository: repositories[i], items: r.value }] : [],
+  )
+  const failed = results.flatMap((r, i) =>
+    r.status === 'rejected' ? [{ name: repositories[i].name, message: String(r.reason) }] : [],
+  )
+  if (loaded.length || !failed.length) items.value = workItems(loaded)
+  sourceErrors.value = loaded.length ? failed : []
+  if (!loaded.length && failed.length)
+    error.value = failed.map((f) => (repositories.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
+  loading.value = false
 }
 async function detail(item, background = false) {
   selected.value = item
@@ -105,7 +132,13 @@ async function detail(item, background = false) {
   detailsError.value = ''
   if (!background) loadChecks(item)
   try {
-    const result = await call('GitHubDetail', props.project.id, item.number, Boolean(item.pull_request))
+    const result = await call(
+      'GitHubDetail',
+      props.project.id,
+      item.repositoryID,
+      item.number,
+      Boolean(item.pull_request),
+    )
     if (token === detailRequest) content.value = result
   } catch (e) {
     if (token === detailRequest) detailsError.value = String(e)
@@ -124,7 +157,7 @@ async function loadChecks(item, background = false) {
   }
   if (!item.pull_request) return
   try {
-    const result = await call('GitHubPullRequest', props.project.id, item.number)
+    const result = await call('GitHubPullRequest', props.project.id, item.repositoryID, item.number)
     if (token === checksRequest) {
       pullStatus.value = result
       checksError.value = ''
@@ -143,7 +176,7 @@ function scheduleChecks() {
       refreshDelay(pullStatus.value),
     )
 }
-const loadFailure = (jobID) => call('GitHubCheckFailure', props.project.id, jobID)
+const loadFailure = (jobID) => call('GitHubCheckFailure', props.project.id, selected.value.repositoryID, jobID)
 function back() {
   if (editing.value || draft.value?.saving) return
   discardDraft(() => {
@@ -156,7 +189,7 @@ function back() {
 const draftChanged = computed(() => draft.value && draft.value.text !== draft.value.source)
 const conflict = computed(() => selected.value?.pull_request && pullConflict(content.value?.detail))
 const canEditDescription = computed(
-  () => content.value && !readOnly.value.has(`${Boolean(selected.value.pull_request)}#${selected.value.number}`),
+  () => content.value && !readOnly.value.has(`${Boolean(selected.value.pull_request)}:${itemKey(selected.value)}`),
 )
 async function editDescription() {
   draft.value = {
@@ -197,13 +230,18 @@ async function saveDescription() {
   current.saving = true
   current.error = ''
   try {
-    await call('UpdateGitHubMetadata', props.project.id, item.number, Boolean(item.pull_request), 'body', [
-      current.text,
-      current.original,
-    ])
+    await call(
+      'UpdateGitHubMetadata',
+      props.project.id,
+      item.repositoryID,
+      item.number,
+      Boolean(item.pull_request),
+      'body',
+      [current.text, current.original],
+    )
   } catch (e) {
     current.error = String(e)
-    if (isPermissionError(e)) readOnly.value.add(`${Boolean(item.pull_request)}#${item.number}`)
+    if (isPermissionError(e)) readOnly.value.add(`${Boolean(item.pull_request)}:${itemKey(item)}`)
     return
   } finally {
     current.saving = false
@@ -219,7 +257,7 @@ async function metadataSaved(patch) {
   const anchor = editing.value?.anchor
   editing.value = null
   Object.assign(content.value.detail, patch)
-  const row = items.value.find((i) => i.number === selected.value.number)
+  const row = items.value.find((i) => itemKey(i) === itemKey(selected.value))
   if (row) Object.assign(row, patch)
   await nextTick()
   anchor?.focus()
@@ -314,6 +352,15 @@ onBeforeUnmount(() => {
   checksRequest++
 })
 watch(state, () => load())
+// Adding, removing or detecting a repository changes what Work Items lists.
+watch(sourceKey, () => {
+  if (source.value && !sources.value.some((r) => r.id === source.value)) source.value = ''
+  if (selected.value && !repositoryOf(selected.value)) back()
+  load()
+})
+watch(assignees, (logins) => {
+  if (assignee.value && assignee.value !== '-' && !logins.includes(assignee.value)) assignee.value = ''
+})
 onMounted(() => load())
 </script>
 <template>
@@ -321,10 +368,19 @@ onMounted(() => load())
     <header class="github-header">
       <div class="github-heading">
         <div>
-          <h2>Issues &amp; PRs</h2>
-          <button class="text-link muted caption" @click="openURL('https://github.com/' + project.repository)">
-            {{ project.repository }}
-          </button>
+          <h2>Work Items</h2>
+          <span class="work-item-sources"
+            ><button
+              v-for="repo in sources"
+              :key="repo.id"
+              class="text-link muted caption"
+              :title="repo.name + ' · ' + repo.directory"
+              :aria-label="'Open ' + repo.gitHub + ' on GitHub'"
+              @click="openURL('https://github.com/' + repo.gitHub)"
+            >
+              <Icon name="github" :size="12" />{{ repo.gitHub }}
+            </button></span
+          >
         </div>
         <button class="standard-button muted" :disabled="loading" @click="load">
           <Icon name="arrow.clockwise" :size="14" />Refresh
@@ -342,15 +398,13 @@ onMounted(() => load())
           >
             <Icon :name="type ? 'arrow.triangle.branch' : 'circle.dotted'" :size="14" />{{
               type ? 'Pull requests' : 'Issues'
-            }}<span class="count">{{
-              loading ? '—' : items.filter((i) => Boolean(i.pull_request) === type).length
-            }}</span>
+            }}<span class="count">{{ loading ? '—' : typeCount(type) }}</span>
           </button>
         </div>
         <label class="search-field"
           ><Icon name="magnifyingglass" :size="14" /><input
             v-model="search"
-            aria-label="Search issues and PRs"
+            aria-label="Search work items"
             placeholder="Search by title or number" /><button
             v-if="search"
             class="icon-button"
@@ -358,31 +412,48 @@ onMounted(() => load())
             @click="search = ''"
           >
             <Icon name="xmark.circle.fill" :size="12" /></button></label
-        ><label class="status-filter"
-          ><Icon name="line.3.horizontal.decrease" :size="14" /><select v-model="state" aria-label="Status">
-            <option value="open">Open</option>
-            <option value="closed">Closed</option>
-            <option value="all">All</option></select
-          ><Icon name="chevron.down" :size="9"
-        /></label>
+        ><span class="work-item-filters"
+          ><label class="status-filter"
+            ><Icon name="line.3.horizontal.decrease" :size="14" /><select v-model="state" aria-label="Status">
+              <option value="open">Open</option>
+              <option value="closed">Closed</option>
+              <option value="all">All</option></select
+            ><Icon name="chevron.down" :size="9" /></label
+          ><label v-if="sources.length > 1" class="status-filter"
+            ><Icon name="folder" :size="14" /><select v-model="source" aria-label="Source">
+              <option value="">All sources</option>
+              <option v-for="repo in sources" :key="repo.id" :value="repo.id">{{ repo.name }}</option></select
+            ><Icon name="chevron.down" :size="9" /></label
+          ><label class="status-filter"
+            ><Icon name="person.crop.circle" :size="14" /><select v-model="assignee" aria-label="Assignee">
+              <option value="">Anyone</option>
+              <option value="-">Unassigned</option>
+              <option v-for="login in assignees" :key="login" :value="login">{{ login }}</option></select
+            ><Icon name="chevron.down" :size="9" /></label
+        ></span>
       </div>
     </header>
     <div v-if="loading" class="empty-state">
       <span class="spinner" />
-      <p class="muted">Loading issues and PRs…</p>
+      <p class="muted">Loading work items…</p>
     </div>
     <div v-else-if="error" class="empty-state github-unavailable">
       <Icon name="exclamationmark.triangle" :size="42" />
-      <h2>Could not load GitHub</h2>
-      <p>{{ error }}</p>
+      <h2>Could not load work items</h2>
+      <p class="source-error">{{ error }}</p>
       <button class="standard-button" @click="load">Try Again</button>
     </div>
     <div v-else-if="!visibleItems.length" class="empty-state github-unavailable">
       <Icon :name="pull ? 'arrow.triangle.branch' : 'circle.dotted'" :size="42" />
       <h2>{{ pull ? 'No Pull Requests' : 'No Issues' }}</h2>
-      <p>{{ search ? 'No items match your search.' : 'There are no items with this status.' }}</p>
+      <p>
+        {{ search || source || assignee ? 'No items match your filters.' : 'There are no items with this status.' }}
+      </p>
     </div>
-    <div v-else class="github-table">
+    <p v-for="failure in sourceErrors" :key="failure.name" class="status-error caption source-warning" role="alert">
+      Could not load {{ failure.name }}: {{ failure.message }}
+    </p>
+    <div v-if="!loading && !error && visibleItems.length" class="github-table">
       <div class="github-table-head">
         <span>ID</span><span>TITLE</span><span class="wide-column"><span class="visually-hidden">Sessions</span></span
         ><span class="wide-column">ASSIGNEES</span><span>STATUS</span><span class="wide-column">UPDATED</span>
@@ -390,7 +461,7 @@ onMounted(() => load())
       <div class="github-rows">
         <div
           v-for="item in visibleItems"
-          :key="item.number"
+          :key="itemKey(item)"
           class="github-row"
           @click="detail(item)"
           @contextmenu="showItemMenu($event, item)"
@@ -403,7 +474,9 @@ onMounted(() => load())
             ><button class="item-title-line item-open">
               <strong :title="item.title">{{ item.title }}</strong
               ><span class="muted caption item-byline"
-                >by {{ item.user?.login || 'Deleted user'
+                ><span v-if="showsSource" class="item-source" :title="'GitHub · ' + item.repositoryGitHub"
+                  ><Icon name="github" :size="10" />{{ item.repositoryName }}</span
+                >{{ showsSource ? ' · ' : '' }}by {{ item.user?.login || 'Deleted user'
                 }}<span class="compact-date"> · {{ relativeDate(item.updated_at) }}</span></span
               ></button
             ><span v-if="item.labels?.length" class="labels"
@@ -447,8 +520,9 @@ onMounted(() => load())
   </section>
   <section v-else ref="detailElement" class="github-detail">
     <header class="detail-toolbar">
-      <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />GitHub list</button
-      ><span class="muted">/</span><span class="truncate repository">{{ project.repository }}</span
+      <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />Work Items</button
+      ><span class="muted">/</span
+      ><span class="truncate repository" :title="selected.repositoryName">{{ selected.repositoryGitHub }}</span
       ><button
         class="text-link item-number"
         :aria-label="`Open #${selected.number} on GitHub`"
@@ -575,13 +649,13 @@ onMounted(() => load())
           :profiles="profiles"
           :profile-id="project.profileID || ''"
           :visible="visible"
-          :read-only="readOnly.has(`true#${selected.number}`)"
-          @resolve="emit('resolve', conflict, $event)"
+          :read-only="readOnly.has(`true:${itemKey(selected)}`)"
+          @resolve="emit('resolve', { ...conflict, repositoryID: selected.repositoryID }, $event)"
         />
         <template v-if="selected.pull_request">
           <PullRequestChecks
             v-if="pullStatus"
-            :key="selected.number"
+            :key="itemKey(selected)"
             :status="pullStatus"
             :load-failure="loadFailure"
             @error="checksError = $event"
@@ -692,8 +766,9 @@ onMounted(() => load())
     ></Teleport
   >
   <GitHubMetadataEditor
-    v-if="editing && content"
+    v-if="editing && content && repositoryOf(selected)"
     :project="project"
+    :repository="repositoryOf(selected)"
     :item="content.detail"
     :pull="Boolean(selected.pull_request)"
     :field="editing.field"

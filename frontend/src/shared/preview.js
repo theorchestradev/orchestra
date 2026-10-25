@@ -3,6 +3,8 @@ import { emitPreview } from './api'
 import { projectRows } from './appearance'
 const id = () => crypto.randomUUID()
 const projectID = id(),
+  appID = id(),
+  siteID = id(),
   sessionID = id(),
   peerID = id(),
   workID = id(),
@@ -65,9 +67,12 @@ let state = {
     {
       id: projectID,
       name: 'Orchestra',
-      directory: '/tmp/orchestra-visual-fixture',
+      repositories: [
+        { id: appID, name: 'app', directory: '/tmp/orchestra-visual-fixture', gitHub: 'example/orchestra' },
+        { id: siteID, name: 'site', directory: '/tmp/orchestra-visual-site', gitHub: 'example/site' },
+      ],
+      lastRepositoryID: appID,
       isExpanded: true,
-      repository: 'example/orchestra',
       hasScratchpad: true,
       scratchpadText: '',
       scratchpadRevision: 0,
@@ -88,6 +93,7 @@ let state = {
           running: false,
           activity: 'waiting',
           profileID: workID,
+          repositoryID: appID,
         },
         {
           id: peerID,
@@ -98,6 +104,7 @@ let state = {
           running: false,
           activity: 'working',
           profileID: sideID,
+          repositoryID: siteID,
         },
       ],
     },
@@ -129,6 +136,16 @@ const clone = () => structuredClone(state),
     return clone()
   },
   project = (id) => state.projects.find((p) => p.id === id),
+  // An empty repository ID names the workspace's only repository, or for new sessions the last one used.
+  repository = (pid, rid, fallback) => {
+    const repos = project(pid).repositories
+    return (
+      repos.find((r) => r.id === rid) ||
+      (!rid &&
+        (repos.length === 1 || fallback) &&
+        (repos.find((r) => r.id === project(pid).lastRepositoryID) || repos[0]))
+    )
+  },
   session = (id) => state.projects.flatMap((p) => p.sessions).find((s) => s.id === id)
 const item = {
   number: 42,
@@ -141,6 +158,26 @@ const item = {
   labels: [{ name: 'enhancement', color: '58a6ff' }],
   assignees: [],
 }
+const siteItems = [
+  {
+    ...structuredClone(item),
+    number: 42,
+    title: 'Mirror the Work Items view in the product preview',
+    html_url: 'https://github.com/example/site/issues/42',
+    assignees: [{ login: 'reviewer' }],
+    labels: [{ name: 'a very long label name for compact window verification', color: 'e5c07b' }],
+  },
+  {
+    ...structuredClone(item),
+    number: 7,
+    title: 'Document workspaces with several repositories',
+    html_url: 'https://github.com/example/site/issues/7',
+    updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    labels: [],
+  },
+]
+let previewFolders = -1
+const repositoryItems = (rid) => (rid === siteID ? siteItems : githubItems)
 const labels = [
   { name: 'enhancement', color: '58a6ff' },
   { name: 'bug', color: 'e45656' },
@@ -337,19 +374,22 @@ export const backend = {
   },
   RevealCustomTheme: (id) => console.debug('Preview: reveal ' + id),
   Workspace: clone,
-  ChooseFolder: () => '/tmp/orchestra-visual-fixture',
+  // Folders named *no-git* are not Git repositories.
+  ChooseFolder: () =>
+    ['/tmp/orchestra-visual-docs', '/tmp/orchestra-visual-no-git-notes', '/tmp/orchestra-visual-fixture'][
+      (previewFolders = (previewFolders + 1) % 3)
+    ],
   CreateProject: (name, directory, description = '') => {
     const p = {
       id: id(),
       name,
       description: description.trim(),
-      directory,
+      repositories: [{ id: id(), name: directory.split('/').filter(Boolean).at(-1), directory }],
       isExpanded: true,
       sessions: [],
       hasScratchpad: false,
       scratchpadText: '',
       scratchpadRevision: 0,
-      repository: '',
     }
     state.projects.push(p)
     state.selectedProjectID = p.id
@@ -366,6 +406,31 @@ export const backend = {
         p.isExpanded = true
       } else if (!p.showsGitHub) p.selectedSessionID = destination
     }
+    return changed()
+  },
+  AddRepository: (pid, directory) => {
+    const p = project(pid),
+      existing = p.repositories.find((r) => r.directory === directory)
+    if (existing) return Promise.reject(`${directory} is already in this workspace as ${existing.name}.`)
+    p.repositories.push({ id: id(), name: directory.split('/').filter(Boolean).at(-1), directory })
+    return backend.DetectRepository(pid)
+  },
+  RenameRepository: (pid, rid, name) => {
+    repository(pid, rid).name = name.trim()
+    return changed()
+  },
+  RemoveRepository: (pid, rid) => {
+    const p = project(pid),
+      repo = repository(pid, rid),
+      count = p.sessions.filter((s) => s.repositoryID === rid).length
+    if (p.repositories.length === 1)
+      return Promise.reject(`A workspace needs at least one repository. Add another before removing ${repo.name}.`)
+    if (count)
+      return Promise.reject(
+        `Close the ${count} ${count === 1 ? 'session' : 'sessions'} in ${repo.name} before removing it.`,
+      )
+    p.repositories = p.repositories.filter((r) => r.id !== rid)
+    if (p.lastRepositoryID === rid) p.lastRepositoryID = ''
     return changed()
   },
   EditProject: (pid, name, description, emoji = '') => {
@@ -434,10 +499,14 @@ export const backend = {
     return changed()
   },
   WorktreeBranches: () => ({ current: 'main', branches: ['orchestra/claude-code-1', 'release/1.4', 'origin/main'] }),
-  CanCreateWorktree: (pid) => !/no-git/.test(project(pid).directory) || !!project(pid).gitInitialized,
+  CanCreateWorktree: (pid, rid) => {
+    const repo = repository(pid, rid)
+    return !/no-git/.test(repo.directory) || !!repo.gitInitialized
+  },
   DetectRepository: (pid) => {
-    const p = project(pid)
-    if (!p.repository) p.repository = 'example/' + p.name.toLowerCase().replace(/\W+/g, '-')
+    for (const repo of project(pid).repositories)
+      if (!repo.gitHub && !/no-git/.test(repo.directory))
+        repo.gitHub = 'example/' + repo.name.toLowerCase().replace(/\W+/g, '-')
     return changed()
   },
   AgentSkillStatus: async () => {
@@ -522,6 +591,7 @@ export const backend = {
     const profile = state.profiles.find((p) => p.id === profileID)
     backend.CreateSession(
       pid,
+      '',
       'terminal',
       `Log In · ${name} · ${profile?.name || 'Default'}`,
       '',
@@ -571,18 +641,31 @@ export const backend = {
     )
   },
   // Preview folders named *no-git* disable worktrees in New Session and offer Initialize Git.
-  InitializeGitRepository: async (pid) => {
+  InitializeGitRepository: async (pid, rid) => {
     await new Promise((r) => setTimeout(r, 600))
-    const p = project(pid)
-    if (p.gitInitialized || !/no-git/.test(p.directory))
-      return Promise.reject('The project folder is already in the Git repository at ' + p.directory + '.')
-    p.gitInitialized = true
+    const repo = repository(pid, rid)
+    if (repo.gitInitialized || !/no-git/.test(repo.directory))
+      return Promise.reject('The folder is already in the Git repository at ' + repo.directory + '.')
+    repo.gitInitialized = true
     return changed()
   },
-  CreateSession: (pid, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID = '', branch = '') => {
-    if (createWorktree && agent !== 'terminal' && /no-git/.test(project(pid).directory))
+  CreateSession: (
+    pid,
+    rid,
+    agent,
+    name,
+    prompt,
+    createWorktree,
+    gitHubItem,
+    model,
+    effort,
+    profileID = '',
+    branch = '',
+  ) => {
+    const repo = repository(pid, rid, true)
+    if (createWorktree && agent !== 'terminal' && /no-git/.test(repo.directory))
       return Promise.reject(
-        project(pid).gitInitialized
+        repo.gitInitialized
           ? 'Commit the repository before creating a worktree: git: fatal: Needed a single revision'
           : 'A worktree requires a Git repository: git: fatal: not a git repository (or any of the parent directories): .git',
       )
@@ -615,6 +698,7 @@ export const backend = {
         activity: 'unknown',
         hasLaunched: false,
         initialPrompt: prompt,
+        repositoryID: repo.id,
       }
     if (gitHubItem && agent !== 'terminal') sess.gitHubItem = gitHubItem
     if (profileID) sess.profileID = profileID
@@ -637,6 +721,7 @@ export const backend = {
         '/tmp/orchestra-preview-worktrees/' + sess.worktreeBranch.replace(/^orchestra\//, '').replaceAll('/', '-')
     }
     p.sessions.push(sess)
+    p.lastRepositoryID = repo.id
     p.selectedSessionID = sess.id
     p.showsScratchpad = p.showsGitHub = false
     p.isExpanded = true
@@ -649,7 +734,9 @@ export const backend = {
       !state.preferences.keepLocalMainUpdated &&
       !p.localMainNoticeDismissed
     )
-      setTimeout(() => emitPreview('local-main-behind', { projectID: pid, branch: 'main', behind: 4 }))
+      setTimeout(() =>
+        emitPreview('local-main-behind', { projectID: pid, repositoryID: repo.id, branch: 'main', behind: 4 }),
+      )
     return result
   },
   KeepLocalMainUpToDate: () => {
@@ -701,7 +788,9 @@ export const backend = {
     const files = s.worktreeDirectory ? previewFiles : previewFiles.slice(1, 2)
     return {
       scope: s.worktreeDirectory ? 'worktree' : 'folder',
-      directory: s.worktreeDirectory || project(state.selectedProjectID)?.directory,
+      directory:
+        s.worktreeDirectory ||
+        state.projects.flatMap((p) => p.repositories).find((r) => r.id === s.repositoryID)?.directory,
       base: s.worktreeDirectory ? '3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345' : 'HEAD',
       files: structuredClone(files),
       additions: files.reduce((n, f) => n + f.additions, 0),
@@ -784,11 +873,11 @@ export const backend = {
     }
     return changed()
   },
-  GitHubItems: (pid, status) => {
-    console.debug('Preview: GitHub refresh', pid)
-    return structuredClone(githubItems.filter((i) => status === 'all' || i.state === status))
+  GitHubItems: (pid, rid, status) => {
+    console.debug('Preview: GitHub refresh', pid, rid)
+    return structuredClone(repositoryItems(rid).filter((i) => status === 'all' || i.state === status))
   },
-  GitHubPullRequest: (_pid, number) => {
+  GitHubPullRequest: (_pid, _rid, number) => {
     const ci = (name, workflow, status, duration, jobID) => ({
       name,
       workflow,
@@ -813,14 +902,14 @@ export const backend = {
       ],
     }
   },
-  GitHubCheckFailure: (_pid, jobID) =>
+  GitHubCheckFailure: (_pid, _rid, jobID) =>
     `Check: server-tests (ubuntu-latest)\nConclusion: failure\nURL: https://github.com/example/orchestra/actions/runs/1/job/${jobID}\n\nLog:\n\`\`\`\n--- FAIL: TestPreview (0.01s)\n\`\`\``,
-  GitHubDetail: (_pid, number, pull) => ({
+  GitHubDetail: (_pid, rid, number, pull) => ({
     detail: {
       body: 'Keep each project’s processes and terminal scrollback alive when navigating between sessions.\n\n```\nSwitch projects → return to the same conversation\n```',
       body_html:
         '<p>Keep each project’s processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch projects → return to the same conversation</code></pre>',
-      ...structuredClone(githubItems.find((i) => i.number === number)),
+      ...structuredClone(repositoryItems(rid).find((i) => i.number === number)),
       ...(pull
         ? {
             head: { label: 'feature/status', ref: 'feature/status', repo: { full_name: 'example/orchestra' } },
@@ -842,9 +931,9 @@ export const backend = {
       },
     ],
   }),
-  GitHubMetadataOptions: (_pid, field) => structuredClone(field === 'labels' ? labels : assignees),
-  UpdateGitHubMetadata: (_pid, number, _pull, field, values) => {
-    const target = githubItems.find((i) => i.number === number)
+  GitHubMetadataOptions: (_pid, _rid, field) => structuredClone(field === 'labels' ? labels : assignees),
+  UpdateGitHubMetadata: (_pid, rid, number, _pull, field, values) => {
+    const target = repositoryItems(rid).find((i) => i.number === number)
     if (field === 'body') {
       const escape = (text) =>
         text.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`)

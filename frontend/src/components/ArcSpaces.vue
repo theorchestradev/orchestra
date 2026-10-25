@@ -161,7 +161,7 @@ function spaceStyle(index) {
       class="arc-spaces"
       :class="{ compact, 'arc-spaces-sorting': drag }"
       :style="{ '--visible-spaces': Math.min(projects.length, 8) || 1 }"
-      aria-label="Project spaces"
+      aria-label="Workspace spaces"
       @keydown="focusSpace"
       @click.capture="click"
     >
@@ -188,7 +188,12 @@ function spaceStyle(index) {
         <span v-else aria-hidden="true">{{ spaceSymbol(p) }}</span>
       </button>
     </nav>
-    <button class="icon-button arc-footer-action" aria-label="New Project" title="New Project" @click="emit('create')">
+    <button
+      class="icon-button arc-footer-action"
+      aria-label="New Workspace"
+      title="New Workspace"
+      @click="emit('create')"
+    >
       <Icon name="plus" :size="12" />
     </button>
   </footer>

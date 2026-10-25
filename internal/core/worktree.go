@@ -10,14 +10,14 @@ import (
 	"strings"
 )
 
-// repositoryName keeps worktree paths readable. Non-repositories fall back to the project ID
+// repositoryName keeps worktree paths readable. Non-repositories fall back to the repository ID
 // and are rejected by createSessionWorktree.
-func repositoryName(p *Project) string {
-	root, err := runCommand(p.Directory, "git", "rev-parse", "--show-toplevel")
+func repositoryName(repo *Repository) string {
+	root, err := runCommand(repo.Directory, "git", "rev-parse", "--show-toplevel")
 	if name := filepath.Base(strings.TrimSpace(string(root))); err == nil && name != "." && name != string(filepath.Separator) {
 		return name
 	}
-	return p.ID
+	return repo.ID
 }
 
 // gitTopLevel returns the repository root. Git runs in the C locale so isNotGitRepository
@@ -33,9 +33,9 @@ func isNotGitRepository(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "not a git repository")
 }
 
-// InitializeGitRepository runs git init in the project folder, only when it is not already
-// inside a repository. It never stages, commits, configures identity or adds remotes.
-func (s *Store) InitializeGitRepository(projectID string) (State, error) {
+// InitializeGitRepository runs git init in a workspace repository's folder, only when it is not
+// already inside a Git repository. It never stages, commits, configures identity or adds remotes.
+func (s *Store) InitializeGitRepository(projectID, repositoryID string) (State, error) {
 	// Holding the lock serializes repeated requests, so a second one sees the new repository.
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -43,14 +43,18 @@ func (s *Store) InitializeGitRepository(projectID string) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	root, err := gitTopLevel(p.Directory)
+	repo, err := s.repositoryLocked(p, repositoryID)
+	if err != nil {
+		return State{}, err
+	}
+	root, err := gitTopLevel(repo.Directory)
 	if err == nil {
-		return State{}, fmt.Errorf("The project folder is already in the Git repository at %s.", root)
+		return State{}, fmt.Errorf("The folder is already in the Git repository at %s.", root)
 	}
 	if !isNotGitRepository(err) {
-		return State{}, fmt.Errorf("Could not check the project folder: %w", err)
+		return State{}, fmt.Errorf("Could not check the folder: %w", err)
 	}
-	if _, err = runCommand(p.Directory, "git", "init"); err != nil {
+	if _, err = runCommand(repo.Directory, "git", "init"); err != nil {
 		s.log.Warn("git init failed", "project", p.ID, "error", err)
 		return State{}, fmt.Errorf("Could not initialize Git: %w", err)
 	}
@@ -60,16 +64,12 @@ func (s *Store) InitializeGitRepository(projectID string) (State, error) {
 
 // CanCreateWorktree reports whether New Session can offer a worktree. Only a folder outside
 // any repository is ruled out; other Git failures still surface when the session starts.
-func (s *Store) CanCreateWorktree(projectID string) (bool, error) {
-	s.mu.Lock()
-	p, err := s.projectLocked(projectID)
+func (s *Store) CanCreateWorktree(projectID, repositoryID string) (bool, error) {
+	repo, err := s.projectRepository(projectID, repositoryID)
 	if err != nil {
-		s.mu.Unlock()
 		return false, err
 	}
-	directory := p.Directory
-	s.mu.Unlock()
-	_, err = gitTopLevel(directory)
+	_, err = gitTopLevel(repo.Directory)
 	return !isNotGitRepository(err), nil
 }
 
@@ -159,16 +159,13 @@ type WorktreeBranches struct {
 	Branches []string `json:"branches"`
 }
 
-// WorktreeBranches reads the project's branches for New Session's base choice.
-func (s *Store) WorktreeBranches(projectID string) (WorktreeBranches, error) {
-	s.mu.Lock()
-	p, err := s.projectLocked(projectID)
+// WorktreeBranches reads a repository's branches for New Session's base choice.
+func (s *Store) WorktreeBranches(projectID, repositoryID string) (WorktreeBranches, error) {
+	repo, err := s.projectRepository(projectID, repositoryID)
 	if err != nil {
-		s.mu.Unlock()
 		return WorktreeBranches{}, err
 	}
-	directory := p.Directory
-	s.mu.Unlock()
+	directory := repo.Directory
 	result := WorktreeBranches{Branches: []string{}}
 	if current, err := runCommand(directory, "git", "branch", "--show-current"); err == nil {
 		result.Current = strings.TrimSpace(string(current))
@@ -225,7 +222,7 @@ func createSessionWorktree(directory, destination, branch, base string) (string,
 	}
 	relative, err := filepath.Rel(repositoryDirectory, projectDirectory)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return "", "", errors.New("The project folder is outside the Git repository.")
+		return "", "", errors.New("The repository folder is outside the Git repository.")
 	}
 	if branchExists(directory, branch) {
 		return "", "", fmt.Errorf("The branch %s already exists. Choose another name.", branch)

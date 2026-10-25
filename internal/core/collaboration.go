@@ -304,7 +304,7 @@ func (c *Collaboration) requestLocked(from, to, text, id string) (*Run, error) {
 	}
 	q, target, err := c.store.sessionLocked(to)
 	if err != nil || p != q {
-		return nil, errors.New("Sessions must belong to the same project.")
+		return nil, errors.New("Sessions must belong to the same workspace.")
 	}
 	if target.Agent == terminalAgent {
 		return nil, errors.New("Terminals cannot receive requests.")
@@ -491,7 +491,13 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 			if sess.Agent == terminalAgent {
 				continue
 			}
-			sessions = append(sessions, map[string]string{"id": sess.ID, "projectID": p.ID, "name": sess.Name, "agent": sess.Agent})
+			repository := ""
+			for _, repo := range p.Repositories {
+				if repo.ID == sess.RepositoryID {
+					repository = repo.Name
+				}
+			}
+			sessions = append(sessions, map[string]string{"id": sess.ID, "projectID": p.ID, "name": sess.Name, "agent": sess.Agent, "repository": repository})
 		}
 		return sessions, nil
 	case "session.request":
@@ -501,7 +507,7 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	case "session.read":
 		q, _, err := c.store.sessionLocked(req.Target)
 		if err != nil || p != q {
-			return nil, errors.New("Session unavailable in this project.")
+			return nil, errors.New("Session unavailable in this workspace.")
 		}
 		history := []*Run{}
 		cursorFound := req.Before == ""
@@ -538,7 +544,7 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	case "run.read", "run.wait", "run.cancel":
 		r, err := c.runLocked(req.Target)
 		if err != nil || r.ProjectID != p.ID {
-			return nil, errors.New("Run unavailable in this project.")
+			return nil, errors.New("Run unavailable in this workspace.")
 		}
 		if req.Method == "run.wait" {
 			if err = c.waitLocked(req.Source, r); err != nil {
@@ -564,7 +570,7 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 // It never creates one; the user does that in the app.
 func (c *Collaboration) scratchpadLocked(p *Project, req WireRequest) (any, error) {
 	if !p.HasScratchpad {
-		return nil, errors.New("This project has no Scratchpad. Create one in Orchestra first.")
+		return nil, errors.New("This workspace has no Scratchpad. Create one in Orchestra first.")
 	}
 	if req.Method == "scratchpad.read" {
 		c.store.trackLocked("feature_used", map[string]any{"feature": "scratchpad_cli"})

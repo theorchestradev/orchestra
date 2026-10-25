@@ -146,7 +146,7 @@ onBeforeUnmount(() => {
         <span class="arc-project-edge-ring" :style="{ '--arc-edge-progress': createProgress }">
           <Icon name="plus" :size="16" />
         </span>
-        <span>New Project</span>
+        <span>New Workspace</span>
       </div>
     </div>
   </div>
