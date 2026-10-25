@@ -35,7 +35,7 @@ func TestMigrateVersion1Projects(t *testing.T) {
 	if repo.Name != "app" || repo.Directory != folder || p.Sessions[0].ID != sid || p.Sessions[0].RepositoryID != repo.ID || p.Sessions[0].GitHubItem.Number != 7 {
 		t.Fatalf("unexpected repository or session: %+v %+v", repo, p.Sessions[0])
 	}
-	if backup, err := os.ReadFile(filepath.Join(dir, "state.json.bkp")); err != nil || string(backup) != original {
+	if backup, err := os.ReadFile(filepath.Join(dir, "state.bkp.json")); err != nil || string(backup) != original {
 		t.Fatalf("version 1 state not kept: %v", err)
 	}
 	var saved State
