@@ -761,6 +761,22 @@ func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 	return a.store.PullRequestCheckFailure(id, jobID)
 }
 
+// GitHubPullRequest reads a project's pull request and its checks for the GitHub view.
+func (a *App) GitHubPullRequest(project string, number int) (core.PullRequestStatus, error) {
+	if err := a.ready(); err != nil {
+		return core.PullRequestStatus{}, err
+	}
+	return a.store.GitHubPullRequest(project, number)
+}
+
+// GitHubCheckFailure describes a failed check of a project's pull request as text to copy.
+func (a *App) GitHubCheckFailure(project string, jobID int64) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	return a.store.GitHubCheckFailure(project, jobID)
+}
+
 // SessionFiles lists a folder or previews a text file inside the session folder.
 func (a *App) SessionFiles(id, path string) (core.SessionFiles, error) {
 	if err := a.ready(); err != nil {

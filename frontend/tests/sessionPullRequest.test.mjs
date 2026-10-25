@@ -34,14 +34,25 @@ test('PR shows grouped checks and activity, and copies failure context', async (
   }
   globalThis.pullRequestCopy = async (text) => copied.push(text)
   globalThis.pullRequestOpen = (url) => opened.push(url)
-  const { descriptor } = parse(
-    readFileSync(new URL('../src/components/SessionPullRequest.vue', import.meta.url), 'utf8'),
-  )
-  const script = compileScript(descriptor, { id: 'pull-request-test', inlineTemplate: true })
+  const compile = (name) =>
+    compileScript(parse(readFileSync(new URL('../src/components/' + name, import.meta.url), 'utf8')).descriptor, {
+      id: name,
+      inlineTemplate: true,
+    }).content
   const dir = mkdtempSync(new URL('../node_modules/.pull-request-test-', import.meta.url))
   writeFileSync(
+    dir + '/checks.mjs',
+    compile('PullRequestChecks.vue')
+      .replace(
+        /import \{ copy, openURL \} from ['"]\.\.\/shared\/api['"]/,
+        'const copy = (t) => globalThis.pullRequestCopy(t), openURL = (u) => globalThis.pullRequestOpen(u)',
+      )
+      .replace("'../shared/pullRequest'", JSON.stringify(new URL('../src/shared/pullRequest.js', import.meta.url).href))
+      .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }'),
+  )
+  writeFileSync(
     dir + '/pullRequest.mjs',
-    script.content
+    compile('SessionPullRequest.vue')
       .replace(
         /import \{ call \} from ['"]\.\.\/shared\/api['"]/,
         'const call = (...a) => globalThis.pullRequestCall(...a)',
@@ -58,7 +69,8 @@ test('PR shows grouped checks and activity, and copies failure context', async (
         /import ConflictNotice from ['"]\.\/ConflictNotice.vue['"]/,
         'const ConflictNotice = globalThis.conflictStub',
       )
-      .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }'),
+      .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }')
+      .replace(/['"]\.\/PullRequestChecks.vue['"]/, "'./checks.mjs'"),
   )
   let app
   try {

@@ -1982,6 +1982,24 @@ input::placeholder {
 .session-pull-request .conflict-notice {
   margin: 0 10px 10px;
 }
+.github-article .pr-checks {
+  margin: 16px 0 0;
+  line-height: 1.45;
+}
+.pr-checks-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+}
+.pr-checks-loading .spinner {
+  width: 12px;
+  height: 12px;
+  border-width: 1.5px;
+}
+.pr-checks-error {
+  margin-top: 8px;
+}
 .discussion {
   padding-top: 28px;
 }

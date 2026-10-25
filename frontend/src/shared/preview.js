@@ -775,6 +775,33 @@ export const backend = {
     console.debug('Preview: GitHub refresh', pid)
     return structuredClone(githubItems.filter((i) => status === 'all' || i.state === status))
   },
+  GitHubPullRequest: (_pid, number) => {
+    const ci = (name, workflow, status, duration, jobID) => ({
+      name,
+      workflow,
+      status,
+      duration,
+      jobID,
+      url: 'https://github.com/example/orchestra/actions/runs/1/job/' + jobID,
+    })
+    const item = githubItems.find((i) => i.number === number)
+    return {
+      branch: 'feature/status',
+      repository: 'example/orchestra',
+      number,
+      url: item?.html_url || 'https://github.com/example/orchestra/pull/' + number,
+      title: item?.title || 'Pull request',
+      state: 'open',
+      checks: [
+        ci('changes', 'CI', 'success', '11s', 1),
+        ci('server-tests (ubuntu-latest)', 'CI', 'failure', '7m 15s', 2),
+        ci('build', 'Docker', 'pending', '2m 4s', 3),
+        ci('app-tests (macos)', 'A workflow with a very long name for compact windows', 'success', '5m 2s', 5),
+      ],
+    }
+  },
+  GitHubCheckFailure: (_pid, jobID) =>
+    `Check: server-tests (ubuntu-latest)\nConclusion: failure\nURL: https://github.com/example/orchestra/actions/runs/1/job/${jobID}\n\nLog:\n\`\`\`\n--- FAIL: TestPreview (0.01s)\n\`\`\``,
   GitHubDetail: (_pid, number, pull) => ({
     detail: {
       body: 'Keep each project’s processes and terminal scrollback alive when navigating between sessions.\n\n```\nSwitch projects → return to the same conversation\n```',

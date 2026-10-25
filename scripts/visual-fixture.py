@@ -41,12 +41,13 @@ gh = bin_dir/'gh'
 gh.write_text(f'''#!{python}
 import datetime, json, sys
 endpoint = next((x for x in sys.argv if x.startswith('repos/')), '')
-if sys.argv[1:3] == ['pr','list']:
- head = sys.argv[sys.argv.index('--head')+1]
+if sys.argv[1:3] in (['pr','list'], ['pr','view']):
+ head = sys.argv[sys.argv.index('--head')+1] if '--head' in sys.argv else 'feature/status'
  now = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
  run = lambda name, workflow, conclusion, job, start='2026-10-21T17:00:00Z', end='2026-10-21T17:07:15Z': {{'__typename':'CheckRun','name':name,'workflowName':workflow,'status':'COMPLETED' if conclusion else 'IN_PROGRESS','conclusion':conclusion,'detailsUrl':f'https://github.com/example/orchestra/actions/runs/7/job/{{job}}','startedAt':start,'completedAt':end if conclusion else '0001-01-01T00:00:00Z'}}
  checks = [run('changes','CI','SUCCESS',1,end='2026-10-21T17:00:11Z'), run('server-tests (ubuntu-latest)','CI','FAILURE',2), run('build','A workflow with a very long name for compact windows','',3,start=now), run('lint','CI','SUCCESS',4,end='2026-10-21T17:01:43Z'), run('app-tests (macos)','CI','SUCCESS',5,end='2026-10-21T17:05:02Z'), run('deploy-preview','CI','SKIPPED',6), {{'__typename':'StatusContext','context':'docs/preview','state':'PENDING','targetUrl':'https://example.invalid/docs'}}]
- print(json.dumps([{{'number':43,'url':'https://github.com/example/orchestra/pull/43','title':'Update session activity indicators so each running agent shows a readable status in narrow windows','state':'OPEN','isDraft':False,'headRefName':head,'headRefOid':'0'*40,'baseRefName':'release/2026-10-a-very-long-base-branch-name','isCrossRepository':False,'mergeable':'CONFLICTING','reviewDecision':'CHANGES_REQUESTED','statusCheckRollup':checks}}]))
+ pr = [{{'number':43,'url':'https://github.com/example/orchestra/pull/43','title':'Update session activity indicators so each running agent shows a readable status in narrow windows','state':'OPEN','isDraft':False,'headRefName':head,'headRefOid':'0'*40,'baseRefName':'release/2026-10-a-very-long-base-branch-name','isCrossRepository':False,'mergeable':'CONFLICTING','reviewDecision':'CHANGES_REQUESTED','statusCheckRollup':checks}}]
+ print(json.dumps(pr if sys.argv[2] == 'list' else pr[0]))
  sys.exit(0)
 if endpoint.endswith('/logs'):
  print('\\n'.join([f'2026-10-21T17:00:{{i:02d}}.0000000Z step {{i}}' for i in range(40)] + ['2026-10-21T17:07:14.0000000Z --- FAIL: TestFixture (0.01s)', '2026-10-21T17:07:15.0000000Z ##[error]Process completed with exit code 1.']))
