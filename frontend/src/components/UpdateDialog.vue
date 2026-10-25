@@ -41,7 +41,7 @@ function download() {
       <p class="update-error" role="alert">{{ status.error }}</p>
       <footer>
         <button class="standard-button" @click="emit('close')">OK</button
-        ><button class="standard-button primary" autofocus @click="emit('check')">Try Again</button>
+        ><button class="standard-button primary" data-default-action autofocus @click="emit('check')">Try Again</button>
       </footer>
     </template>
     <template v-else-if="release && status.preparing">
@@ -56,7 +56,9 @@ function download() {
       <p>The update installs when you quit Orchestra. {{ sessionsNote }}</p>
       <footer>
         <button class="standard-button" @click="emit('close')">Later</button
-        ><button class="standard-button primary" autofocus @click="emit('install', true)">Restart Now</button>
+        ><button class="standard-button primary" data-default-action autofocus @click="emit('install', true)">
+          Restart Now
+        </button>
       </footer>
     </template>
     <template v-else-if="release">
@@ -84,10 +86,12 @@ function download() {
         ><button class="standard-button" @click="emit('close')">Later</button
         ><template v-if="status.installable"
           ><button class="standard-button" @click="emit('install', false)">Install When I Quit</button
-          ><button class="standard-button primary" autofocus @click="emit('install', true)">
+          ><button class="standard-button primary" data-default-action autofocus @click="emit('install', true)">
             Install and Restart
           </button></template
-        ><button v-else class="standard-button primary" autofocus @click="download">Download…</button>
+        ><button v-else class="standard-button primary" data-default-action autofocus @click="download">
+          Download…
+        </button>
       </footer>
     </template>
     <template v-else>

@@ -627,7 +627,9 @@ onMounted(() => load())
         <p>Your edits to the description of #{{ selected?.number }} have not been saved.</p>
         <footer>
           <button class="standard-button" autofocus @click="discarding = null">Keep Editing</button
-          ><button class="standard-button destructive" @click="confirmDiscard">Discard Changes</button>
+          ><button class="standard-button destructive" data-default-action @click="confirmDiscard">
+            Discard Changes
+          </button>
         </footer>
       </div></Modal
     ></Teleport

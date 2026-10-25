@@ -12,6 +12,7 @@ export const shortcuts = [
   { id: 'project', group: 'General', name: 'New Project', keys: '⇧⌘N', app: true },
   { id: 'settings', group: 'General', name: 'Settings', keys: '⌘,', app: true },
   { id: 'dismiss', group: 'General', name: 'Close Dialog or Menu', keys: 'Esc' },
+  { id: 'confirmDialog', group: 'General', name: 'Confirm Dialog', keys: '⌘↩' },
   { id: 'previous', group: 'Navigation', name: 'Previous Item', keys: '⇧⌘[', app: true },
   { id: 'next', group: 'Navigation', name: 'Next Item', keys: '⇧⌘]', app: true },
   { id: 'previousProject', group: 'Navigation', name: 'Previous Project', keys: '⇧⌘←', app: true, menu: false },
