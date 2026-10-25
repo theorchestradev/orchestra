@@ -4,7 +4,7 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
-## Unreleased
+## 0.12.0 — 2026-10-25
 
 ### New
 
@@ -17,6 +17,16 @@ let Orchestra update itself when you ask it to.
   pull request conflicts with its base branch, the GitHub view and the PR tab
   say so. **Resolve conflicts** starts a new session that merges the base
   branch, resolves the files, runs the checks and pushes to the pull request.
+- **Install with Homebrew.** `brew install --cask theorchestradev/tap/orchestra`
+  installs Orchestra on macOS, and the cask follows each stable release.
+
+### Changed
+
+- **A tidier session menu.** The Open in apps are grouped in a submenu, Edit
+  Session moves to the top, Move Up and Move Down leave the menu, and Close
+  Session is marked as destructive.
+- **Dialogs dim the whole window,** including the title bar, the same way
+  Settings does.
 
 ## 0.11.0 — 2026-10-24
 
