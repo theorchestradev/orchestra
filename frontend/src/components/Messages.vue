@@ -103,6 +103,8 @@ async function action(method, ...args) {
           <option v-for="peer in peers" :key="peer.id" :value="peer.id">To: {{ peer.name }}</option></select
         ><Icon name="chevron.down" :size="10" /></label
       ><textarea
+        autocorrect="off"
+        autocapitalize="off"
         v-model="text"
         aria-label="Message text"
         class="message-editor"

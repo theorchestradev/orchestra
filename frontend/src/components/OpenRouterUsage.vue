@@ -137,6 +137,7 @@ onMounted(refresh)
         Enter a management key to see your account balance and total spending. Stored in macOS Keychain.
       </p>
       <input
+        autocorrect="off"
         id="openrouter-management-key"
         v-model="key"
         type="password"

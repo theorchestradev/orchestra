@@ -349,6 +349,8 @@ onMounted(() => load())
         </div>
         <label class="search-field"
           ><Icon name="magnifyingglass" :size="14" /><input
+            autocorrect="off"
+            autocapitalize="off"
             v-model="search"
             aria-label="Search issues and PRs"
             placeholder="Search by title or number" /><button
@@ -595,6 +597,8 @@ onMounted(() => load())
           <div class="description">
             <form v-if="draft" class="description-form" @submit.prevent="saveDescription">
               <textarea
+                autocorrect="off"
+                autocapitalize="off"
                 ref="descriptionEditor"
                 v-model="draft.text"
                 class="description-editor"

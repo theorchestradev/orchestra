@@ -56,6 +56,8 @@ async function move(delta) {
 <template>
   <div class="command-search">
     <Icon name="magnifyingglass" /><input
+      autocorrect="off"
+      autocapitalize="off"
       ref="search"
       autofocus
       :placeholder="placeholder"

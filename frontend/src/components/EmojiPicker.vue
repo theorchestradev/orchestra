@@ -130,6 +130,8 @@ onBeforeUnmount(() => listen(false))
   <section v-if="open" ref="popup" class="emoji-picker" :style="position" role="dialog" aria-label="Choose Emoji">
     <span class="search-field emoji-search"
       ><Icon name="magnifyingglass" :size="12" /><input
+        autocorrect="off"
+        autocapitalize="off"
         ref="search"
         v-model="query"
         placeholder="Search"

@@ -725,7 +725,15 @@ if (!mac)
               in <code>{{ themeDirectory }}</code></template
             >.
           </p>
-          <label>Theme Name<input v-model="duplicateName" autofocus maxlength="100" aria-label="Theme Name" /></label>
+          <label
+            >Theme Name<input
+              autocorrect="off"
+              autocapitalize="off"
+              v-model="duplicateName"
+              autofocus
+              maxlength="100"
+              aria-label="Theme Name"
+          /></label>
           <p v-if="duplicateError" class="error" role="alert">{{ duplicateError }}</p>
           <footer>
             <button type="button" class="standard-button" :disabled="duplicateBusy" @click="duplicating = false">

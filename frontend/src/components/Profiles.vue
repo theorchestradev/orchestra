@@ -230,6 +230,8 @@ async function remove() {
             </div>
             <label class="name-field"
               >Profile Name<input
+                autocorrect="off"
+                autocapitalize="off"
                 v-model="form.name"
                 autofocus
                 maxlength="200"

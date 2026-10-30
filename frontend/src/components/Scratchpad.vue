@@ -137,6 +137,8 @@ onBeforeUnmount(() => {
       <p v-else class="muted">Nothing here yet. Switch to Edit to write.</p>
     </div>
     <textarea
+      autocorrect="off"
+      autocapitalize="off"
       v-else
       ref="editor"
       v-model="text"

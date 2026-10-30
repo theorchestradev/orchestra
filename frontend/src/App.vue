@@ -506,7 +506,10 @@ function closeModal() {
   settingsFocus.value = ''
   modal.value = ''
   formError.value = ''
-  nextTick(() => document.querySelector('.terminal-pane:not([style*="display: none"]) .xterm-helper-textarea')?.focus())
+  nextTick(() => {
+    if (!modal.value)
+      document.querySelector('.terminal-pane:not([style*="display: none"]) .xterm-helper-textarea')?.focus()
+  })
 }
 async function select(p, dest) {
   menu.value = null
@@ -668,6 +671,7 @@ function edit(id, name, kind, description = '', emoji = '', profileID = '') {
   projectDescription.value = description
   projectEmoji.value = emoji
   openModal('rename')
+  nextTick(() => document.querySelector('.rename-dialog input[autofocus]')?.select())
 }
 async function rename() {
   busy.value = true
@@ -1734,9 +1738,18 @@ onBeforeUnmount(() => {
     <Modal v-else-if="modal === 'project'" label="New Project" @close="closeModal"
       ><form class="project-dialog" @submit.prevent="createProject">
         <h2>New Project</h2>
-        <label>Project Name<input v-model="projectName" autofocus placeholder="Name" aria-label="Project Name" /></label
+        <label
+          >Project Name<input
+            autocorrect="off"
+            autocapitalize="off"
+            v-model="projectName"
+            autofocus
+            placeholder="Name"
+            aria-label="Project Name" /></label
         ><label
           >Description (optional)<textarea
+            autocorrect="off"
+            autocapitalize="off"
             v-model="projectDescription"
             class="description-field"
             rows="3"
@@ -1806,6 +1819,7 @@ onBeforeUnmount(() => {
           <div class="setting-row session-profile">
             <label for="session-branch">Branch Name</label>
             <input
+              autocorrect="off"
               id="session-branch"
               v-model="newBranch"
               class="session-branch"
@@ -1889,17 +1903,26 @@ onBeforeUnmount(() => {
             ></span>
           </div>
           <label class="name-field"
-            >Project Name<input v-model="renameValue" autofocus aria-label="Project Name"
+            >Project Name<input
+              autocorrect="off"
+              autocapitalize="off"
+              v-model="renameValue"
+              autofocus
+              aria-label="Project Name"
           /></label>
         </div>
         <label v-else
           >{{ renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'
           }}<input
+            autocorrect="off"
+            autocapitalize="off"
             v-model="renameValue"
             autofocus
             :aria-label="renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'" /></label
         ><label v-if="renameKind === 'Project'"
           >Description (optional)<textarea
+            autocorrect="off"
+            autocapitalize="off"
             v-model="projectDescription"
             class="description-field"
             rows="3"

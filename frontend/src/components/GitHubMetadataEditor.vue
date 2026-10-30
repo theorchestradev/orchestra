@@ -246,6 +246,8 @@ function close() {
             ><button type="button" class="duplicate-back muted" :disabled="saving" @click="statusMenu">
               <Icon name="chevron.left" :size="10" />Close as duplicate</button
             ><input
+              autocorrect="off"
+              autocapitalize="off"
               v-model="query"
               aria-label="Search duplicate issues"
               placeholder="Search issues by title or number"
@@ -280,6 +282,8 @@ function close() {
         >
         <template v-else
           ><input
+            autocorrect="off"
+            autocapitalize="off"
             v-if="field === 'labels' || options.length > 8"
             v-model="query"
             autofocus
