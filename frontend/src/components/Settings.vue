@@ -152,7 +152,8 @@ if (!mac)
               >
                 <option value="last">Last selection</option>
                 <option value="scratchpad">Scratchpad</option>
-                <option value="github">Work Items, if available</option></select
+                <option value="github">Work Items, if available</option>
+                <option value="reviews">Reviews, if available</option></select
               ><Icon name="chevron.up.chevron.down" :size="10" />
             </div>
           </div>

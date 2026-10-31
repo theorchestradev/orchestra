@@ -23,6 +23,7 @@ test('command bar lists navigation, creation and app commands for the selected p
   assert.deepEqual(ids, [
     'goto',
     'github',
+    'reviews',
     'scratchpad',
     'session',
     'worktreeSession',
@@ -71,13 +72,14 @@ test('go to lists every project page and session', () => {
     [
       ['p1', 'project'],
       ['p1', 'github'],
+      ['p1', 'reviews'],
       ['p1', 'scratchpad'],
       ['p1', 's1'],
       ['p2', 'project'],
       ['p2', 's2'],
     ],
   )
-  assert.equal(items[3].detail, 'Orchestra · feature')
+  assert.equal(items[4].detail, 'Orchestra · feature')
 })
 
 test('command search matches every word across name and detail', () => {

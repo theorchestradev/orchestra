@@ -55,6 +55,7 @@ type GitHubItem struct {
 	Number      int  `json:"number"`
 	PullRequest bool `json:"pullRequest,omitempty"`
 }
+
 // Repository is a local folder that a workspace's sessions can work in. Removing it from the
 // workspace never touches the folder.
 type Repository struct {
@@ -82,12 +83,14 @@ type Project struct {
 	Directory         string `json:"directory,omitempty"`
 	IsExpanded        bool   `json:"isExpanded"`
 	SelectedSessionID string `json:"selectedSessionID,omitempty"`
-	ShowsGitHub       bool   `json:"showsGitHub"`
-	ShowsScratchpad   bool   `json:"showsScratchpad"`
-	HasScratchpad     bool   `json:"hasScratchpad"`
-	ScratchpadName    string `json:"scratchpadName,omitempty"`
-	ScratchpadIndex   int    `json:"scratchpadIndex"`
-	ScratchpadText    string `json:"scratchpadText"`
+	// ShowsGitHub shows Work Items, ShowsReviews the pull requests to review.
+	ShowsGitHub     bool   `json:"showsGitHub"`
+	ShowsReviews    bool   `json:"showsReviews,omitempty"`
+	ShowsScratchpad bool   `json:"showsScratchpad"`
+	HasScratchpad   bool   `json:"hasScratchpad"`
+	ScratchpadName  string `json:"scratchpadName,omitempty"`
+	ScratchpadIndex int    `json:"scratchpadIndex"`
+	ScratchpadText  string `json:"scratchpadText"`
 	// ScratchpadRevision increases whenever ScratchpadText changes, so writers can detect
 	// edits made since they last read it.
 	ScratchpadRevision int `json:"scratchpadRevision"`
@@ -596,7 +599,7 @@ func (s *Store) Select(projectID, destination string) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	if destination != "project" && destination != "github" && destination != "scratchpad" {
+	if destination != "project" && destination != "github" && destination != "reviews" && destination != "scratchpad" {
 		_, sess, err := s.sessionLocked(destination)
 		if err != nil {
 			return State{}, err
@@ -613,6 +616,7 @@ func (s *Store) Select(projectID, destination string) (State, error) {
 	s.state.SelectedProjectID = projectID
 	if destination != "project" {
 		p.ShowsGitHub = destination == "github"
+		p.ShowsReviews = destination == "reviews"
 		p.ShowsScratchpad = destination == "scratchpad"
 	}
 	if destination == "scratchpad" {
@@ -870,7 +874,7 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	if _, ok := agentSpecs[p.DefaultAgent]; !ok {
 		return State{}, errors.New("Unknown default agent.")
 	}
-	if p.StartupView != "last" && p.StartupView != "scratchpad" && p.StartupView != "github" {
+	if p.StartupView != "last" && p.StartupView != "scratchpad" && p.StartupView != "github" && p.StartupView != "reviews" {
 		return State{}, errors.New("Invalid startup view.")
 	}
 	if p.GitHubRefreshInterval != 0 && p.GitHubRefreshInterval != 30 && p.GitHubRefreshInterval != 60 && p.GitHubRefreshInterval != 300 {
@@ -1067,7 +1071,7 @@ func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName,
 		}
 	}
 	previousProjectID, previousSessionID, previousRepositoryID := s.state.SelectedProjectID, p.SelectedSessionID, p.LastRepositoryID
-	previousExpanded, previousGitHub, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsScratchpad
+	previousExpanded, previousGitHub, previousReviews, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad
 	p.Sessions = append(p.Sessions, sess)
 	if loginAgent == "" {
 		p.LastRepositoryID = repo.ID
@@ -1075,12 +1079,13 @@ func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName,
 	p.SelectedSessionID = sess.ID
 	p.IsExpanded = true
 	p.ShowsGitHub = false
+	p.ShowsReviews = false
 	p.ShowsScratchpad = false
 	s.state.SelectedProjectID = p.ID
 	if err = s.saveLocked(); err != nil {
 		p.Sessions = p.Sessions[:len(p.Sessions)-1]
 		p.SelectedSessionID, s.state.SelectedProjectID, p.LastRepositoryID = previousSessionID, previousProjectID, previousRepositoryID
-		p.IsExpanded, p.ShowsGitHub, p.ShowsScratchpad = previousExpanded, previousGitHub, previousScratchpad
+		p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad = previousExpanded, previousGitHub, previousReviews, previousScratchpad
 		if worktreeRoot != "" {
 			if cleanupErr := removeSessionWorktree(repo.Directory, worktreeRoot, sess.WorktreeBranch); cleanupErr != nil {
 				s.log.Warn("worktree remove failed", "project", p.ID, "session", sess.ID, "error", cleanupErr)

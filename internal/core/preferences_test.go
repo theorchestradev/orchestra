@@ -10,7 +10,7 @@ import (
 )
 
 func TestGeneralPreferencesPersistence(t *testing.T) {
-	for _, view := range []string{"last", "scratchpad", "github"} {
+	for _, view := range []string{"last", "scratchpad", "github", "reviews"} {
 		t.Run(view, func(t *testing.T) {
 			s := fixtureStore(t)
 			project := projectFixture(t, s)
@@ -40,7 +40,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			if p.SelectedSessionID != session.ID || p.Sessions[0].Running || !p.Sessions[0].Restored {
 				t.Fatal("startup changed the conversation or started a process")
 			}
-			if p.ShowsScratchpad || p.ShowsGitHub {
+			if p.ShowsScratchpad || p.ShowsGitHub || p.ShowsReviews {
 				t.Fatalf("startup settings changed the saved destination before UI selection: %+v", p)
 			}
 			for _, update := range []func(*Preferences){func(p *Preferences) { p.DefaultAgent = "invalid" }, func(p *Preferences) { p.StartupView = "terminal" }, func(p *Preferences) { p.GitHubRefreshInterval = -1 }, func(p *Preferences) { p.GitHubRefreshInterval = 15 }} {

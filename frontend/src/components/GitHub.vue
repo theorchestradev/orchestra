@@ -27,6 +27,8 @@ import PullRequestChecks from './PullRequestChecks.vue'
 import WorkOnButton from './WorkOnButton.vue'
 const props = defineProps({
   project: Object,
+  // 'workItems' lists issues; 'reviews' lists pull requests.
+  kind: { type: String, default: 'workItems' },
   visible: Boolean,
   refreshInterval: Number,
   defaultAgent: String,
@@ -39,7 +41,6 @@ const detailElement = ref(null),
   descriptionEditor = ref(null),
   descriptionButton = ref(null)
 const state = ref('open'),
-  pull = ref(false),
   search = ref(''),
   // The source and assignee filters; '' shows all, and '-' items without assignees.
   source = ref(''),
@@ -62,15 +63,14 @@ let request = 0,
   detailRequest = 0,
   checksRequest = 0,
   checksTimer
-// Work Items lists each GitHub repository of the workspace; GitLab and Linear can join as sources.
+// Both views list each GitHub repository of the workspace; GitLab and Linear can join as sources.
+const pull = computed(() => props.kind === 'reviews')
+const title = computed(() => (pull.value ? 'Reviews' : 'Work Items'))
 const sources = computed(() => gitHubRepositories(props.project))
 const sourceKey = computed(() => sources.value.map((r) => r.id + ':' + r.gitHub).join(','))
 const repositoryOf = (item) => sources.value.find((r) => r.id === item?.repositoryID)
 const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
-const visibleItems = computed(() =>
-  items.value.filter((item) => matchesWorkItem(item, { ...filters.value, pull: pull.value })),
-)
-const typeCount = (type) => items.value.filter((item) => matchesWorkItem(item, { ...filters.value, pull: type })).length
+const visibleItems = computed(() => items.value.filter((item) => matchesWorkItem(item, filters.value)))
 const assignees = computed(() => workItemAssignees(items.value))
 // Rows name their source when several repositories are listed.
 const showsSource = computed(() => sources.value.length > 1)
@@ -116,7 +116,9 @@ async function load(background = false) {
   const failed = results.flatMap((r, i) =>
     r.status === 'rejected' ? [{ name: repositories[i].name, message: String(r.reason) }] : [],
   )
-  if (loaded.length || !failed.length) items.value = workItems(loaded)
+  // GitHub lists pull requests among issues; each view keeps its own kind.
+  if (loaded.length || !failed.length)
+    items.value = workItems(loaded).filter((item) => Boolean(item.pull_request) === pull.value)
   sourceErrors.value = loaded.length ? failed : []
   if (!loaded.length && failed.length)
     error.value = failed.map((f) => (repositories.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
@@ -352,7 +354,7 @@ onBeforeUnmount(() => {
   checksRequest++
 })
 watch(state, () => load())
-// Adding, removing or detecting a repository changes what Work Items lists.
+// Adding, removing or detecting a repository changes what the view lists.
 watch(sourceKey, () => {
   if (source.value && !sources.value.some((r) => r.id === source.value)) source.value = ''
   if (selected.value && !repositoryOf(selected.value)) back()
@@ -368,7 +370,7 @@ onMounted(() => load())
     <header class="github-header">
       <div class="github-heading">
         <div>
-          <h2>Work Items</h2>
+          <h2>{{ title }}</h2>
           <span class="work-item-sources"
             ><button
               v-for="repo in sources"
@@ -387,26 +389,12 @@ onMounted(() => load())
         </button>
       </div>
       <div class="github-filters">
-        <div class="type-tabs" role="tablist" aria-label="Item type">
-          <button
-            v-for="type in [false, true]"
-            :key="String(type)"
-            role="tab"
-            :aria-selected="pull === type"
-            :class="{ active: pull === type }"
-            @click="pull = type"
-          >
-            <Icon :name="type ? 'arrow.triangle.branch' : 'circle.dotted'" :size="14" />{{
-              type ? 'Pull requests' : 'Issues'
-            }}<span class="count">{{ loading ? '—' : typeCount(type) }}</span>
-          </button>
-        </div>
         <label class="search-field"
           ><Icon name="magnifyingglass" :size="14" /><input
             autocorrect="off"
             autocapitalize="off"
             v-model="search"
-            aria-label="Search work items"
+            :aria-label="'Search ' + (pull ? 'pull requests' : 'issues')"
             placeholder="Search by title or number" /><button
             v-if="search"
             class="icon-button"
@@ -437,11 +425,11 @@ onMounted(() => load())
     </header>
     <div v-if="loading" class="empty-state">
       <span class="spinner" />
-      <p class="muted">Loading work items…</p>
+      <p class="muted">Loading {{ pull ? 'pull requests' : 'issues' }}…</p>
     </div>
     <div v-else-if="error" class="empty-state github-unavailable">
       <Icon name="exclamationmark.triangle" :size="42" />
-      <h2>Could not load work items</h2>
+      <h2>Could not load {{ pull ? 'pull requests' : 'issues' }}</h2>
       <p class="source-error">{{ error }}</p>
       <button class="standard-button" @click="load">Try Again</button>
     </div>
@@ -522,7 +510,7 @@ onMounted(() => load())
   </section>
   <section v-else ref="detailElement" class="github-detail">
     <header class="detail-toolbar">
-      <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />Work Items</button
+      <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />{{ title }}</button
       ><span class="muted">/</span
       ><span class="truncate repository" :title="selected.repositoryName">{{ selected.repositoryGitHub }}</span
       ><button

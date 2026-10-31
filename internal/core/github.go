@@ -109,6 +109,7 @@ func runCommandContext(ctx context.Context, directory, command string, input []b
 	}
 	return data, nil
 }
+
 // DetectRepository finds the GitHub remote of each of the workspace's repositories.
 func (s *Store) DetectRepository(projectID string) (State, error) {
 	s.mu.Lock()

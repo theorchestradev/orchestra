@@ -58,6 +58,12 @@ import OpenInButton from './components/OpenInButton.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
+// Work Items lists issues and Reviews lists pull requests, both from the workspace's GitHub repositories.
+const gitHubViews = ['github', 'reviews']
+const gitHubViewRows = [
+  { id: 'github', name: 'Work Items', icon: 'list.bullet.rectangle' },
+  { id: 'reviews', name: 'Reviews', icon: 'arrow.triangle.pull' },
+]
 const workspace = ref({
   projects: [],
   profiles: [],
@@ -122,6 +128,7 @@ const projectName = ref(''),
   projectProfileID = ref(''),
   formError = ref('')
 const visitedTerminals = ref(new Set()),
+  // Work Items and Reviews panes mount on first visit, keyed "<project id>:<destination>".
   visitedGitHub = ref(new Set()),
   terminalVersions = ref({}),
   sidebarHidden = ref(false)
@@ -432,7 +439,7 @@ function command(kind) {
 async function runCommand({ command: kind, item }) {
   closeModal()
   if (kind === 'goto') return select(item.project, item.destination)
-  if (kind === 'github' || kind === 'scratchpad') return select(project.value, kind)
+  if (kind === 'github' || kind === 'reviews' || kind === 'scratchpad') return select(project.value, kind)
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
   if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(project.value)
@@ -542,7 +549,7 @@ async function select(p, dest) {
   if (file) return selectFile(file)
   activeFileID.value = ''
   const state = await action('Select', p.id, dest)
-  if (dest === 'github') visitedGitHub.value.add(p.id)
+  if (gitHubViews.includes(dest)) visitedGitHub.value.add(p.id + ':' + dest)
   const sess = p.sessions.find((s) => s.id === dest)
   if (sess) {
     visitedTerminals.value.add(sess.id)
@@ -784,7 +791,7 @@ async function confirmRemoveProject() {
   busy.value = true
   try {
     apply(await call('RemoveProject', p.id))
-    visitedGitHub.value.delete(p.id)
+    for (const view of gitHubViews) visitedGitHub.value.delete(p.id + ':' + view)
     for (const sess of p.sessions) {
       visitedTerminals.value.delete(sess.id)
       delete terminalVersions.value[sess.id]
@@ -1131,7 +1138,7 @@ async function detectAll() {
 watch(
   currentDestination,
   (value) => {
-    if (value === 'github' && project.value) visitedGitHub.value.add(project.value.id)
+    if (gitHubViews.includes(value) && project.value) visitedGitHub.value.add(project.value.id + ':' + value)
     if (session.value && !session.value.restored) visitedTerminals.value.add(session.value.id)
   },
   { immediate: true },
@@ -1161,7 +1168,8 @@ onMounted(async () => {
     await detectAll()
     const initialView = startupDestination(project.value, preferences.value)
     if (initialView) await select(project.value, initialView)
-    if (currentDestination.value === 'github' && project.value) visitedGitHub.value.add(project.value.id)
+    if (gitHubViews.includes(currentDestination.value) && project.value)
+      visitedGitHub.value.add(project.value.id + ':' + currentDestination.value)
   } catch (e) {
     error.value = String(e)
   } finally {
@@ -1270,13 +1278,16 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <div v-if="preferences.arcMode || p.isExpanded" class="project-children">
-                <button
-                  v-if="hasWorkItems(p)"
-                  class="sidebar-row"
-                  :class="{ selected: project?.id === p.id && currentDestination === 'github' }"
-                  @click="select(p, 'github')"
-                >
-                  <Icon name="list.bullet.rectangle" :size="15" /><span>Work Items</span></button
+                <template v-if="hasWorkItems(p)"
+                  ><button
+                    v-for="view in gitHubViewRows"
+                    :key="view.id"
+                    class="sidebar-row"
+                    :class="{ selected: project?.id === p.id && currentDestination === view.id }"
+                    @click="select(p, view.id)"
+                  >
+                    <Icon :name="view.icon" :size="15" /><span>{{ view.name }}</span>
+                  </button></template
                 ><SidebarList
                   :items="projectRows(p)"
                   handle=".session-row,.scratchpad-row"
@@ -1435,22 +1446,24 @@ onBeforeUnmount(() => {
             @mode="(id, mode) => action('SetScratchpadMode', id, mode)"
           />
           <template v-for="p in workspace.projects" :key="p.id"
-            ><div
-              v-if="visitedGitHub.has(p.id) && hasWorkItems(p)"
-              v-show="project?.id === p.id && currentDestination === 'github'"
-              class="github-pane"
-            >
-              <GitHub
-                :project="p"
-                :refresh-interval="preferences.gitHubRefreshInterval"
-                :default-agent="preferences.defaultAgent"
-                :profiles="workspace.profiles"
-                :visible="project?.id === p.id && currentDestination === 'github' && !modal"
-                @work="workOn"
-                @resolve="resolveConflicts"
-                @session="(sess) => select(p, sess.id)"
-                @error="error = $event"
-              /></div
+            ><template v-for="view in gitHubViews" :key="view"
+              ><div
+                v-if="visitedGitHub.has(p.id + ':' + view) && hasWorkItems(p)"
+                v-show="project?.id === p.id && currentDestination === view"
+                class="github-pane"
+              >
+                <GitHub
+                  :project="p"
+                  :kind="view === 'reviews' ? 'reviews' : 'workItems'"
+                  :refresh-interval="preferences.gitHubRefreshInterval"
+                  :default-agent="preferences.defaultAgent"
+                  :profiles="workspace.profiles"
+                  :visible="project?.id === p.id && currentDestination === view && !modal"
+                  @work="workOn"
+                  @resolve="resolveConflicts"
+                  @session="(sess) => select(p, sess.id)"
+                  @error="error = $event"
+                /></div></template
           ></template>
           <div v-if="currentDestination === 'empty'" class="empty-state">
             <Icon name="terminal" :size="48" />

@@ -22,8 +22,7 @@ export const workItems = (sources) =>
     )
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
 // Filters for Work Items: '' matches every source or assignee, and '-' items without assignees.
-export const matchesWorkItem = (item, { pull, source = '', assignee = '', search = '' }) =>
-  Boolean(item.pull_request) === pull &&
+export const matchesWorkItem = (item, { source = '', assignee = '', search = '' }) =>
   (!source || item.repositoryID === source) &&
   (!assignee || (assignee === '-' ? !item.assignees?.length : item.assignees?.some((a) => a.login === assignee))) &&
   (!search || item.title.toLowerCase().includes(search.toLowerCase()) || ('#' + item.number).includes(search))

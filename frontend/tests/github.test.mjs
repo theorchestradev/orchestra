@@ -66,13 +66,13 @@ test('Work Items keeps items of different repositories apart', () => {
   assert.deepEqual(items.map(itemKey), ['site#1', 'site#2', 'app#1'])
   assert.equal(items[0].repositoryGitHub, 'o/site')
   assert.deepEqual(workItemAssignees(items), ['al', 'zoe'])
-  const shown = (filters) => items.filter((i) => matchesWorkItem(i, { pull: false, ...filters })).map(itemKey)
-  assert.deepEqual(shown({}), ['site#1', 'app#1'])
+  const shown = (filters) => items.filter((i) => matchesWorkItem(i, filters)).map(itemKey)
+  assert.deepEqual(shown({}), ['site#1', 'site#2', 'app#1'])
   assert.deepEqual(shown({ source: 'app' }), ['app#1'])
   assert.deepEqual(shown({ assignee: 'zoe' }), ['site#1'])
+  assert.deepEqual(shown({ assignee: 'al' }), ['site#2'])
   assert.deepEqual(shown({ assignee: '-' }), ['app#1'])
   assert.deepEqual(shown({ search: 'old' }), ['app#1'])
-  assert.deepEqual(items.filter((i) => matchesWorkItem(i, { pull: true, assignee: 'al' })).map(itemKey), ['site#2'])
   // The same number in another repository belongs to other sessions.
   const project = {
     sessions: [

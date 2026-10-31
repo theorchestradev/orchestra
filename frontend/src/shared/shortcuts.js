@@ -24,9 +24,9 @@ export const shortcuts = [
   { id: 'copy', group: 'Terminal', name: 'Copy', keys: '⌘C', terminal: '⇧⌘C', inTerminal: true },
   { id: 'paste', group: 'Terminal', name: 'Paste', keys: '⌘V', terminal: '⇧⌘V', inTerminal: true },
   { id: 'scratchpadMode', group: 'Scratchpad', name: 'Switch Between Edit and Read', keys: '⌘E' },
-  { id: 'githubBack', group: 'Work Items', name: 'Back to the List', keys: '⌘[' },
-  { id: 'saveDescription', group: 'Work Items', name: 'Save Description', keys: '⌘↩' },
-  { id: 'cancelEdit', group: 'Work Items', name: 'Cancel Editing', keys: 'Esc' },
+  { id: 'githubBack', group: 'Work Items and Reviews', name: 'Back to the List', keys: '⌘[' },
+  { id: 'saveDescription', group: 'Work Items and Reviews', name: 'Save Description', keys: '⌘↩' },
+  { id: 'cancelEdit', group: 'Work Items and Reviews', name: 'Cancel Editing', keys: 'Esc' },
   { id: 'sendRequest', group: 'Messages', name: 'Send Request', keys: '⌘↩' },
 ]
 

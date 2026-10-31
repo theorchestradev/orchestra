@@ -118,10 +118,12 @@ const inbox = computed(() =>
           session.exitMessage
         }}</span></template
       >
-      <span v-else-if="destination === 'github' || destination === 'scratchpad'" class="status-item"
-        ><Icon :name="destination === 'github' ? 'list.bullet.rectangle' : 'note.text'" :size="12" />{{
-          destination === 'github' ? 'Work Items' : project.scratchpadName || 'Scratchpad'
-        }}</span
+      <span v-else-if="destination === 'github'" class="status-item"
+        ><Icon name="list.bullet.rectangle" :size="12" />Work Items</span
+      ><span v-else-if="destination === 'reviews'" class="status-item"
+        ><Icon name="arrow.triangle.pull" :size="12" />Reviews</span
+      ><span v-else-if="destination === 'scratchpad'" class="status-item"
+        ><Icon name="note.text" :size="12" />{{ project.scratchpadName || 'Scratchpad' }}</span
       >
     </div>
     <div class="status-summary">

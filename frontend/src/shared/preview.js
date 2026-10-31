@@ -401,10 +401,11 @@ export const backend = {
     if (destination !== 'project') {
       p.showsScratchpad = destination === 'scratchpad'
       p.showsGitHub = destination === 'github'
+      p.showsReviews = destination === 'reviews'
       if (p.showsScratchpad) {
         p.hasScratchpad = true
         p.isExpanded = true
-      } else if (!p.showsGitHub) p.selectedSessionID = destination
+      } else if (!p.showsGitHub && !p.showsReviews) p.selectedSessionID = destination
     }
     return changed()
   },
@@ -723,7 +724,7 @@ export const backend = {
     p.sessions.push(sess)
     p.lastRepositoryID = repo.id
     p.selectedSessionID = sess.id
-    p.showsScratchpad = p.showsGitHub = false
+    p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.isExpanded = true
     state.selectedProjectID = pid
     const result = changed()
@@ -977,7 +978,7 @@ export const backend = {
     const run = state.runs.find((r) => r.id === target)
     run.status = 'running'
     const p = project(run.projectID)
-    p.showsScratchpad = p.showsGitHub = false
+    p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.selectedSessionID = run.toSessionID
     return changed()
   },

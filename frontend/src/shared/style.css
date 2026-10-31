@@ -1636,35 +1636,6 @@ input::placeholder {
   align-items: center;
   gap: 16px;
 }
-.type-tabs {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-.type-tabs button {
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 8px 11px;
-  position: relative;
-  color: var(--muted);
-  font-weight: 500;
-}
-.type-tabs button.active {
-  color: var(--text);
-  font-weight: 600;
-}
-.type-tabs button.active:after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
 .search-field {
   display: flex;
   align-items: center;
@@ -2311,11 +2282,6 @@ input::placeholder {
   .work-item-filters {
     margin-left: auto;
   }
-  .type-tabs button {
-    font-size: 12px;
-    padding-left: 4px;
-    padding-right: 4px;
-  }
 }
 @container (max-width:620px) {
   .github-article {
@@ -2607,10 +2573,6 @@ input::placeholder {
 .status-filter select {
   line-height: 14px;
 }
-.type-tabs button {
-  line-height: 14px;
-  padding-bottom: 12px;
-}
 .label-chip {
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
@@ -2622,12 +2584,6 @@ input::placeholder {
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent);
   line-height: 13px;
   gap: 6px;
-}
-@container (max-width:759px) {
-  .type-tabs button {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
 }
 
 /* macOS text styles: body 13, callout 12, subheadline 11, caption 10, title2 17. */
@@ -2747,9 +2703,6 @@ h2 {
 .github-table-head {
   line-height: 13px;
   min-height: 38px;
-}
-.type-tabs button {
-  padding-bottom: 11px;
 }
 @container (max-width:819px) {
   .github-table-head {

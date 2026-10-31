@@ -17,8 +17,9 @@
 - **Sessions talk to each other:** agents send requests between sessions and share a
   workspace Scratchpad through the `orchestra` CLI. Nothing is typed into a terminal
   unless you choose to.
-- **Work Items and diffs:** browse the issues and pull requests of every GitHub
-  repository in a workspace, start a session from one, and review each session's changes.
+- **Work Items, Reviews and diffs:** browse the issues (Work Items) and pull requests
+  (Reviews) of every GitHub repository in a workspace, start a session from one, and review
+  each session's changes.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
   repository or worktree, and open files in the sidebar to read syntax-highlighted code
   in the central view.

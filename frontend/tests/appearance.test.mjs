@@ -74,6 +74,7 @@ test('System mode shows the OS appearance and explicit modes keep their own', ()
 test('project navigation preserves page priority and messaging labels', () => {
   assert.equal(destination({ showsScratchpad: true, showsGitHub: true, selectedSessionID: 'a' }), 'scratchpad')
   assert.equal(destination({ showsGitHub: true, selectedSessionID: 'a' }), 'github')
+  assert.equal(destination({ showsReviews: true, selectedSessionID: 'a' }), 'reviews')
   assert.equal(destination({ selectedSessionID: 'a' }), 'a')
   assert.equal(destination({}), 'empty')
   assert.equal(runLabel('queued'), 'In inbox')
@@ -85,6 +86,8 @@ test('startup views never select or resume a restored agent', () => {
   assert.equal(startupDestination(project, { startupView: 'last' }), null)
   assert.equal(startupDestination(project, { startupView: 'scratchpad' }), 'scratchpad')
   assert.equal(startupDestination(project, { startupView: 'github' }), 'github')
+  assert.equal(startupDestination(project, { startupView: 'reviews' }), 'reviews')
+  assert.equal(startupDestination({ ...project, repositories: [{ gitHub: '' }] }, { startupView: 'reviews' }), null)
   assert.equal(startupDestination({ ...project, repositories: [{ gitHub: '' }] }, { startupView: 'github' }), null)
   assert.equal(startupDestination(undefined, { startupView: 'scratchpad' }), null)
 })
@@ -103,17 +106,18 @@ test('sidebar navigation follows visible order and wraps', () => {
   ]
   assert.deepEqual(
     sidebarItems(projects).map((i) => i.project.id + ':' + i.destination),
-    ['a:github', 'a:scratchpad', 'a:s1', 'a:s2', 'c:s4'],
+    ['a:github', 'a:reviews', 'a:scratchpad', 'a:s1', 'a:s2', 'c:s4'],
   )
   assert.equal(adjacentItem(projects, 'a', 's2', 1).destination, 's4')
   assert.equal(adjacentItem(projects, 'c', 's4', 1).destination, 'github')
   assert.equal(adjacentItem(projects, 'a', 'github', -1).destination, 's4')
-  assert.equal(adjacentItem(projects, 'a', 'scratchpad', -1).destination, 'github')
+  assert.equal(adjacentItem(projects, 'a', 'github', 1).destination, 'reviews')
+  assert.equal(adjacentItem(projects, 'a', 'scratchpad', -1).destination, 'reviews')
   assert.equal(adjacentItem(projects, 'a', 'empty', 1).destination, 'github')
   assert.equal(adjacentItem(projects, 'a', 'empty', -1).destination, 's4')
   assert.equal(adjacentItem([], 'a', 'empty', 1), null)
 })
-test('the Scratchpad sits at its saved position among sessions, below Work Items', () => {
+test('the Scratchpad sits at its saved position among sessions, below Work Items and Reviews', () => {
   const p = {
     id: 'a',
     isExpanded: true,
@@ -124,7 +128,7 @@ test('the Scratchpad sits at its saved position among sessions, below Work Items
   }
   assert.deepEqual(
     sidebarItems([p]).map((i) => i.destination),
-    ['github', 's1', 'scratchpad', 's2'],
+    ['github', 'reviews', 's1', 'scratchpad', 's2'],
   )
   assert.equal(adjacentItem([p], 'a', 's1', 1).destination, 'scratchpad')
   assert.equal(adjacentItem([p], 'a', 'scratchpad', 1).destination, 's2')

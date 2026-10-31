@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -1256,5 +1257,34 @@ func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
 	}
 	if sess = run(true); sess.AgentSessionID != agent.ID || sess.ExitMessage != "Claude Code exited (code 0)." {
 		t.Fatalf("new conversation did not start: %q %q", sess.AgentSessionID, sess.ExitMessage)
+	}
+}
+
+func TestSelectReviews(t *testing.T) {
+	s := fixtureStore(t)
+	p := projectFixture(t, s)
+	shown := func(state State) string {
+		p := state.Projects[0]
+		return fmt.Sprint(p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad)
+	}
+	state, err := s.Select(p.ID, "reviews")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := shown(state); got != "false true false" {
+		t.Fatalf("reviews = %s", got)
+	}
+	if state, err = s.Select(p.ID, "github"); err != nil {
+		t.Fatal(err)
+	}
+	if got := shown(state); got != "true false false" {
+		t.Fatalf("work items = %s", got)
+	}
+	if _, err = s.Select(p.ID, "reviews"); err != nil {
+		t.Fatal(err)
+	}
+	sessionFixture(t, s, p, "terminal")
+	if got := shown(s.Snapshot()); got != "false false false" {
+		t.Fatalf("new session = %s", got)
 	}
 }

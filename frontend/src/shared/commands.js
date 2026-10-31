@@ -23,6 +23,12 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       name: 'Open Work Items',
       icon: 'list.bullet.rectangle',
     },
+    hasWorkItems(project) && {
+      id: 'reviews',
+      group: 'Navigation',
+      name: 'Open Reviews',
+      icon: 'arrow.triangle.pull',
+    },
     project && {
       id: 'scratchpad',
       group: 'Navigation',
@@ -117,6 +123,14 @@ export function destinations(projects = []) {
             icon: 'list.bullet.rectangle',
             project: p,
             destination: 'github',
+          },
+          {
+            id: p.id + ':reviews',
+            name: 'Reviews',
+            detail: projectTitle(p),
+            icon: 'arrow.triangle.pull',
+            project: p,
+            destination: 'reviews',
           },
         ]
       : []),
