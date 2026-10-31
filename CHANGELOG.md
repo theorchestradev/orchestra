@@ -4,6 +4,18 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.15.1 — 2026-10-31
+
+### Changed
+
+- **Repositories are named after their folder.** Edit Workspace → Repositories
+  shows each name as text instead of a field to rename it.
+
+### Fixed
+
+- **The status bar no longer overlaps itself.** With a long session name, the
+  session's activity stays readable and the other items shorten instead.
+
 ## 0.15.0 — 2026-10-31
 
 ### New
