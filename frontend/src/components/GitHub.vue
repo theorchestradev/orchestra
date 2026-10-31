@@ -13,7 +13,7 @@ import {
   workItemAssignees,
   workItems,
 } from '../shared/github'
-import { gitHubRepositories } from '../shared/project'
+import { gitHubRepositories } from '../shared/workspace'
 import { sanitize } from '../shared/markdown'
 import { shortcutLabel } from '../shared/platform'
 import { refreshDelay } from '../shared/pullRequest'
@@ -26,7 +26,7 @@ import Modal from './Modal.vue'
 import PullRequestChecks from './PullRequestChecks.vue'
 import WorkOnButton from './WorkOnButton.vue'
 const props = defineProps({
-  project: Object,
+  workspace: Object,
   // 'workItems' lists issues; 'reviews' lists pull requests.
   kind: { type: String, default: 'workItems' },
   visible: Boolean,
@@ -66,7 +66,7 @@ let request = 0,
 // Both views list each GitHub repository of the workspace; GitLab and Linear can join as sources.
 const pull = computed(() => props.kind === 'reviews')
 const title = computed(() => (pull.value ? 'Reviews' : 'Work Items'))
-const sources = computed(() => gitHubRepositories(props.project))
+const sources = computed(() => gitHubRepositories(props.workspace))
 const sourceKey = computed(() => sources.value.map((r) => r.id + ':' + r.gitHub).join(','))
 const repositoryOf = (item) => sources.value.find((r) => r.id === item?.repositoryID)
 const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
@@ -107,7 +107,7 @@ async function load(background = false) {
   error.value = ''
   const repositories = sources.value
   const results = await Promise.allSettled(
-    repositories.map((repo) => call('GitHubItems', props.project.id, repo.id, state.value)),
+    repositories.map((repo) => call('GitHubItems', props.workspace.id, repo.id, state.value)),
   )
   if (token !== request) return
   const loaded = results.flatMap((r, i) =>
@@ -136,7 +136,7 @@ async function detail(item, background = false) {
   try {
     const result = await call(
       'GitHubDetail',
-      props.project.id,
+      props.workspace.id,
       item.repositoryID,
       item.number,
       Boolean(item.pull_request),
@@ -159,7 +159,7 @@ async function loadChecks(item, background = false) {
   }
   if (!item.pull_request) return
   try {
-    const result = await call('GitHubPullRequest', props.project.id, item.repositoryID, item.number)
+    const result = await call('GitHubPullRequest', props.workspace.id, item.repositoryID, item.number)
     if (token === checksRequest) {
       pullStatus.value = result
       checksError.value = ''
@@ -178,7 +178,7 @@ function scheduleChecks() {
       refreshDelay(pullStatus.value),
     )
 }
-const loadFailure = (jobID) => call('GitHubCheckFailure', props.project.id, selected.value.repositoryID, jobID)
+const loadFailure = (jobID) => call('GitHubCheckFailure', props.workspace.id, selected.value.repositoryID, jobID)
 function back() {
   if (editing.value || draft.value?.saving) return
   discardDraft(() => {
@@ -234,7 +234,7 @@ async function saveDescription() {
   try {
     await call(
       'UpdateGitHubMetadata',
-      props.project.id,
+      props.workspace.id,
       item.repositoryID,
       item.number,
       Boolean(item.pull_request),
@@ -476,15 +476,15 @@ onMounted(() => load())
                 /><span>{{ label.name }}</span></span
               ><span v-if="item.labels.length > 3" class="muted caption">+{{ item.labels.length - 3 }}</span></span
             ><span
-              v-if="item.assignees?.length || itemSessions(project, item).length"
+              v-if="item.assignees?.length || itemSessions(workspace, item).length"
               class="compact-assignees assignees"
               ><Avatar v-for="assignee in item.assignees?.slice(0, 3)" :key="assignee.login" :author="assignee" /><span
                 v-if="item.assignees?.length > 3"
                 class="muted caption"
                 >+{{ item.assignees.length - 3 }}</span
-              ><GitHubSessions :sessions="itemSessions(project, item)" @open="emit('session', $event)" /></span></span
+              ><GitHubSessions :sessions="itemSessions(workspace, item)" @open="emit('session', $event)" /></span></span
           ><span class="wide-column"
-            ><GitHubSessions :sessions="itemSessions(project, item)" @open="emit('session', $event)" /></span
+            ><GitHubSessions :sessions="itemSessions(workspace, item)" @open="emit('session', $event)" /></span
           ><span class="wide-column assignees"
             ><Avatar v-for="assignee in item.assignees?.slice(0, 3)" :key="assignee.login" :author="assignee" /><span
               v-if="item.assignees?.length > 3"
@@ -537,15 +537,18 @@ onMounted(() => load())
       <div class="github-article-content">
         <section
           class="issue-heading"
-          :class="{ 'without-work-on': !canWorkOn(content.detail) && !itemSessions(project, selected).length }"
+          :class="{ 'without-work-on': !canWorkOn(content.detail) && !itemSessions(workspace, selected).length }"
         >
-          <div v-if="canWorkOn(content.detail) || itemSessions(project, selected).length" class="work-on">
-            <GitHubSessions :sessions="itemSessions(project, selected)" @open="emit('session', $event)" /><WorkOnButton
+          <div v-if="canWorkOn(content.detail) || itemSessions(workspace, selected).length" class="work-on">
+            <GitHubSessions
+              :sessions="itemSessions(workspace, selected)"
+              @open="emit('session', $event)"
+            /><WorkOnButton
               v-if="canWorkOn(content.detail)"
               :label="selected.pull_request ? 'Review' : 'Work on'"
               :default-agent="defaultAgent"
               :profiles="profiles"
-              :profile-id="project.profileID || ''"
+              :profile-id="workspace.profileID || ''"
               :visible="visible"
               @work="emit('work', selected, $event)"
             />
@@ -637,7 +640,7 @@ onMounted(() => load())
           :conflict="conflict"
           :default-agent="defaultAgent"
           :profiles="profiles"
-          :profile-id="project.profileID || ''"
+          :profile-id="workspace.profileID || ''"
           :visible="visible"
           :read-only="readOnly.has(`true:${itemKey(selected)}`)"
           @resolve="emit('resolve', { ...conflict, repositoryID: selected.repositoryID }, $event)"
@@ -665,20 +668,20 @@ onMounted(() => load())
                 v-model="draft.text"
                 class="description-editor"
                 aria-label="Description"
-                :aria-describedby="`description-hint-${project.id}`"
+                :aria-describedby="`description-hint-${workspace.id}`"
                 spellcheck="true"
                 :readonly="draft.saving"
                 :aria-invalid="Boolean(draft.error)"
-                :aria-errormessage="draft.error ? `description-error-${project.id}` : undefined"
+                :aria-errormessage="draft.error ? `description-error-${workspace.id}` : undefined"
                 @keydown.meta.enter.prevent="saveDescription"
                 @keydown.ctrl.enter.prevent="saveDescription"
                 @keydown.esc.stop.prevent="cancelDescription"
               />
-              <p v-if="draft.error" :id="`description-error-${project.id}`" class="status-error" role="alert">
+              <p v-if="draft.error" :id="`description-error-${workspace.id}`" class="status-error" role="alert">
                 {{ draft.error }}
               </p>
               <footer>
-                <span :id="`description-hint-${project.id}`" class="muted caption"
+                <span :id="`description-hint-${workspace.id}`" class="muted caption"
                   >Markdown · {{ shortcutLabel('⌘↩') }} to save · Esc to cancel</span
                 ><button type="button" class="standard-button" :disabled="draft.saving" @click="cancelDescription">
                   Cancel</button
@@ -759,7 +762,7 @@ onMounted(() => load())
   >
   <GitHubMetadataEditor
     v-if="editing && content && repositoryOf(selected)"
-    :project="project"
+    :workspace="workspace"
     :repository="repositoryOf(selected)"
     :item="content.detail"
     :pull="Boolean(selected.pull_request)"

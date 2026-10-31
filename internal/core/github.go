@@ -111,9 +111,9 @@ func runCommandContext(ctx context.Context, directory, command string, input []b
 }
 
 // DetectRepository finds the GitHub remote of each of the workspace's repositories.
-func (s *Store) DetectRepository(projectID string) (State, error) {
+func (s *Store) DetectRepository(workspaceID string) (State, error) {
 	s.mu.Lock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		s.mu.Unlock()
 		return State{}, err
@@ -129,7 +129,7 @@ func (s *Store) DetectRepository(projectID string) (State, error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err = s.projectLocked(projectID)
+	p, err = s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -177,8 +177,8 @@ func gitHubRemote(directory string) string {
 }
 
 // repository returns the GitHub owner/name and folder of a workspace repository.
-func (s *Store) repository(projectID, repositoryID string) (string, string, error) {
-	repo, err := s.projectRepository(projectID, repositoryID)
+func (s *Store) repository(workspaceID, repositoryID string) (string, string, error) {
+	repo, err := s.workspaceRepository(workspaceID, repositoryID)
 	if err != nil {
 		return "", "", err
 	}
@@ -206,8 +206,8 @@ func ghAPI(directory, endpoint string, paginate, html bool) (json.RawMessage, er
 	}
 	return data, nil
 }
-func (s *Store) GitHubItems(projectID, repositoryID, state string) ([]json.RawMessage, error) {
-	repo, dir, err := s.repository(projectID, repositoryID)
+func (s *Store) GitHubItems(workspaceID, repositoryID, state string) ([]json.RawMessage, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -234,8 +234,8 @@ type GitHubContent struct {
 	Comments []json.RawMessage `json:"comments"`
 }
 
-func (s *Store) GitHubDetail(projectID, repositoryID string, number int, pull bool) (GitHubContent, error) {
-	repo, dir, err := s.repository(projectID, repositoryID)
+func (s *Store) GitHubDetail(workspaceID, repositoryID string, number int, pull bool) (GitHubContent, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return GitHubContent{}, err
 	}
@@ -266,8 +266,8 @@ func (s *Store) GitHubDetail(projectID, repositoryID string, number int, pull bo
 }
 
 // Repository choices are paginated; existing selections are retained by the editor.
-func (s *Store) GitHubMetadataOptions(projectID, repositoryID, field string) ([]json.RawMessage, error) {
-	repo, dir, err := s.repository(projectID, repositoryID)
+func (s *Store) GitHubMetadataOptions(workspaceID, repositoryID, field string) ([]json.RawMessage, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -292,8 +292,8 @@ func (s *Store) GitHubMetadataOptions(projectID, repositoryID, field string) ([]
 var githubLoginRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}(\[bot\])?$`)
 
 // Patch only the selected field, preserving unrelated metadata and content.
-func (s *Store) UpdateGitHubMetadata(projectID, repositoryID string, number int, pull bool, field string, values []string) error {
-	repo, dir, err := s.repository(projectID, repositoryID)
+func (s *Store) UpdateGitHubMetadata(workspaceID, repositoryID string, number int, pull bool, field string, values []string) error {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return err
 	}

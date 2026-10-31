@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestMigrateVersion1Projects(t *testing.T) {
+func TestMigrateVersion1Workspaces(t *testing.T) {
 	dir := t.TempDir()
 	folder := filepath.Join(dir, "app")
 	if err := os.Mkdir(folder, 0700); err != nil {
@@ -27,7 +27,7 @@ func TestMigrateVersion1Projects(t *testing.T) {
 	}
 	defer s.Shutdown()
 	state := s.Snapshot()
-	p := state.Projects[0]
+	p := state.Workspaces[0]
 	if state.Error != "" || state.Version != stateVersion || p.ID != pid || p.Directory != "" || len(p.Repositories) != 1 || p.ScratchpadText != "notes" {
 		t.Fatalf("unexpected migration: %+v", state)
 	}
@@ -40,8 +40,11 @@ func TestMigrateVersion1Projects(t *testing.T) {
 	}
 	var saved State
 	data, _ := os.ReadFile(path)
-	if err = json.Unmarshal(data, &saved); err != nil || saved.Version != stateVersion || saved.Projects[0].Repositories[0].ID != repo.ID || saved.Projects[0].Directory != "" {
+	if err = json.Unmarshal(data, &saved); err != nil || saved.Version != stateVersion || saved.SelectedWorkspaceID != pid || saved.Workspaces[0].Repositories[0].ID != repo.ID || saved.Workspaces[0].Directory != "" {
 		t.Fatalf("migration not saved: %s", data)
+	}
+	if strings.Contains(string(data), `"projects"`) || strings.Contains(string(data), "selectedProjectID") {
+		t.Fatalf("project keys still saved: %s", data)
 	}
 	// A second launch reads version 2 and keeps the same repository.
 	again, err := NewStore(path, exe, nil, nil)
@@ -49,8 +52,36 @@ func TestMigrateVersion1Projects(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer again.Shutdown()
-	if got := again.Snapshot().Projects[0].Repositories[0].ID; got != repo.ID {
+	if got := again.Snapshot().Workspaces[0].Repositories[0].ID; got != repo.ID {
 		t.Fatalf("repository ID changed on reload: %s", got)
+	}
+}
+
+// Version 2 states saved before the code renamed projects to workspaces keep their projects keys.
+func TestMigrateProjectKeys(t *testing.T) {
+	dir := t.TempDir()
+	pid, rid := "8a1e3c52-5d0a-4c55-9f8e-3a1f0a5b6c01", "8a1e3c52-5d0a-4c55-9f8e-3a1f0a5b6c03"
+	original := `{"version":2,"selectedProjectID":"` + pid + `","projects":[{"id":"` + pid + `","name":"Orchestra","repositories":[{"id":"` + rid + `","name":"app","directory":"` + dir + `"}],"sessions":[]}],"preferences":{"theme":"system"}}`
+	path := filepath.Join(dir, "state.json")
+	if err := os.WriteFile(path, []byte(original), 0600); err != nil {
+		t.Fatal(err)
+	}
+	exe, _ := os.Executable()
+	s, err := NewStore(path, exe, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Shutdown()
+	state := s.Snapshot()
+	if state.Error != "" || state.SelectedWorkspaceID != pid || len(state.Workspaces) != 1 || state.Workspaces[0].Repositories[0].ID != rid || state.LegacyWorkspaces != nil {
+		t.Fatalf("project keys not migrated: %+v", state)
+	}
+	data, _ := os.ReadFile(path)
+	if !strings.Contains(string(data), `"workspaces"`) || strings.Contains(string(data), `"projects"`) {
+		t.Fatalf("migration not saved: %s", data)
+	}
+	if backup, err := os.ReadFile(filepath.Join(dir, "state.bkp.json")); err != nil || string(backup) != original {
+		t.Fatalf("previous state not kept: %v", err)
 	}
 }
 
@@ -59,7 +90,7 @@ func TestInvalidRepositoriesAreRejected(t *testing.T) {
 	session := func(repository string) []*Session {
 		return []*Session{{ID: sid, Name: "Claude Code 1", Agent: "claude", RepositoryID: repository}}
 	}
-	for name, p := range map[string]*Project{
+	for name, p := range map[string]*Workspace{
 		"none":            {ID: pid, Name: "x"},
 		"relative":        {ID: pid, Name: "x", Repositories: []*Repository{{ID: rid, Name: "a", Directory: "a"}}},
 		"unnamed":         {ID: pid, Name: "x", Repositories: []*Repository{{ID: rid, Directory: "/a"}}},
@@ -68,12 +99,12 @@ func TestInvalidRepositoriesAreRejected(t *testing.T) {
 		"dangling":        {ID: pid, Name: "x", Repositories: []*Repository{{ID: rid, Name: "a", Directory: "/a"}}, Sessions: session("8a1e3c52-5d0a-4c55-9f8e-3a1f0a5b6c09")},
 		"legacyFolder":    {ID: pid, Name: "x", Directory: "/a", Repositories: []*Repository{{ID: rid, Name: "a", Directory: "/a"}}},
 	} {
-		if validateState(State{Version: stateVersion, Projects: []*Project{p}}) == nil {
+		if validateState(State{Version: stateVersion, Workspaces: []*Workspace{p}}) == nil {
 			t.Errorf("%s: invalid workspace accepted", name)
 		}
 	}
-	valid := &Project{ID: pid, Name: "x", Repositories: []*Repository{{ID: rid, Name: "a", Directory: "/a"}}, Sessions: session(rid)}
-	if err := validateState(State{Version: stateVersion, Projects: []*Project{valid}}); err != nil {
+	valid := &Workspace{ID: pid, Name: "x", Repositories: []*Repository{{ID: rid, Name: "a", Directory: "/a"}}, Sessions: session(rid)}
+	if err := validateState(State{Version: stateVersion, Workspaces: []*Workspace{valid}}); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -92,7 +123,7 @@ func TestSessionsWorkInTheirRepository(t *testing.T) {
 	if _, err = s.AddRepository(p.ID, site); err == nil {
 		t.Fatal("added the same folder twice")
 	}
-	repos := state.Projects[0].Repositories
+	repos := state.Workspaces[0].Repositories
 	if len(repos) != 2 || repos[1].Name != "site" || repos[1].Directory != site {
 		t.Fatalf("unexpected repositories: %+v", repos)
 	}
@@ -106,8 +137,8 @@ func TestSessionsWorkInTheirRepository(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := state.Projects[0].Sessions[0]
-	if sess.RepositoryID != other.ID || state.Projects[0].LastRepositoryID != other.ID || !strings.Contains(sess.WorktreeDirectory, string(filepath.Separator)+"site"+string(filepath.Separator)) {
+	sess := state.Workspaces[0].Sessions[0]
+	if sess.RepositoryID != other.ID || state.Workspaces[0].LastRepositoryID != other.ID || !strings.Contains(sess.WorktreeDirectory, string(filepath.Separator)+"site"+string(filepath.Separator)) {
 		t.Fatalf("session not in its repository: %+v", sess)
 	}
 	files, err := s.SessionFiles(sess.ID, "")
@@ -119,10 +150,10 @@ func TestSessionsWorkInTheirRepository(t *testing.T) {
 		t.Fatalf("diff from the wrong repository: %+v %v", diff, err)
 	}
 	state, err = s.CreateSession(p.ID, "", "terminal", "", "", false, nil, "", "", "", "", "")
-	if err != nil || state.Projects[0].Sessions[1].RepositoryID != other.ID {
+	if err != nil || state.Workspaces[0].Sessions[1].RepositoryID != other.ID {
 		t.Fatalf("fallback ignored the last repository: %v", err)
 	}
-	terminal := state.Projects[0].Sessions[1]
+	terminal := state.Workspaces[0].Sessions[1]
 	if folder, err := s.SessionFolder(terminal.ID); err != nil || folder != site {
 		t.Fatalf("terminal folder: %q %v", folder, err)
 	}
@@ -139,11 +170,11 @@ func TestSessionsWorkInTheirRepository(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if state, err = s.RenameRepository(p.ID, other.ID, " Website "); err != nil || state.Projects[0].Repositories[1].Name != "Website" {
+	if state, err = s.RenameRepository(p.ID, other.ID, " Website "); err != nil || state.Workspaces[0].Repositories[1].Name != "Website" {
 		t.Fatalf("rename: %v", err)
 	}
-	if state, err = s.RemoveRepository(p.ID, other.ID); err != nil || len(state.Projects[0].Repositories) != 1 || state.Projects[0].LastRepositoryID != "" {
-		t.Fatalf("remove: %+v %v", state.Projects[0], err)
+	if state, err = s.RemoveRepository(p.ID, other.ID); err != nil || len(state.Workspaces[0].Repositories) != 1 || state.Workspaces[0].LastRepositoryID != "" {
+		t.Fatalf("remove: %+v %v", state.Workspaces[0], err)
 	}
 	if _, err = os.Stat(filepath.Join(site, "index.html")); err != nil {
 		t.Fatal("removing the repository touched its folder")

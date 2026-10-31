@@ -50,13 +50,13 @@ func TestSessionPullRequestFindsBranchPullRequest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := state.Projects[0].Sessions[0]
+	sess := state.Workspaces[0].Sessions[0]
 	status, err := s.SessionPullRequest(sess.ID, false)
 	if err != nil || status.Message != p.Repositories[0].Name+" has no GitHub remote." {
 		t.Fatalf("without remote: %+v, %v", status, err)
 	}
 	s.mu.Lock()
-	stored, _ := s.projectLocked(p.ID)
+	stored, _ := s.workspaceLocked(p.ID)
 	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	branch := sess.WorktreeBranch
@@ -120,7 +120,7 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	p := repositoryFixture(t, s)
 	dir, respond := pullRequestFixture(t)
 	s.mu.Lock()
-	stored, _ := s.projectLocked(p.ID)
+	stored, _ := s.workspaceLocked(p.ID)
 	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	state, err := s.CreateSession(p.ID, "", "claude", "", "", false, &GitHubItem{Number: 42, PullRequest: true}, "", "", "", "", "")
@@ -128,7 +128,7 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 		t.Fatal(err)
 	}
 	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","baseRefName":"main","isCrossRepository":true,"mergeable":"CONFLICTING","statusCheckRollup":[]}`)
-	status, err := s.SessionPullRequest(state.Projects[0].Sessions[0].ID, false)
+	status, err := s.SessionPullRequest(state.Workspaces[0].Sessions[0].ID, false)
 	if err != nil || status.Number != 42 || status.Branch != "feature" || status.State != "open" {
 		t.Fatalf("reviewed pull request: %+v, %v", status, err)
 	}
@@ -137,7 +137,7 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	}
 	// GitHub reports UNKNOWN while it computes mergeability; that isn't a conflict yet.
 	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","isCrossRepository":true,"maintainerCanModify":true,"mergeable":"UNKNOWN","statusCheckRollup":[]}`)
-	if status, err = s.SessionPullRequest(state.Projects[0].Sessions[0].ID, false); err != nil || status.Conflicts || status.ForkWithoutEdits {
+	if status, err = s.SessionPullRequest(state.Workspaces[0].Sessions[0].ID, false); err != nil || status.Conflicts || status.ForkWithoutEdits {
 		t.Fatalf("unknown mergeability: %+v, %v", status, err)
 	}
 	if args, _ := os.ReadFile(filepath.Join(dir, "args")); !strings.HasPrefix(string(args), "pr\nview\n42\n--repo\nfixture/repository\n") {
@@ -150,7 +150,7 @@ func TestGitHubPullRequest(t *testing.T) {
 	p := repositoryFixture(t, s)
 	dir, respond := pullRequestFixture(t)
 	s.mu.Lock()
-	stored, _ := s.projectLocked(p.ID)
+	stored, _ := s.workspaceLocked(p.ID)
 	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	respond("view", `{"number":56,"title":"Bump","state":"OPEN","headRefName":"bump","baseRefName":"main","statusCheckRollup":[{"__typename":"CheckRun","name":"build","workflowName":"CI","status":"COMPLETED","conclusion":"FAILURE","detailsUrl":"https://github.com/fixture/repository/actions/runs/10/job/100"}]}`)
@@ -180,7 +180,7 @@ func TestPullRequestCheckFailure(t *testing.T) {
 	p := repositoryFixture(t, s)
 	_, respond := pullRequestFixture(t)
 	s.mu.Lock()
-	stored, _ := s.projectLocked(p.ID)
+	stored, _ := s.workspaceLocked(p.ID)
 	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	sess := sessionFixture(t, s, p, "terminal")

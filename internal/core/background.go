@@ -94,7 +94,7 @@ func (s *Store) reattachLocked(live map[string]sessionhost.Info) {
 		var meta hostMeta
 		_ = json.Unmarshal(info.Meta, &meta)
 		if _, sess, err := s.sessionLocked(id); err != nil || meta.LaunchID == "" || sess.LaunchID != meta.LaunchID {
-			// The session was closed, its project removed or it was started again elsewhere;
+			// The session was closed, its workspace removed or it was started again elsewhere;
 			// the process must not keep running unseen.
 			s.log.Info("stopping unknown background session", "session", id)
 			if err = s.host.Release(id); err != nil {

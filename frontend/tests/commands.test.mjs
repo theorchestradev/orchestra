@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { commandItems, destinations, filterCommands } from '../src/shared/commands.js'
 
-const projects = [
+const workspaces = [
   {
     id: 'p1',
     name: 'Orchestra',
@@ -14,10 +14,10 @@ const projects = [
   { id: 'p2', name: 'Site', sessions: [{ id: 's2', name: 'Codex', agent: 'codex' }] },
 ]
 
-test('command bar lists navigation, creation and app commands for the selected project', () => {
+test('command bar lists navigation, creation and app commands for the selected workspace', () => {
   const ids = commandItems({
-    projects,
-    project: projects[0],
+    workspaces,
+    workspace: workspaces[0],
     preferences: { appearance: 'dark', defaultAgent: 'claude' },
   }).map((c) => c.id)
   assert.deepEqual(ids, [
@@ -28,7 +28,7 @@ test('command bar lists navigation, creation and app commands for the selected p
     'session',
     'worktreeSession',
     'terminal',
-    'project',
+    'workspace',
     'settings',
     'update',
     'sidebar',
@@ -39,43 +39,43 @@ test('command bar lists navigation, creation and app commands for the selected p
     'theme',
   ])
   assert.equal(
-    commandItems({ projects, project: projects[1], preferences: {} }).some((c) => c.id === 'pullRequest'),
+    commandItems({ workspaces, workspace: workspaces[1], preferences: {} }).some((c) => c.id === 'pullRequest'),
     false,
   )
-  const none = commandItems({ projects: [], preferences: {} }).map((c) => c.id)
-  assert.deepEqual(none, ['goto', 'project', 'settings', 'update', 'sidebar', 'appearance', 'theme'])
+  const none = commandItems({ workspaces: [], preferences: {} }).map((c) => c.id)
+  assert.deepEqual(none, ['goto', 'workspace', 'settings', 'update', 'sidebar', 'appearance', 'theme'])
 })
 
 test('command labels follow current state', () => {
   const names = (items) => Object.fromEntries(items.map((c) => [c.id, c.name]))
   const light = names(
-    commandItems({ projects, project: projects[1], preferences: { appearance: 'light' }, sidebarHidden: true }),
+    commandItems({ workspaces, workspace: workspaces[1], preferences: { appearance: 'light' }, sidebarHidden: true }),
   )
   assert.equal(light.appearance, 'Switch to Dark Appearance')
   assert.equal(light.sidebar, 'Show Sidebar')
   assert.equal(light.diff, 'Show Changes')
-  const open = commandItems({ projects, project: projects[0], preferences: { diffPaneOpen: true } })
+  const open = commandItems({ workspaces, workspace: workspaces[0], preferences: { diffPaneOpen: true } })
   assert.equal(open.find((c) => c.id === 'diff').name, 'Hide Changes')
   assert.equal(light.scratchpad, 'New Scratchpad')
   assert.equal(light.github, undefined)
-  const session = commandItems({ projects, project: projects[0], preferences: { defaultAgent: 'pi' } }).find(
+  const session = commandItems({ workspaces, workspace: workspaces[0], preferences: { defaultAgent: 'pi' } }).find(
     (c) => c.id === 'session',
   )
   assert.equal(session.children[0].agent, 'pi')
   assert.equal(session.children[0].detail, 'Default')
 })
 
-test('go to lists every project page and session', () => {
-  const items = destinations(projects)
+test('go to lists every workspace page and session', () => {
+  const items = destinations(workspaces)
   assert.deepEqual(
-    items.map((i) => [i.project.id, i.destination]),
+    items.map((i) => [i.workspace.id, i.destination]),
     [
-      ['p1', 'project'],
+      ['p1', 'workspace'],
       ['p1', 'github'],
       ['p1', 'reviews'],
       ['p1', 'scratchpad'],
       ['p1', 's1'],
-      ['p2', 'project'],
+      ['p2', 'workspace'],
       ['p2', 's2'],
     ],
   )
@@ -83,7 +83,7 @@ test('go to lists every project page and session', () => {
 })
 
 test('command search matches every word across name and detail', () => {
-  const items = destinations(projects)
+  const items = destinations(workspaces)
   assert.deepEqual(
     filterCommands(items, 'orch claude').map((i) => i.id),
     ['s1'],
@@ -93,7 +93,7 @@ test('command search matches every word across name and detail', () => {
 })
 
 test('plain terminals are not offered as agents and show the terminal symbol', () => {
-  const session = commandItems({ projects, project: projects[1], preferences: { defaultAgent: 'claude' } }).find(
+  const session = commandItems({ workspaces, workspace: workspaces[1], preferences: { defaultAgent: 'claude' } }).find(
     (c) => c.id === 'session',
   )
   assert.ok(!session.children.some((c) => c.agent === 'terminal'))
@@ -110,9 +110,9 @@ test('command bar opens the selected session folder in installed apps', () => {
     { id: 'files', name: 'Finder' },
   ]
   const items = commandItems({
-    projects,
-    project: projects[0],
-    session: projects[0].sessions[0],
+    workspaces,
+    workspace: workspaces[0],
+    session: workspaces[0].sessions[0],
     apps,
     preferences: {},
   })
@@ -129,7 +129,8 @@ test('command bar opens the selected session folder in installed apps', () => {
   )
   // Without a session there is no folder to open.
   assert.equal(
-    commandItems({ projects, project: projects[0], apps, preferences: {} }).filter((c) => c.group === 'Session').length,
+    commandItems({ workspaces, workspace: workspaces[0], apps, preferences: {} }).filter((c) => c.group === 'Session')
+      .length,
     0,
   )
 })

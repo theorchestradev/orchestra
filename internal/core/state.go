@@ -67,9 +67,9 @@ type Repository struct {
 	GitHub string `json:"gitHub,omitempty"`
 }
 
-// Project is a workspace: its repositories, sessions and Scratchpad. The UI calls it a workspace;
-// the saved state and the CLI keep the project name.
-type Project struct {
+// Workspace is a workspace: its repositories, sessions and Scratchpad. The UI calls it a workspace;
+// the saved state and the CLI keep the workspace name.
+type Workspace struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
@@ -156,13 +156,17 @@ type Preferences struct {
 	KeepSessionsRunning bool `json:"keepSessionsRunning"`
 }
 type State struct {
-	Version           int         `json:"version"`
-	SelectedProjectID string      `json:"selectedProjectID,omitempty"`
-	Projects          []*Project  `json:"projects"`
-	Profiles          []*Profile  `json:"profiles,omitempty"`
-	Preferences       Preferences `json:"preferences"`
-	Error             string      `json:"error,omitempty"`
-	Runs              []*Run      `json:"runs,omitempty"`
+	Version             int          `json:"version"`
+	SelectedWorkspaceID string       `json:"selectedWorkspaceID,omitempty"`
+	Workspaces          []*Workspace `json:"workspaces"`
+	Profiles            []*Profile   `json:"profiles,omitempty"`
+	Preferences         Preferences  `json:"preferences"`
+	Error               string       `json:"error,omitempty"`
+	Runs                []*Run       `json:"runs,omitempty"`
+	// LegacyWorkspaces and LegacySelectedWorkspaceID hold the keys saved before workspaces were
+	// named projects in the code, read only to migrate them.
+	LegacyWorkspaces          []*Workspace `json:"projects,omitempty"`
+	LegacySelectedWorkspaceID string       `json:"selectedProjectID,omitempty"`
 }
 
 // Store owns app metadata. TerminalSession owns every live PTY, through the session host
@@ -281,12 +285,12 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 		logger = slog.New(slog.DiscardHandler)
 	}
 	s := &Store{path: path, worktreesDir: filepath.Join(filepath.Dir(path), "Worktrees"), executable: executable, canSave: true, terminals: map[string]*TerminalSession{}, closing: map[string]bool{}, emit: emit, log: logger}
-	s.state = State{Version: stateVersion, Projects: []*Project{}, Preferences: defaultPreferences()}
+	s.state = State{Version: stateVersion, Workspaces: []*Workspace{}, Preferences: defaultPreferences()}
 	migrated := false
 	if data, err := os.ReadFile(path); err == nil {
 		if err = json.Unmarshal(data, &s.state); err == nil {
-			if migrated = s.state.Version == 1; migrated {
-				migrateRepositories(&s.state)
+			if migrated = s.state.Version == 1 || s.state.LegacyWorkspaces != nil; migrated {
+				migrateState(&s.state)
 			}
 			err = validateState(s.state)
 		}
@@ -295,10 +299,10 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 			err = atomicWrite(strings.TrimSuffix(path, ".json")+".bkp.json", data, 0600)
 		}
 		if err != nil {
-			s.log.Warn("saved workspace unreadable", "error", err)
+			s.log.Warn("saved state unreadable", "error", err)
 			s.canSave = false
 			s.state.Error = "Could not load saved state. The file was left unchanged."
-			s.state.Projects = []*Project{}
+			s.state.Workspaces = []*Workspace{}
 		}
 	} else if !os.IsNotExist(err) {
 		return nil, err
@@ -308,7 +312,7 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}
-		s.log.Info("workspaces migrated to repositories", "count", len(s.state.Projects))
+		s.log.Info("workspaces migrated to repositories", "count", len(s.state.Workspaces))
 	}
 	var err error
 	var live map[string]sessionhost.Info
@@ -353,8 +357,8 @@ func (s *Store) SetWorktreesDir(directory string) {
 	s.worktreesDir = directory
 }
 func (s *Store) restoreLocked() {
-	if s.state.Projects == nil {
-		s.state.Projects = []*Project{}
+	if s.state.Workspaces == nil {
+		s.state.Workspaces = []*Workspace{}
 	}
 	if s.state.Preferences.Theme == "" {
 		s.state.Preferences = defaultPreferences()
@@ -370,7 +374,7 @@ func (s *Store) restoreLocked() {
 			s.state.Preferences.TelemetryInstallID = ""
 		}
 	}
-	for _, p := range s.state.Projects {
+	for _, p := range s.state.Workspaces {
 		if p.Sessions == nil {
 			p.Sessions = []*Session{}
 		}
@@ -431,7 +435,7 @@ func (s *Store) saveLocked() error {
 	}
 	saved.Runs = nil
 	saved.Error = ""
-	for _, p := range saved.Projects {
+	for _, p := range saved.Workspaces {
 		for _, repo := range p.Repositories {
 			repo.GitHub = ""
 		}
@@ -467,17 +471,17 @@ func (s *Store) snapshotLocked() State {
 	return state
 }
 func (s *Store) Snapshot() State { s.mu.Lock(); defer s.mu.Unlock(); return s.snapshotLocked() }
-func (s *Store) changedLocked()  { s.emit("workspace", s.snapshotLocked()) }
-func (s *Store) projectLocked(id string) (*Project, error) {
-	for _, p := range s.state.Projects {
+func (s *Store) changedLocked()  { s.emit("state", s.snapshotLocked()) }
+func (s *Store) workspaceLocked(id string) (*Workspace, error) {
+	for _, p := range s.state.Workspaces {
 		if p.ID == id {
 			return p, nil
 		}
 	}
 	return nil, errors.New("Workspace unavailable.")
 }
-func (s *Store) sessionLocked(id string) (*Project, *Session, error) {
-	for _, p := range s.state.Projects {
+func (s *Store) sessionLocked(id string) (*Workspace, *Session, error) {
+	for _, p := range s.state.Workspaces {
 		for _, sess := range p.Sessions {
 			if sess.ID == id {
 				return p, sess, nil
@@ -486,7 +490,7 @@ func (s *Store) sessionLocked(id string) (*Project, *Session, error) {
 	}
 	return nil, nil, errors.New("Session unavailable.")
 }
-func (s *Store) CreateProject(name, directory, description string) (State, error) {
+func (s *Store) CreateWorkspace(name, directory, description string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	name = strings.TrimSpace(name)
@@ -498,43 +502,43 @@ func (s *Store) CreateProject(name, directory, description string) (State, error
 		return State{}, err
 	}
 	repo := &Repository{ID: uuid.NewString(), Name: folderName(directory, name), Directory: directory}
-	p := &Project{ID: uuid.NewString(), Name: name, Description: strings.TrimSpace(description), Repositories: []*Repository{repo}, IsExpanded: true, Sessions: []*Session{}}
-	s.state.Projects = append(s.state.Projects, p)
-	s.state.SelectedProjectID = p.ID
+	p := &Workspace{ID: uuid.NewString(), Name: name, Description: strings.TrimSpace(description), Repositories: []*Repository{repo}, IsExpanded: true, Sessions: []*Session{}}
+	s.state.Workspaces = append(s.state.Workspaces, p)
+	s.state.SelectedWorkspaceID = p.ID
 	if err = s.saveLocked(); err != nil {
 		return State{}, err
 	}
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) RemoveProject(id string) (State, error) {
+func (s *Store) RemoveWorkspace(id string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
-	previousProjects, previousSelection := s.state.Projects, s.state.SelectedProjectID
-	s.state.Projects = make([]*Project, 0, len(previousProjects)-1)
-	for _, project := range previousProjects {
-		if project.ID != id {
-			s.state.Projects = append(s.state.Projects, project)
+	previousWorkspaces, previousSelection := s.state.Workspaces, s.state.SelectedWorkspaceID
+	s.state.Workspaces = make([]*Workspace, 0, len(previousWorkspaces)-1)
+	for _, workspace := range previousWorkspaces {
+		if workspace.ID != id {
+			s.state.Workspaces = append(s.state.Workspaces, workspace)
 		}
 	}
-	if s.state.SelectedProjectID == id {
-		s.state.SelectedProjectID = ""
-		if len(s.state.Projects) > 0 {
-			s.state.SelectedProjectID = s.state.Projects[0].ID
+	if s.state.SelectedWorkspaceID == id {
+		s.state.SelectedWorkspaceID = ""
+		if len(s.state.Workspaces) > 0 {
+			s.state.SelectedWorkspaceID = s.state.Workspaces[0].ID
 		}
 	}
 	// Save before stopping sessions. A failed workspace write must leave them running.
 	if err = s.saveLocked(); err != nil {
-		s.state.Projects, s.state.SelectedProjectID = previousProjects, previousSelection
+		s.state.Workspaces, s.state.SelectedWorkspaceID = previousWorkspaces, previousSelection
 		return State{}, err
 	}
 	for _, sess := range p.Sessions {
 		if err = s.collaboration.closeLocked(sess.ID); err != nil {
-			s.state.Projects, s.state.SelectedProjectID = previousProjects, previousSelection
+			s.state.Workspaces, s.state.SelectedWorkspaceID = previousWorkspaces, previousSelection
 			return State{}, errors.Join(err, s.saveLocked())
 		}
 	}
@@ -558,7 +562,7 @@ func (s *Store) Rename(id, name string) (State, error) {
 	if name == "" {
 		return State{}, errors.New("Enter a name.")
 	}
-	if p, err := s.projectLocked(id); err == nil {
+	if p, err := s.workspaceLocked(id); err == nil {
 		p.Name = name
 	} else {
 		_, sess, err := s.sessionLocked(id)
@@ -572,18 +576,18 @@ func (s *Store) Rename(id, name string) (State, error) {
 	return s.snapshotLocked(), err
 }
 
-// EditProject updates a project's name and its optional description and emoji.
-func (s *Store) EditProject(id, name, description, emoji string) (State, error) {
+// EditWorkspace updates a workspace's name and its optional description and emoji.
+func (s *Store) EditWorkspace(id, name, description, emoji string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	name, emoji = strings.TrimSpace(name), strings.TrimSpace(emoji)
 	if name == "" {
 		return State{}, errors.New("Enter a workspace name.")
 	}
-	if !validProjectEmoji(emoji) {
+	if !validWorkspaceEmoji(emoji) {
 		return State{}, errors.New("Choose a single emoji.")
 	}
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
@@ -592,14 +596,14 @@ func (s *Store) EditProject(id, name, description, emoji string) (State, error) 
 	s.changedLocked()
 	return s.snapshotLocked(), err
 }
-func (s *Store) Select(projectID, destination string) (State, error) {
+func (s *Store) Select(workspaceID, destination string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
-	if destination != "project" && destination != "github" && destination != "reviews" && destination != "scratchpad" {
+	if destination != "workspace" && destination != "github" && destination != "reviews" && destination != "scratchpad" {
 		_, sess, err := s.sessionLocked(destination)
 		if err != nil {
 			return State{}, err
@@ -613,8 +617,8 @@ func (s *Store) Select(projectID, destination string) (State, error) {
 		}
 		p.SelectedSessionID = destination
 	}
-	s.state.SelectedProjectID = projectID
-	if destination != "project" {
+	s.state.SelectedWorkspaceID = workspaceID
+	if destination != "workspace" {
 		p.ShowsGitHub = destination == "github"
 		p.ShowsReviews = destination == "reviews"
 		p.ShowsScratchpad = destination == "scratchpad"
@@ -630,10 +634,10 @@ func (s *Store) Select(projectID, destination string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), err
 }
-func (s *Store) ToggleProject(id string) (State, error) {
+func (s *Store) ToggleWorkspace(id string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
@@ -643,12 +647,12 @@ func (s *Store) ToggleProject(id string) (State, error) {
 	return s.snapshotLocked(), err
 }
 
-// MoveProject places a project at index in the sidebar order.
-func (s *Store) MoveProject(id string, index int) (State, error) {
+// MoveWorkspace places a workspace at index in the sidebar order.
+func (s *Store) MoveWorkspace(id string, index int) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	from := -1
-	for i, p := range s.state.Projects {
+	for i, p := range s.state.Workspaces {
 		if p.ID == id {
 			from = i
 		}
@@ -656,17 +660,17 @@ func (s *Store) MoveProject(id string, index int) (State, error) {
 	if from < 0 {
 		return State{}, errors.New("Workspace unavailable.")
 	}
-	previous := s.state.Projects
-	s.state.Projects = moved(previous, from, index)
+	previous := s.state.Workspaces
+	s.state.Workspaces = moved(previous, from, index)
 	if err := s.saveLocked(); err != nil {
-		s.state.Projects = previous
+		s.state.Workspaces = previous
 		return State{}, err
 	}
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
 
-// MoveSession places a session at index among its project's rows, which include the Scratchpad.
+// MoveSession places a session at index among its workspace's rows, which include the Scratchpad.
 func (s *Store) MoveSession(id string, index int) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -677,11 +681,11 @@ func (s *Store) MoveSession(id string, index int) (State, error) {
 	return s.moveRowLocked(p, sess, index)
 }
 
-// MoveScratchpad places the project's Scratchpad at index among its sessions.
-func (s *Store) MoveScratchpad(projectID string, index int) (State, error) {
+// MoveScratchpad places the workspace's Scratchpad at index among its sessions.
+func (s *Store) MoveScratchpad(workspaceID string, index int) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -691,8 +695,8 @@ func (s *Store) MoveScratchpad(projectID string, index int) (State, error) {
 	return s.moveRowLocked(p, nil, index)
 }
 
-// moveRowLocked moves a session, or the Scratchpad when sess is nil, to index among the project's rows.
-func (s *Store) moveRowLocked(p *Project, sess *Session, index int) (State, error) {
+// moveRowLocked moves a session, or the Scratchpad when sess is nil, to index among the workspace's rows.
+func (s *Store) moveRowLocked(p *Workspace, sess *Session, index int) (State, error) {
 	rows := append([]*Session{}, p.Sessions...)
 	if p.HasScratchpad {
 		rows = slices.Insert(rows, max(0, min(p.ScratchpadIndex, len(rows))), nil)
@@ -723,7 +727,7 @@ func moved[T any](items []T, from, index int) []T {
 func (s *Store) SaveScratchpad(id, text string, revision int) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return 0, err
 	}
@@ -744,7 +748,7 @@ var errScratchpadChanged = errors.New("The Scratchpad changed since it was read.
 
 // setScratchpadTextLocked saves new Scratchpad text under a new revision. CLI writes
 // notify views, so an open editor shows them.
-func (s *Store) setScratchpadTextLocked(p *Project, text string, notify bool) (int, error) {
+func (s *Store) setScratchpadTextLocked(p *Workspace, text string, notify bool) (int, error) {
 	if text == p.ScratchpadText {
 		return p.ScratchpadRevision, nil
 	}
@@ -763,7 +767,7 @@ func (s *Store) setScratchpadTextLocked(p *Project, text string, notify bool) (i
 func (s *Store) RenameScratchpad(id, name string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
@@ -780,11 +784,11 @@ func (s *Store) RenameScratchpad(id, name string) (State, error) {
 	return s.snapshotLocked(), err
 }
 
-// SetScratchpadMode remembers whether the project's Scratchpad opens in Edit or Read mode.
+// SetScratchpadMode remembers whether the workspace's Scratchpad opens in Edit or Read mode.
 func (s *Store) SetScratchpadMode(id, mode string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
@@ -811,7 +815,7 @@ func (s *Store) SetScratchpadMode(id, mode string) (State, error) {
 func (s *Store) DeleteScratchpad(id string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(id)
+	p, err := s.workspaceLocked(id)
 	if err != nil {
 		return State{}, err
 	}
@@ -905,8 +909,8 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	}
 	s.changedLocked()
 	if p.DeliverRequests && !previous.DeliverRequests {
-		for _, project := range s.state.Projects {
-			for _, sess := range project.Sessions {
+		for _, workspace := range s.state.Workspaces {
+			for _, sess := range workspace.Sessions {
 				s.deliverLocked(sess.ID)
 			}
 		}
@@ -933,10 +937,10 @@ func clampSessionName(name string) string {
 // With a worktree, branch names the new session branch, by default orchestra/<session name>,
 // and base is where it starts, by default the repository's current commit. It first keeps local main up to date when the preference is on, and
 // otherwise emits "local-main-behind" when local main lags origin.
-func (s *Store) CreateSession(projectID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
+func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
 	s.mu.Lock()
 	directory, keepUpdated, notice := "", false, false
-	if p, err := s.projectLocked(projectID); err == nil && createWorktree && agent != terminalAgent {
+	if p, err := s.workspaceLocked(workspaceID); err == nil && createWorktree && agent != terminalAgent {
 		if repo, err := s.newSessionRepositoryLocked(p, repositoryID); err == nil {
 			repositoryID, directory = repo.ID, repo.Directory
 			keepUpdated = s.state.Preferences.KeepLocalMainUpdated
@@ -947,16 +951,16 @@ func (s *Store) CreateSession(projectID, repositoryID, agent, sessionName, promp
 	// Fetching can be slow, so it runs outside the lock and never blocks creating the session.
 	if keepUpdated {
 		if branch, err := updateLocalMain(directory); err != nil {
-			s.log.Info("local main not updated", "project", projectID, "branch", branch, "error", err)
+			s.log.Info("local main not updated", "workspace", workspaceID, "branch", branch, "error", err)
 		}
 	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
-	state, err := s.createSessionLocked(projectID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
+	state, err := s.createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
 	s.mu.Unlock()
 	if err == nil && notice {
 		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
-			s.emit("local-main-behind", LocalMainBehind{projectID, repositoryID, branch, behind})
+			s.emit("local-main-behind", LocalMainBehind{workspaceID, repositoryID, branch, behind})
 		}
 	}
 	return state, err
@@ -964,7 +968,7 @@ func (s *Store) CreateSession(projectID, repositoryID, agent, sessionName, promp
 
 // LocalMainBehind tells the user that local main lags origin by Behind commits.
 type LocalMainBehind struct {
-	ProjectID    string `json:"projectID"`
+	WorkspaceID  string `json:"workspaceID"`
 	RepositoryID string `json:"repositoryID"`
 	Branch       string `json:"branch"`
 	Behind       int    `json:"behind"`
@@ -972,9 +976,9 @@ type LocalMainBehind struct {
 
 // KeepLocalMainUpToDate turns on Keep Local Main Up to Date and updates the repository's local
 // main now. The preference stays on when this update is skipped, and the error explains why.
-func (s *Store) KeepLocalMainUpToDate(projectID, repositoryID string) (State, error) {
+func (s *Store) KeepLocalMainUpToDate(workspaceID, repositoryID string) (State, error) {
 	s.mu.Lock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	var repo *Repository
 	if err == nil {
 		repo, err = s.repositoryLocked(p, repositoryID)
@@ -998,11 +1002,11 @@ func (s *Store) KeepLocalMainUpToDate(projectID, repositoryID string) (State, er
 	return s.Snapshot(), nil
 }
 
-// DismissLocalMainNotice stops the project's local-main-behind notice.
-func (s *Store) DismissLocalMainNotice(projectID string) (State, error) {
+// DismissLocalMainNotice stops the workspace's local-main-behind notice.
+func (s *Store) DismissLocalMainNotice(workspaceID string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -1014,8 +1018,8 @@ func (s *Store) DismissLocalMainNotice(projectID string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
-	p, err := s.projectLocked(projectID)
+func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -1066,11 +1070,11 @@ func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName,
 		sess.WorktreeBranch = branch
 		sess.WorktreeDirectory, sess.WorktreeBase, err = createSessionWorktree(repo.Directory, worktreeRoot, branch, strings.TrimSpace(base))
 		if err != nil {
-			s.log.Warn("worktree create failed", "project", p.ID, "session", sess.ID, "error", err)
+			s.log.Warn("worktree create failed", "workspace", p.ID, "session", sess.ID, "error", err)
 			return State{}, err
 		}
 	}
-	previousProjectID, previousSessionID, previousRepositoryID := s.state.SelectedProjectID, p.SelectedSessionID, p.LastRepositoryID
+	previousWorkspaceID, previousSessionID, previousRepositoryID := s.state.SelectedWorkspaceID, p.SelectedSessionID, p.LastRepositoryID
 	previousExpanded, previousGitHub, previousReviews, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad
 	p.Sessions = append(p.Sessions, sess)
 	if loginAgent == "" {
@@ -1081,14 +1085,14 @@ func (s *Store) createSessionLocked(projectID, repositoryID, agent, sessionName,
 	p.ShowsGitHub = false
 	p.ShowsReviews = false
 	p.ShowsScratchpad = false
-	s.state.SelectedProjectID = p.ID
+	s.state.SelectedWorkspaceID = p.ID
 	if err = s.saveLocked(); err != nil {
 		p.Sessions = p.Sessions[:len(p.Sessions)-1]
-		p.SelectedSessionID, s.state.SelectedProjectID, p.LastRepositoryID = previousSessionID, previousProjectID, previousRepositoryID
+		p.SelectedSessionID, s.state.SelectedWorkspaceID, p.LastRepositoryID = previousSessionID, previousWorkspaceID, previousRepositoryID
 		p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad = previousExpanded, previousGitHub, previousReviews, previousScratchpad
 		if worktreeRoot != "" {
 			if cleanupErr := removeSessionWorktree(repo.Directory, worktreeRoot, sess.WorktreeBranch); cleanupErr != nil {
-				s.log.Warn("worktree remove failed", "project", p.ID, "session", sess.ID, "error", cleanupErr)
+				s.log.Warn("worktree remove failed", "workspace", p.ID, "session", sess.ID, "error", cleanupErr)
 				return State{}, fmt.Errorf("%w; worktree cleanup failed at %s: %v", err, worktreeRoot, cleanupErr)
 			}
 		}
@@ -1154,7 +1158,7 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 			s.changedLocked()
 			return s.snapshotLocked(), err
 		}
-		// The project may have been removed while the lock was released.
+		// The workspace may have been removed while the lock was released.
 		if p, _, err = s.sessionLocked(id); err != nil {
 			s.changedLocked()
 			return s.snapshotLocked(), nil

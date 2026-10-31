@@ -4,17 +4,17 @@ import {
   defaultRepository,
   hasWorkItems,
   needsGitRepository,
-  projectTitle,
+  workspaceTitle,
   repositoryLabel,
   sessionRepository,
   spaceSymbol,
-} from '../src/shared/project.js'
+} from '../src/shared/workspace.js'
 import { emojiGroupIndex, emojiGroups, searchEmoji } from '../src/shared/emoji.js'
 
-test('project titles show the emoji before the name', () => {
-  assert.equal(projectTitle({ name: 'Orchestra', emoji: '🎻' }), '🎻 Orchestra')
-  assert.equal(projectTitle({ name: 'Orchestra' }), 'Orchestra')
-  assert.equal(projectTitle(null), '')
+test('workspace titles show the emoji before the name', () => {
+  assert.equal(workspaceTitle({ name: 'Orchestra', emoji: '🎻' }), '🎻 Orchestra')
+  assert.equal(workspaceTitle({ name: 'Orchestra' }), 'Orchestra')
+  assert.equal(workspaceTitle(null), '')
 })
 
 test('Arc Mode spaces prefer the emoji over the initial', () => {
@@ -47,7 +47,7 @@ test('only the non-repository worktree error offers Git initialization', () => {
   assert.ok(needsGitRepository('A worktree requires a Git repository: git: fatal: not a git repository'))
   assert.ok(needsGitRepository(new Error('A worktree requires a Git repository: git: fatal')))
   assert.ok(!needsGitRepository('Commit the repository before creating a worktree: git: fatal'))
-  assert.ok(!needsGitRepository("Could not read the project's Git repository: git: Permission denied"))
+  assert.ok(!needsGitRepository("Could not read the workspace's Git repository: git: Permission denied"))
   assert.ok(!needsGitRepository(null))
 })
 

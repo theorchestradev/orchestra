@@ -1,8 +1,8 @@
 // Explicit visual fixtures. This module cannot start processes or access native user state.
 import { emitPreview } from './api'
-import { projectRows } from './appearance'
+import { workspaceRows } from './appearance'
 const id = () => crypto.randomUUID()
-const projectID = id(),
+const workspaceID = id(),
   appID = id(),
   siteID = id(),
   sessionID = id(),
@@ -34,7 +34,7 @@ const previewUpdate = {
 }
 let state = {
   version: 1,
-  selectedProjectID: projectID,
+  selectedWorkspaceID: workspaceID,
   preferences: {
     appearance: 'dark',
     theme: 'system',
@@ -63,9 +63,9 @@ let state = {
     keepSessionsRunning: false,
     betaUpdates: false,
   },
-  projects: [
+  workspaces: [
     {
-      id: projectID,
+      id: workspaceID,
       name: 'Orchestra',
       repositories: [
         { id: appID, name: 'app', directory: '/tmp/orchestra-visual-fixture', gitHub: 'example/orchestra' },
@@ -132,24 +132,24 @@ let state = {
 }
 const clone = () => structuredClone(state),
   changed = () => {
-    emitPreview('workspace', clone())
+    emitPreview('state', clone())
     return clone()
   },
-  project = (id) => state.projects.find((p) => p.id === id),
+  workspace = (id) => state.workspaces.find((p) => p.id === id),
   // An empty repository ID names the workspace's only repository, or for new sessions the last one used.
   repository = (pid, rid, fallback) => {
-    const repos = project(pid).repositories
+    const repos = workspace(pid).repositories
     return (
       repos.find((r) => r.id === rid) ||
       (!rid &&
         (repos.length === 1 || fallback) &&
-        (repos.find((r) => r.id === project(pid).lastRepositoryID) || repos[0]))
+        (repos.find((r) => r.id === workspace(pid).lastRepositoryID) || repos[0]))
     )
   },
-  session = (id) => state.projects.flatMap((p) => p.sessions).find((s) => s.id === id)
+  session = (id) => state.workspaces.flatMap((p) => p.sessions).find((s) => s.id === id)
 const item = {
   number: 42,
-  title: 'Preserve terminal sessions when switching projects',
+  title: 'Preserve terminal sessions when switching workspaces',
   state: 'open',
   html_url: 'https://github.com/example/orchestra/issues/42',
   updated_at: new Date().toISOString(),
@@ -212,16 +212,16 @@ const previewFiles = [
     additions: 3,
     deletions: 2,
     patch:
-      '@@ -231,7 +231,8 @@ func (s *Store) StartSession(id string) {\n \tdirectory := p.Directory\n-\tif sess.WorktreeDirectory != "" {\n-\t\tdirectory = sess.WorktreeDirectory\n+\tif worktree := sess.WorktreeDirectory; worktree != "" {\n+\t\t// Missing worktrees never fall back to the project folder.\n+\t\tdirectory = worktree\n \t}\n \treturn directory\n',
+      '@@ -231,7 +231,8 @@ func (s *Store) StartSession(id string) {\n \tdirectory := p.Directory\n-\tif sess.WorktreeDirectory != "" {\n-\t\tdirectory = sess.WorktreeDirectory\n+\tif worktree := sess.WorktreeDirectory; worktree != "" {\n+\t\t// Missing worktrees never fall back to the repository folder.\n+\t\tdirectory = worktree\n \t}\n \treturn directory\n',
   },
   { path: 'docs/notes.md', oldPath: 'NOTES.md', status: 'R', additions: 0, deletions: 0 },
   { path: 'legacy.txt', status: 'D', additions: 0, deletions: 1, patch: '@@ -1 +0,0 @@\n-Remove me\n' },
   { path: 'frontend/public/preview.png', status: 'M', additions: 0, deletions: 0, binary: true },
   { path: 'package-lock.json', status: 'M', additions: 4200, deletions: 3100, truncated: true },
 ]
-// Mirrors Store.moveRowLocked: index counts the Scratchpad among the project's sessions.
+// Mirrors Store.moveRowLocked: index counts the Scratchpad among the workspace's sessions.
 function moveRow(p, target, index) {
-  const rows = projectRows(p),
+  const rows = workspaceRows(p),
     from = rows.findIndex((r) => r.id === target)
   rows.splice(Math.max(0, Math.min(index, rows.length - 1)), 0, ...rows.splice(from, 1))
   p.sessions = rows.filter((r) => !r.scratchpad)
@@ -337,7 +337,7 @@ export const backend = {
   },
   SystemPalettes: () => null,
   // Illustrative apps with long names and no system icons, as on Linux.
-  ProjectIcons: () => ({}),
+  WorkspaceIcons: () => ({}),
   OpenInApps: () => [
     { id: 'vscode', name: 'VS Code', kind: 'editor' },
     { id: 'zed', name: 'Zed', kind: 'editor' },
@@ -373,13 +373,13 @@ export const backend = {
     return theme
   },
   RevealCustomTheme: (id) => console.debug('Preview: reveal ' + id),
-  Workspace: clone,
+  State: clone,
   // Folders named *no-git* are not Git repositories.
   ChooseFolder: () =>
     ['/tmp/orchestra-visual-docs', '/tmp/orchestra-visual-no-git-notes', '/tmp/orchestra-visual-fixture'][
       (previewFolders = (previewFolders + 1) % 3)
     ],
-  CreateProject: (name, directory, description = '') => {
+  CreateWorkspace: (name, directory, description = '') => {
     const p = {
       id: id(),
       name,
@@ -391,14 +391,14 @@ export const backend = {
       scratchpadText: '',
       scratchpadRevision: 0,
     }
-    state.projects.push(p)
-    state.selectedProjectID = p.id
+    state.workspaces.push(p)
+    state.selectedWorkspaceID = p.id
     return changed()
   },
   Select: (pid, destination) => {
-    state.selectedProjectID = pid
-    const p = project(pid)
-    if (destination !== 'project') {
+    state.selectedWorkspaceID = pid
+    const p = workspace(pid)
+    if (destination !== 'workspace') {
       p.showsScratchpad = destination === 'scratchpad'
       p.showsGitHub = destination === 'github'
       p.showsReviews = destination === 'reviews'
@@ -410,7 +410,7 @@ export const backend = {
     return changed()
   },
   AddRepository: (pid, directory) => {
-    const p = project(pid),
+    const p = workspace(pid),
       existing = p.repositories.find((r) => r.directory === directory)
     if (existing) return Promise.reject(`${directory} is already in this workspace as ${existing.name}.`)
     p.repositories.push({ id: id(), name: directory.split('/').filter(Boolean).at(-1), directory })
@@ -421,7 +421,7 @@ export const backend = {
     return changed()
   },
   RemoveRepository: (pid, rid) => {
-    const p = project(pid),
+    const p = workspace(pid),
       repo = repository(pid, rid),
       count = p.sessions.filter((s) => s.repositoryID === rid).length
     if (p.repositories.length === 1)
@@ -434,24 +434,24 @@ export const backend = {
     if (p.lastRepositoryID === rid) p.lastRepositoryID = ''
     return changed()
   },
-  EditProject: (pid, name, description, emoji = '') => {
-    Object.assign(project(pid), { name: name.trim(), description: description.trim(), emoji: emoji.trim() })
+  EditWorkspace: (pid, name, description, emoji = '') => {
+    Object.assign(workspace(pid), { name: name.trim(), description: description.trim(), emoji: emoji.trim() })
     return changed()
   },
   Rename: (target, name) => {
-    ;(project(target) || session(target)).name = name
+    ;(workspace(target) || session(target)).name = name
     return changed()
   },
   RenameScratchpad: (pid, name) => {
-    project(pid).scratchpadName = name.trim()
+    workspace(pid).scratchpadName = name.trim()
     return changed()
   },
   SetScratchpadMode: (pid, mode) => {
-    project(pid).scratchpadMode = mode === 'read' ? 'read' : ''
+    workspace(pid).scratchpadMode = mode === 'read' ? 'read' : ''
     return changed()
   },
   DeleteScratchpad: (pid) => {
-    Object.assign(project(pid), {
+    Object.assign(workspace(pid), {
       hasScratchpad: false,
       showsScratchpad: false,
       scratchpadName: '',
@@ -462,35 +462,39 @@ export const backend = {
     })
     return changed()
   },
-  RemoveProject: (pid) => {
-    const p = project(pid),
+  RemoveWorkspace: (pid) => {
+    const p = workspace(pid),
       ids = new Set(p.sessions.map((s) => s.id))
     for (const run of state.runs)
       if (['queued', 'running'].includes(run.status) && (ids.has(run.fromSessionID) || ids.has(run.toSessionID)))
         run.status = 'interrupted'
-    state.projects = state.projects.filter((p) => p.id !== pid)
-    if (state.selectedProjectID === pid) state.selectedProjectID = state.projects[0]?.id || ''
+    state.workspaces = state.workspaces.filter((p) => p.id !== pid)
+    if (state.selectedWorkspaceID === pid) state.selectedWorkspaceID = state.workspaces[0]?.id || ''
     return changed()
   },
-  MoveProject: (pid, index) => {
-    const from = state.projects.findIndex((p) => p.id === pid)
-    state.projects.splice(Math.max(0, Math.min(index, state.projects.length - 1)), 0, ...state.projects.splice(from, 1))
+  MoveWorkspace: (pid, index) => {
+    const from = state.workspaces.findIndex((p) => p.id === pid)
+    state.workspaces.splice(
+      Math.max(0, Math.min(index, state.workspaces.length - 1)),
+      0,
+      ...state.workspaces.splice(from, 1),
+    )
     return changed()
   },
   MoveSession: (target, index) =>
     moveRow(
-      state.projects.find((p) => p.sessions.some((s) => s.id === target)),
+      state.workspaces.find((p) => p.sessions.some((s) => s.id === target)),
       target,
       index,
     ),
-  MoveScratchpad: (pid, index) => moveRow(project(pid), 'scratchpad', index),
-  ToggleProject: (pid) => {
-    const p = project(pid)
+  MoveScratchpad: (pid, index) => moveRow(workspace(pid), 'scratchpad', index),
+  ToggleWorkspace: (pid) => {
+    const p = workspace(pid)
     p.isExpanded = !p.isExpanded
     return changed()
   },
   SaveScratchpad: (pid, text) => {
-    const p = project(pid)
+    const p = workspace(pid)
     if (p.scratchpadText !== text) p.scratchpadRevision++
     p.scratchpadText = text
     return p.scratchpadRevision
@@ -505,7 +509,7 @@ export const backend = {
     return !/no-git/.test(repo.directory) || !!repo.gitInitialized
   },
   DetectRepository: (pid) => {
-    for (const repo of project(pid).repositories)
+    for (const repo of workspace(pid).repositories)
       if (!repo.gitHub && !/no-git/.test(repo.directory))
         repo.gitHub = 'example/' + repo.name.toLowerCase().replace(/\W+/g, '-')
     return changed()
@@ -563,11 +567,11 @@ export const backend = {
   },
   RemoveProfile: (profileID) => {
     state.profiles = state.profiles.filter((p) => p.id !== profileID)
-    for (const p of state.projects) if (p.profileID === profileID) p.profileID = ''
+    for (const p of state.workspaces) if (p.profileID === profileID) p.profileID = ''
     return changed()
   },
-  SetProjectProfile: (pid, profileID) => {
-    project(pid).profileID = profileID
+  SetWorkspaceProfile: (pid, profileID) => {
+    workspace(pid).profileID = profileID
     return changed()
   },
   ProfileLogins: async (profileID) => {
@@ -670,7 +674,7 @@ export const backend = {
           ? 'Commit the repository before creating a worktree: git: fatal: Needed a single revision'
           : 'A worktree requires a Git repository: git: fatal: not a git repository (or any of the parent directories): .git',
       )
-    const p = project(pid),
+    const p = workspace(pid),
       sess = {
         id: id(),
         name:
@@ -726,7 +730,7 @@ export const backend = {
     p.selectedSessionID = sess.id
     p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.isExpanded = true
-    state.selectedProjectID = pid
+    state.selectedWorkspaceID = pid
     const result = changed()
     // The preview's local main is always a few commits behind origin.
     if (
@@ -736,7 +740,7 @@ export const backend = {
       !p.localMainNoticeDismissed
     )
       setTimeout(() =>
-        emitPreview('local-main-behind', { projectID: pid, repositoryID: repo.id, branch: 'main', behind: 4 }),
+        emitPreview('local-main-behind', { workspaceID: pid, repositoryID: repo.id, branch: 'main', behind: 4 }),
       )
     return result
   },
@@ -745,7 +749,7 @@ export const backend = {
     return changed()
   },
   DismissLocalMainNotice: (pid) => {
-    project(pid).localMainNoticeDismissed = true
+    workspace(pid).localMainNoticeDismissed = true
     return changed()
   },
   StartSession: (target) => {
@@ -791,7 +795,7 @@ export const backend = {
       scope: s.worktreeDirectory ? 'worktree' : 'folder',
       directory:
         s.worktreeDirectory ||
-        state.projects.flatMap((p) => p.repositories).find((r) => r.id === s.repositoryID)?.directory,
+        state.workspaces.flatMap((p) => p.repositories).find((r) => r.id === s.repositoryID)?.directory,
       base: s.worktreeDirectory ? '3f9c2a1b7d4e5f60718293a4b5c6d7e8f9012345' : 'HEAD',
       files: structuredClone(files),
       additions: files.reduce((n, f) => n + f.additions, 0),
@@ -866,7 +870,7 @@ export const backend = {
   WriteTerminal: () => {},
   ResizeTerminal: () => {},
   CloseSession: (target) => {
-    for (const p of state.projects) {
+    for (const p of state.workspaces) {
       const i = p.sessions.findIndex((s) => s.id === target)
       if (i >= 0 && i < (p.scratchpadIndex || 0)) p.scratchpadIndex--
       p.sessions = p.sessions.filter((s) => s.id !== target)
@@ -907,9 +911,9 @@ export const backend = {
     `Check: server-tests (ubuntu-latest)\nConclusion: failure\nURL: https://github.com/example/orchestra/actions/runs/1/job/${jobID}\n\nLog:\n\`\`\`\n--- FAIL: TestPreview (0.01s)\n\`\`\``,
   GitHubDetail: (_pid, rid, number, pull) => ({
     detail: {
-      body: 'Keep each project’s processes and terminal scrollback alive when navigating between sessions.\n\n```\nSwitch projects → return to the same conversation\n```',
+      body: 'Keep each workspace’s processes and terminal scrollback alive when navigating between sessions.\n\n```\nSwitch workspaces → return to the same conversation\n```',
       body_html:
-        '<p>Keep each project’s processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch projects → return to the same conversation</code></pre>',
+        '<p>Keep each workspace’s processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch workspaces → return to the same conversation</code></pre>',
       ...structuredClone(repositoryItems(rid).find((i) => i.number === number)),
       ...(pull
         ? {
@@ -960,7 +964,7 @@ export const backend = {
   SendRequest: (from, to, prompt) => {
     state.runs.push({
       id: id(),
-      projectID: state.selectedProjectID,
+      workspaceID: state.selectedWorkspaceID,
       fromSessionID: from,
       toSessionID: to,
       prompt,
@@ -977,7 +981,7 @@ export const backend = {
   ExecuteRequest: (target) => {
     const run = state.runs.find((r) => r.id === target)
     run.status = 'running'
-    const p = project(run.projectID)
+    const p = workspace(run.workspaceID)
     p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.selectedSessionID = run.toSessionID
     return changed()

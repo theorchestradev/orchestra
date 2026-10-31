@@ -9,7 +9,7 @@ import (
 
 func TestSessionFiles(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "terminal")
 	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "src", "main.go"), "package main\n")
 	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "README.md"), "hello\n")

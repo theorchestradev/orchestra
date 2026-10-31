@@ -6,7 +6,7 @@ import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
 // repository is the workspace repository the item belongs to.
 const props = defineProps({
-  project: Object,
+  workspace: Object,
   repository: Object,
   item: Object,
   pull: Boolean,
@@ -96,7 +96,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const available = await call('GitHubMetadataOptions', props.project.id, props.repository.id, props.field)
+    const available = await call('GitHubMetadataOptions', props.workspace.id, props.repository.id, props.field)
     if (!active) return
     const all = new Map([...available, ...(props.item[props.field] || [])].map((o) => [o[key], o]))
     options.value = [...all.values()].sort((a, b) => a[key].localeCompare(b[key]))
@@ -139,7 +139,7 @@ async function save() {
   try {
     await call(
       'UpdateGitHubMetadata',
-      props.project.id,
+      props.workspace.id,
       props.repository.id,
       props.item.number,
       props.pull,
@@ -188,7 +188,7 @@ async function showDuplicates() {
   error.value = ''
   loading.value = true
   try {
-    const items = await call('GitHubItems', props.project.id, props.repository.id, 'all')
+    const items = await call('GitHubItems', props.workspace.id, props.repository.id, 'all')
     if (active) duplicateItems.value = items
   } catch (e) {
     if (active) error.value = String(e)

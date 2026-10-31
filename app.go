@@ -174,7 +174,7 @@ func (a *App) ready() error {
 	}
 	return nil
 }
-func (a *App) Workspace() (core.State, error) {
+func (a *App) State() (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
@@ -275,18 +275,18 @@ func (a *App) RemoveOpenRouterKey() error {
 	a.openRouterCache, a.openRouterChecked = core.OpenRouterAccount{}, time.Time{}
 	return nil
 }
-func (a *App) CreateProject(name, directory, description string) (core.State, error) {
+func (a *App) CreateWorkspace(name, directory, description string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateProject(name, directory, description)
+	state, err := a.store.CreateWorkspace(name, directory, description)
 	if err == nil {
-		if detected, e := a.store.DetectRepository(state.SelectedProjectID); e == nil {
+		if detected, e := a.store.DetectRepository(state.SelectedWorkspaceID); e == nil {
 			state = detected
 		}
-		for _, p := range state.Projects {
-			if p.ID == state.SelectedProjectID {
+		for _, p := range state.Workspaces {
+			if p.ID == state.SelectedWorkspaceID {
 				a.Track("project_added", map[string]any{"has_github_repository": p.Repositories[0].GitHub != ""})
 				break
 			}
@@ -294,31 +294,32 @@ func (a *App) CreateProject(name, directory, description string) (core.State, er
 	}
 	return state, err
 }
+
 // AddRepository, RenameRepository and RemoveRepository manage a workspace's repositories.
 // Removing one never touches its folder.
-func (a *App) AddRepository(project, directory string) (core.State, error) {
+func (a *App) AddRepository(workspace, directory string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.AddRepository(project, directory)
+	return a.store.AddRepository(workspace, directory)
 }
-func (a *App) RenameRepository(project, repository, name string) (core.State, error) {
+func (a *App) RenameRepository(workspace, repository, name string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.RenameRepository(project, repository, name)
+	return a.store.RenameRepository(workspace, repository, name)
 }
-func (a *App) RemoveRepository(project, repository string) (core.State, error) {
+func (a *App) RemoveRepository(workspace, repository string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.RemoveRepository(project, repository)
+	return a.store.RemoveRepository(workspace, repository)
 }
-func (a *App) RemoveProject(id string) (core.State, error) {
+func (a *App) RemoveWorkspace(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.RemoveProject(id)
+	return a.store.RemoveWorkspace(id)
 }
 func (a *App) Rename(id, name string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -326,30 +327,30 @@ func (a *App) Rename(id, name string) (core.State, error) {
 	}
 	return a.store.Rename(id, name)
 }
-func (a *App) EditProject(id, name, description, emoji string) (core.State, error) {
+func (a *App) EditWorkspace(id, name, description, emoji string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.EditProject(id, name, description, emoji)
+	return a.store.EditWorkspace(id, name, description, emoji)
 }
-func (a *App) Select(project, destination string) (core.State, error) {
+func (a *App) Select(workspace, destination string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	return a.store.Select(project, destination)
+	return a.store.Select(workspace, destination)
 }
-func (a *App) ToggleProject(id string) (core.State, error) {
+func (a *App) ToggleWorkspace(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.ToggleProject(id)
+	return a.store.ToggleWorkspace(id)
 }
-func (a *App) MoveProject(id string, index int) (core.State, error) {
+func (a *App) MoveWorkspace(id string, index int) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.MoveProject(id, index)
+	return a.store.MoveWorkspace(id, index)
 }
 func (a *App) MoveSession(id string, index int) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -357,11 +358,11 @@ func (a *App) MoveSession(id string, index int) (core.State, error) {
 	}
 	return a.store.MoveSession(id, index)
 }
-func (a *App) MoveScratchpad(projectID string, index int) (core.State, error) {
+func (a *App) MoveScratchpad(workspaceID string, index int) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.MoveScratchpad(projectID, index)
+	return a.store.MoveScratchpad(workspaceID, index)
 }
 func (a *App) SaveScratchpad(id, text string, revision int) (int, error) {
 	return a.store.SaveScratchpad(id, text, revision)
@@ -394,12 +395,12 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(project, repository, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
+func (a *App) CreateSession(workspace, repository, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(project, repository, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
+	state, err := a.store.CreateSession(workspace, repository, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
 	if err == nil && gitHubItem != nil {
 		action := "work_on"
 		if gitHubItem.PullRequest {
@@ -411,34 +412,34 @@ func (a *App) CreateSession(project, repository, agent, name, prompt string, cre
 }
 
 // CanCreateWorktree reports whether new sessions in the repository can start in a worktree.
-func (a *App) CanCreateWorktree(project, repository string) (bool, error) {
+func (a *App) CanCreateWorktree(workspace, repository string) (bool, error) {
 	if err := a.ready(); err != nil {
 		return false, err
 	}
-	return a.store.CanCreateWorktree(project, repository)
+	return a.store.CanCreateWorktree(workspace, repository)
 }
 
 // WorktreeBranches lists the branches a new session worktree can start from.
-func (a *App) WorktreeBranches(project, repository string) (core.WorktreeBranches, error) {
+func (a *App) WorktreeBranches(workspace, repository string) (core.WorktreeBranches, error) {
 	if err := a.ready(); err != nil {
 		return core.WorktreeBranches{}, err
 	}
-	return a.store.WorktreeBranches(project, repository)
+	return a.store.WorktreeBranches(workspace, repository)
 }
 
 // KeepLocalMainUpToDate and DismissLocalMainNotice back the notice shown when a new session
 // worktree finds local main behind origin.
-func (a *App) KeepLocalMainUpToDate(projectID, repositoryID string) (core.State, error) {
+func (a *App) KeepLocalMainUpToDate(workspaceID, repositoryID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.KeepLocalMainUpToDate(projectID, repositoryID)
+	return a.store.KeepLocalMainUpToDate(workspaceID, repositoryID)
 }
-func (a *App) DismissLocalMainNotice(projectID string) (core.State, error) {
+func (a *App) DismissLocalMainNotice(workspaceID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.DismissLocalMainNotice(projectID)
+	return a.store.DismissLocalMainNotice(workspaceID)
 }
 
 // AgentModels lists the models and efforts Work on and Review can start an agent with.
@@ -500,11 +501,11 @@ func (a *App) forgetUsage(profileID string) {
 	defer a.usageMu.Unlock()
 	delete(a.usageCache, profileID)
 }
-func (a *App) SetProjectProfile(project, profileID string) (core.State, error) {
+func (a *App) SetWorkspaceProfile(workspace, profileID string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.SetProjectProfile(project, profileID)
+	return a.store.SetWorkspaceProfile(workspace, profileID)
 }
 
 // ProfileLogins asks each agent's CLI whether the profile is signed in; "" is Default.
@@ -519,14 +520,14 @@ func (a *App) ProfileLogins(profileID string) ([]core.ProfileLogin, error) {
 	return core.ProfileLogins(a.ctx, profile), nil
 }
 
-// LogIn adds a terminal session in the project that runs the agent's login command with the
+// LogIn adds a terminal session in the workspace that runs the agent's login command with the
 // profile's config folder. The user completes the sign-in there.
-func (a *App) LogIn(project, profileID, agent string) (core.State, error) {
+func (a *App) LogIn(workspace, profileID, agent string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 	a.forgetUsage(profileID)
-	return a.store.LogIn(project, profileID, agent)
+	return a.store.LogIn(workspace, profileID, agent)
 }
 
 func (a *App) CloseSession(id string, removeWorktree bool) (core.State, error) {
@@ -566,11 +567,11 @@ func (a *App) ResizeTerminal(id string, cols, rows int) error {
 
 	return a.store.ResizeTerminal(id, cols, rows)
 }
-func (a *App) InitializeGitRepository(project, repository string) (core.State, error) {
+func (a *App) InitializeGitRepository(workspace, repository string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
-	return a.store.InitializeGitRepository(project, repository)
+	return a.store.InitializeGitRepository(workspace, repository)
 }
 func (a *App) DetectRepository(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
@@ -578,32 +579,33 @@ func (a *App) DetectRepository(id string) (core.State, error) {
 	}
 	return a.store.DetectRepository(id)
 }
+
 // The GitHub methods act on one GitHub-connected repository of a workspace.
-func (a *App) GitHubItems(project, repository, state string) ([]json.RawMessage, error) {
+func (a *App) GitHubItems(workspace, repository, state string) ([]json.RawMessage, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
 
-	return a.store.GitHubItems(project, repository, state)
+	return a.store.GitHubItems(workspace, repository, state)
 }
-func (a *App) GitHubDetail(project, repository string, number int, pull bool) (core.GitHubContent, error) {
+func (a *App) GitHubDetail(workspace, repository string, number int, pull bool) (core.GitHubContent, error) {
 	if err := a.ready(); err != nil {
 		return core.GitHubContent{}, err
 	}
 
-	return a.store.GitHubDetail(project, repository, number, pull)
+	return a.store.GitHubDetail(workspace, repository, number, pull)
 }
-func (a *App) GitHubMetadataOptions(project, repository, field string) ([]json.RawMessage, error) {
+func (a *App) GitHubMetadataOptions(workspace, repository, field string) ([]json.RawMessage, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	return a.store.GitHubMetadataOptions(project, repository, field)
+	return a.store.GitHubMetadataOptions(workspace, repository, field)
 }
-func (a *App) UpdateGitHubMetadata(project, repository string, number int, pull bool, field string, values []string) error {
+func (a *App) UpdateGitHubMetadata(workspace, repository string, number int, pull bool, field string, values []string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	err := a.store.UpdateGitHubMetadata(project, repository, number, pull, field, values)
+	err := a.store.UpdateGitHubMetadata(workspace, repository, number, pull, field, values)
 	if err == nil {
 		a.Track("github_action", map[string]any{"action": "edit_metadata"})
 	}
@@ -632,7 +634,7 @@ func (a *App) TerminalFonts() []string { return appearance.MonospaceFonts() }
 // OpenInApps lists the installed editors, terminals and file manager that can open a session's folder.
 func (a *App) OpenInApps() []apps.App { return apps.Installed() }
 
-// OpenSessionIn opens a session's worktree, or its project folder, in an installed app. The folder
+// OpenSessionIn opens a session's worktree, or its repository folder, in an installed app. The folder
 // comes from the session, never from the caller.
 func (a *App) OpenSessionIn(id, app string) error {
 	if err := a.ready(); err != nil {
@@ -718,6 +720,7 @@ func (a *App) beforeClose(context.Context) bool {
 	runtime.EventsEmit(a.ctx, "quit-request", a.store.Snapshot())
 	return true
 }
+
 // ConfirmQuit quits after the Quit dialog. stopSessions also stops the sessions that would
 // keep running in the background.
 func (a *App) ConfirmQuit(stopSessions bool) {
@@ -778,19 +781,19 @@ func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 }
 
 // GitHubPullRequest reads a repository's pull request and its checks for Work Items.
-func (a *App) GitHubPullRequest(project, repository string, number int) (core.PullRequestStatus, error) {
+func (a *App) GitHubPullRequest(workspace, repository string, number int) (core.PullRequestStatus, error) {
 	if err := a.ready(); err != nil {
 		return core.PullRequestStatus{}, err
 	}
-	return a.store.GitHubPullRequest(project, repository, number)
+	return a.store.GitHubPullRequest(workspace, repository, number)
 }
 
 // GitHubCheckFailure describes a failed check of a repository's pull request as text to copy.
-func (a *App) GitHubCheckFailure(project, repository string, jobID int64) (string, error) {
+func (a *App) GitHubCheckFailure(workspace, repository string, jobID int64) (string, error) {
 	if err := a.ready(); err != nil {
 		return "", err
 	}
-	return a.store.GitHubCheckFailure(project, repository, jobID)
+	return a.store.GitHubCheckFailure(workspace, repository, jobID)
 }
 
 // SessionFiles lists a folder or previews a text file inside the session folder.
@@ -801,15 +804,15 @@ func (a *App) SessionFiles(id, path string) (core.SessionFiles, error) {
 	return a.store.SessionFiles(id, path)
 }
 
-// ProjectIcons maps workspace IDs to the favicon or app icon found in their first repository's
+// WorkspaceIcons maps workspace IDs to the favicon or app icon found in their first repository's
 // folder, as data URLs. Workspaces without one are left out.
-func (a *App) ProjectIcons() map[string]string {
+func (a *App) WorkspaceIcons() map[string]string {
 	result := map[string]string{}
 	if a.ready() != nil {
 		return result
 	}
-	for _, p := range a.store.Snapshot().Projects {
-		if icon := core.ProjectIcon(p.Repositories[0].Directory); icon != "" {
+	for _, p := range a.store.Snapshot().Workspaces {
+		if icon := core.WorkspaceIcon(p.Repositories[0].Directory); icon != "" {
 			result[p.ID] = icon
 		}
 	}

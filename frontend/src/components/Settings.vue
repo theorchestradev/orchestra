@@ -18,8 +18,8 @@ const props = defineProps({
   telemetryStatus: Object,
   telemetryBusy: Boolean,
   profiles: Array,
-  project: Object,
-  // The profile Usage shows first: the selected session's, or else the project's.
+  workspace: Object,
+  // The profile Usage shows first: the selected session's, or else the workspace's.
   usageProfileId: String,
   // The section to open with, and the id of a setting in it to focus.
   initialSection: String,
@@ -685,7 +685,7 @@ if (!mac)
         <Profiles
           v-else-if="section === 'Profiles'"
           :profiles="profiles"
-          :project="project"
+          :workspace="workspace"
           :appearance="shownAppearance"
           @state="emit('state', $event)"
           @login="emit('login', $event)"

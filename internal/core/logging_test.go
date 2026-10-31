@@ -91,12 +91,12 @@ func TestLogsOmitPromptsAndNotes(t *testing.T) {
 	}
 	t.Setenv("SHELL", shell)
 	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	state, err := s.CreateSession(p.ID, "", "claude", "", "private initial prompt", false, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	agent := state.Projects[0].Sessions[0]
+	agent := state.Workspaces[0].Sessions[0]
 	sender := sessionFixture(t, s, p, "pi")
 	if _, err = s.StartSession(agent.ID, false, 80, 24); err != nil {
 		t.Fatal(err)

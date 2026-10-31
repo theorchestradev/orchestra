@@ -14,12 +14,12 @@ import {
   runLabel,
   startupDestination,
   sidebarItems,
-  projectRows,
+  workspaceRows,
   adjacentItem,
   dropIndex,
   activityLabel,
   statusSummary,
-  visibleSidebarProjects,
+  visibleSidebarWorkspaces,
   arcScrollDelta,
 } from '../src/shared/appearance.js'
 import themes from '../src/shared/themes.json' with { type: 'json' }
@@ -71,7 +71,7 @@ test('System mode shows the OS appearance and explicit modes keep their own', ()
   assert.equal(effectiveAppearance('system'), 'dark')
   assert.equal(effectiveAppearance(undefined, 'light'), 'dark')
 })
-test('project navigation preserves page priority and messaging labels', () => {
+test('workspace navigation preserves page priority and messaging labels', () => {
   assert.equal(destination({ showsScratchpad: true, showsGitHub: true, selectedSessionID: 'a' }), 'scratchpad')
   assert.equal(destination({ showsGitHub: true, selectedSessionID: 'a' }), 'github')
   assert.equal(destination({ showsReviews: true, selectedSessionID: 'a' }), 'reviews')
@@ -82,18 +82,18 @@ test('project navigation preserves page priority and messaging labels', () => {
 })
 
 test('startup views never select or resume a restored agent', () => {
-  const project = { repositories: [{ gitHub: 'example/orchestra' }], selectedSessionID: 'restored-agent' }
-  assert.equal(startupDestination(project, { startupView: 'last' }), null)
-  assert.equal(startupDestination(project, { startupView: 'scratchpad' }), 'scratchpad')
-  assert.equal(startupDestination(project, { startupView: 'github' }), 'github')
-  assert.equal(startupDestination(project, { startupView: 'reviews' }), 'reviews')
-  assert.equal(startupDestination({ ...project, repositories: [{ gitHub: '' }] }, { startupView: 'reviews' }), null)
-  assert.equal(startupDestination({ ...project, repositories: [{ gitHub: '' }] }, { startupView: 'github' }), null)
+  const workspace = { repositories: [{ gitHub: 'example/orchestra' }], selectedSessionID: 'restored-agent' }
+  assert.equal(startupDestination(workspace, { startupView: 'last' }), null)
+  assert.equal(startupDestination(workspace, { startupView: 'scratchpad' }), 'scratchpad')
+  assert.equal(startupDestination(workspace, { startupView: 'github' }), 'github')
+  assert.equal(startupDestination(workspace, { startupView: 'reviews' }), 'reviews')
+  assert.equal(startupDestination({ ...workspace, repositories: [{ gitHub: '' }] }, { startupView: 'reviews' }), null)
+  assert.equal(startupDestination({ ...workspace, repositories: [{ gitHub: '' }] }, { startupView: 'github' }), null)
   assert.equal(startupDestination(undefined, { startupView: 'scratchpad' }), null)
 })
 
 test('sidebar navigation follows visible order and wraps', () => {
-  const projects = [
+  const workspaces = [
     {
       id: 'a',
       isExpanded: true,
@@ -105,16 +105,16 @@ test('sidebar navigation follows visible order and wraps', () => {
     { id: 'c', isExpanded: true, repositories: [{}], hasScratchpad: false, sessions: [{ id: 's4' }] },
   ]
   assert.deepEqual(
-    sidebarItems(projects).map((i) => i.project.id + ':' + i.destination),
+    sidebarItems(workspaces).map((i) => i.workspace.id + ':' + i.destination),
     ['a:github', 'a:reviews', 'a:scratchpad', 'a:s1', 'a:s2', 'c:s4'],
   )
-  assert.equal(adjacentItem(projects, 'a', 's2', 1).destination, 's4')
-  assert.equal(adjacentItem(projects, 'c', 's4', 1).destination, 'github')
-  assert.equal(adjacentItem(projects, 'a', 'github', -1).destination, 's4')
-  assert.equal(adjacentItem(projects, 'a', 'github', 1).destination, 'reviews')
-  assert.equal(adjacentItem(projects, 'a', 'scratchpad', -1).destination, 'reviews')
-  assert.equal(adjacentItem(projects, 'a', 'empty', 1).destination, 'github')
-  assert.equal(adjacentItem(projects, 'a', 'empty', -1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'a', 's2', 1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'c', 's4', 1).destination, 'github')
+  assert.equal(adjacentItem(workspaces, 'a', 'github', -1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'a', 'github', 1).destination, 'reviews')
+  assert.equal(adjacentItem(workspaces, 'a', 'scratchpad', -1).destination, 'reviews')
+  assert.equal(adjacentItem(workspaces, 'a', 'empty', 1).destination, 'github')
+  assert.equal(adjacentItem(workspaces, 'a', 'empty', -1).destination, 's4')
   assert.equal(adjacentItem([], 'a', 'empty', 1), null)
 })
 test('the Scratchpad sits at its saved position among sessions, below Work Items and Reviews', () => {
@@ -133,37 +133,37 @@ test('the Scratchpad sits at its saved position among sessions, below Work Items
   assert.equal(adjacentItem([p], 'a', 's1', 1).destination, 'scratchpad')
   assert.equal(adjacentItem([p], 'a', 'scratchpad', 1).destination, 's2')
   assert.deepEqual(
-    projectRows({ ...p, scratchpadIndex: 9 }).map((r) => r.id),
+    workspaceRows({ ...p, scratchpadIndex: 9 }).map((r) => r.id),
     ['s1', 's2', 'scratchpad'],
   )
   assert.deepEqual(
-    projectRows({ ...p, scratchpadIndex: undefined }).map((r) => r.id),
+    workspaceRows({ ...p, scratchpadIndex: undefined }).map((r) => r.id),
     ['scratchpad', 's1', 's2'],
   )
   assert.deepEqual(
-    projectRows({ ...p, hasScratchpad: false }).map((r) => r.id),
+    workspaceRows({ ...p, hasScratchpad: false }).map((r) => r.id),
     ['s1', 's2'],
   )
 })
 test('Arc Mode scopes the list and navigation to the active space without changing expansion', () => {
-  const projects = [
+  const workspaces = [
     { id: 'a', isExpanded: false, hasScratchpad: true, sessions: [{ id: 's1' }] },
     { id: 'b', isExpanded: true, sessions: [] },
   ]
-  assert.equal(visibleSidebarProjects(projects, 'a', false), projects)
-  const active = visibleSidebarProjects(projects, 'a', true)
-  assert.deepEqual(active, [projects[0]])
+  assert.equal(visibleSidebarWorkspaces(workspaces, 'a', false), workspaces)
+  const active = visibleSidebarWorkspaces(workspaces, 'a', true)
+  assert.deepEqual(active, [workspaces[0]])
   const navigation = active.map((p) => ({ ...p, isExpanded: true }))
   assert.equal(adjacentItem(navigation, 'a', 's1', 1).destination, 'scratchpad')
   assert.equal(adjacentItem(navigation, 'a', 'scratchpad', -1).destination, 's1')
-  assert.equal(projects[0].isExpanded, false)
-  assert.deepEqual(visibleSidebarProjects(projects, 'b', true), [projects[1]])
-  assert.equal(adjacentItem([projects[1]], 'b', 'empty', 1), null)
-  assert.deepEqual(visibleSidebarProjects(projects, 'missing', true), [projects[0]])
-  assert.deepEqual(visibleSidebarProjects([], 'missing', true), [])
+  assert.equal(workspaces[0].isExpanded, false)
+  assert.deepEqual(visibleSidebarWorkspaces(workspaces, 'b', true), [workspaces[1]])
+  assert.equal(adjacentItem([workspaces[1]], 'b', 'empty', 1), null)
+  assert.deepEqual(visibleSidebarWorkspaces(workspaces, 'missing', true), [workspaces[0]])
+  assert.deepEqual(visibleSidebarWorkspaces([], 'missing', true), [])
 })
 test('status bar summarizes running sessions and inbox requests', () => {
-  const projects = [
+  const workspaces = [
     {
       sessions: [
         { running: true, activity: 'working' },
@@ -181,7 +181,7 @@ test('status bar summarizes running sessions and inbox requests', () => {
     { status: 'running' },
     { status: 'completed' },
   ]
-  assert.deepEqual(statusSummary(projects, runs), { running: 3, working: 1, waiting: 1, queued: 2, attention: 1 })
+  assert.deepEqual(statusSummary(workspaces, runs), { running: 3, working: 1, waiting: 1, queued: 2, attention: 1 })
   assert.deepEqual(statusSummary(undefined, undefined), { running: 0, working: 0, waiting: 0, queued: 0, attention: 0 })
   assert.equal(activityLabel('waiting'), 'Waiting for input')
   assert.equal(activityLabel('working'), 'Agent working')

@@ -28,7 +28,7 @@ const props = defineProps({
   tab: { type: String, default: 'Changes' },
   // The saved tab order from preferences.
   tabOrder: Array,
-  // The project's GitHub repository; the PR tab is only offered with one.
+  // The workspace's GitHub repository; the PR tab is only offered with one.
   repository: String,
   // Session choices for Resolve conflicts in the PR tab.
   defaultAgent: String,

@@ -35,11 +35,11 @@ func isNotGitRepository(err error) bool {
 
 // InitializeGitRepository runs git init in a workspace repository's folder, only when it is not
 // already inside a Git repository. It never stages, commits, configures identity or adds remotes.
-func (s *Store) InitializeGitRepository(projectID, repositoryID string) (State, error) {
+func (s *Store) InitializeGitRepository(workspaceID, repositoryID string) (State, error) {
 	// Holding the lock serializes repeated requests, so a second one sees the new repository.
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -55,17 +55,17 @@ func (s *Store) InitializeGitRepository(projectID, repositoryID string) (State, 
 		return State{}, fmt.Errorf("Could not check the folder: %w", err)
 	}
 	if _, err = runCommand(repo.Directory, "git", "init"); err != nil {
-		s.log.Warn("git init failed", "project", p.ID, "error", err)
+		s.log.Warn("git init failed", "workspace", p.ID, "error", err)
 		return State{}, fmt.Errorf("Could not initialize Git: %w", err)
 	}
-	s.log.Info("git repository initialized", "project", p.ID)
+	s.log.Info("git repository initialized", "workspace", p.ID)
 	return s.snapshotLocked(), nil
 }
 
 // CanCreateWorktree reports whether New Session can offer a worktree. Only a folder outside
 // any repository is ruled out; other Git failures still surface when the session starts.
-func (s *Store) CanCreateWorktree(projectID, repositoryID string) (bool, error) {
-	repo, err := s.projectRepository(projectID, repositoryID)
+func (s *Store) CanCreateWorktree(workspaceID, repositoryID string) (bool, error) {
+	repo, err := s.workspaceRepository(workspaceID, repositoryID)
 	if err != nil {
 		return false, err
 	}
@@ -160,8 +160,8 @@ type WorktreeBranches struct {
 }
 
 // WorktreeBranches reads a repository's branches for New Session's base choice.
-func (s *Store) WorktreeBranches(projectID, repositoryID string) (WorktreeBranches, error) {
-	repo, err := s.projectRepository(projectID, repositoryID)
+func (s *Store) WorktreeBranches(workspaceID, repositoryID string) (WorktreeBranches, error) {
+	repo, err := s.workspaceRepository(workspaceID, repositoryID)
 	if err != nil {
 		return WorktreeBranches{}, err
 	}
@@ -186,7 +186,7 @@ func (s *Store) WorktreeBranches(projectID, repositoryID string) (WorktreeBranch
 	return result, nil
 }
 
-// Worktrees share Git history but never copy uncommitted project changes. The session
+// Worktrees share Git history but never copy uncommitted workspace changes. The session
 // branch starts at base, a branch or other commit name, or at HEAD when base is empty.
 // It returns the working folder and the commit the session branch starts from.
 func createSessionWorktree(directory, destination, branch, base string) (string, string, error) {
@@ -196,7 +196,7 @@ func createSessionWorktree(directory, destination, branch, base string) (string,
 		return "", "", fmt.Errorf("A worktree requires a Git repository: %w", err)
 	}
 	if err != nil {
-		return "", "", fmt.Errorf("Could not read the project's Git repository: %w", err)
+		return "", "", fmt.Errorf("Could not read the workspace's Git repository: %w", err)
 	}
 	if base == "" {
 		head, err := runCommand(directory, "git", "rev-parse", "--verify", "HEAD^{commit}")
@@ -211,8 +211,8 @@ func createSessionWorktree(directory, destination, branch, base string) (string,
 		}
 		base = strings.TrimSpace(string(commit))
 	}
-	// Resolve symlinks so a project opened through /var or another alias keeps its subfolder.
-	projectDirectory, err := filepath.EvalSymlinks(directory)
+	// Resolve symlinks so a folder opened through /var or another alias keeps its subfolder.
+	folder, err := filepath.EvalSymlinks(directory)
 	if err != nil {
 		return "", "", err
 	}
@@ -220,7 +220,7 @@ func createSessionWorktree(directory, destination, branch, base string) (string,
 	if err != nil {
 		return "", "", err
 	}
-	relative, err := filepath.Rel(repositoryDirectory, projectDirectory)
+	relative, err := filepath.Rel(repositoryDirectory, folder)
 	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
 		return "", "", errors.New("The repository folder is outside the Git repository.")
 	}
@@ -248,7 +248,7 @@ func createSessionWorktree(directory, destination, branch, base string) (string,
 	}
 	workingDirectory := filepath.Join(destination, relative)
 	if info, statErr := os.Stat(workingDirectory); statErr != nil || !info.IsDir() {
-		err = errors.New("The project subfolder does not exist in the current commit. Commit it before creating a worktree.")
+		err = errors.New("The workspace subfolder does not exist in the current commit. Commit it before creating a worktree.")
 		if cleanupErr := removeSessionWorktree(directory, destination, branch); cleanupErr != nil {
 			return "", "", fmt.Errorf("%w; worktree cleanup failed at %s: %v", err, destination, cleanupErr)
 		}

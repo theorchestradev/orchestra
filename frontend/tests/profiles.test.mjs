@@ -4,7 +4,7 @@ import { findProfile, profileName, sessionProfile } from '../src/shared/profiles
 
 const profiles = [
   { id: 'work', name: 'Work', emoji: '💼' },
-  { id: 'side', name: 'side projects' },
+  { id: 'side', name: 'side workspaces' },
 ]
 
 test('an empty profile ID is Default', () => {
@@ -14,7 +14,7 @@ test('an empty profile ID is Default', () => {
   assert.equal(profileName(profiles, 'gone'), 'Removed profile')
 })
 
-test('sessions show their profile only when it differs from the project', () => {
+test('sessions show their profile only when it differs from the workspace', () => {
   assert.equal(sessionProfile(profiles, { profileID: 'work' }, { profileID: 'work' }), null)
   assert.equal(sessionProfile(profiles, {}, {}), null)
   assert.deepEqual(sessionProfile(profiles, {}, { profileID: 'work' }), {

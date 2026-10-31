@@ -13,10 +13,10 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 	for _, view := range []string{"last", "scratchpad", "github", "reviews"} {
 		t.Run(view, func(t *testing.T) {
 			s := fixtureStore(t)
-			project := projectFixture(t, s)
-			session := sessionFixture(t, s, project, "pi")
+			workspace := workspaceFixture(t, s)
+			session := sessionFixture(t, s, workspace, "pi")
 			s.mu.Lock()
-			s.state.Projects[0].Repositories[0].GitHub = "example/orchestra"
+			s.state.Workspaces[0].Repositories[0].GitHub = "example/orchestra"
 			s.mu.Unlock()
 			prefs := s.Snapshot().Preferences
 			prefs.DefaultAgent = "pi"
@@ -33,7 +33,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			}
 			defer reopened.Shutdown()
 			state := reopened.Snapshot()
-			p := state.Projects[0]
+			p := state.Workspaces[0]
 			if !reflect.DeepEqual(state.Preferences, prefs) {
 				t.Fatalf("preferences changed on reopen: %+v", state.Preferences)
 			}
@@ -70,15 +70,15 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 	}
 }
 
-func TestArcModePersistenceAndProjectSwitch(t *testing.T) {
+func TestArcModePersistenceAndWorkspaceSwitch(t *testing.T) {
 	s := fixtureStore(t)
-	first := projectFixture(t, s)
+	first := workspaceFixture(t, s)
 	session := sessionFixture(t, s, first, "codex")
-	second, err := s.CreateProject("Empty space", t.TempDir(), "")
+	second, err := s.CreateWorkspace("Empty space", t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondID := second.SelectedProjectID
+	secondID := second.SelectedWorkspaceID
 	if s.Snapshot().Preferences.ArcMode {
 		t.Fatal("Arc Mode should default to off")
 	}
@@ -88,10 +88,10 @@ func TestArcModePersistenceAndProjectSwitch(t *testing.T) {
 		if _, err := s.SetPreferences(prefs); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Select(first.ID, "project"); err != nil {
+		if _, err := s.Select(first.ID, "workspace"); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := s.Select(secondID, "project"); err != nil {
+		if _, err := s.Select(secondID, "workspace"); err != nil {
 			t.Fatal(err)
 		}
 		reopened, err := NewStore(s.path, s.executable, nil, nil)
@@ -100,10 +100,10 @@ func TestArcModePersistenceAndProjectSwitch(t *testing.T) {
 		}
 		state := reopened.Snapshot()
 		reopened.Shutdown()
-		if state.Preferences.ArcMode != enabled || state.SelectedProjectID != secondID {
+		if state.Preferences.ArcMode != enabled || state.SelectedWorkspaceID != secondID {
 			t.Fatal("mode or selected space was not restored")
 		}
-		if state.Projects[0].SelectedSessionID != session.ID || state.Projects[0].Sessions[0].Running || !state.Projects[0].Sessions[0].Restored {
+		if state.Workspaces[0].SelectedSessionID != session.ID || state.Workspaces[0].Sessions[0].Running || !state.Workspaces[0].Sessions[0].Restored {
 			t.Fatal("switching spaces changed or started a restored session")
 		}
 	}
@@ -257,7 +257,7 @@ func TestAppearancePreference(t *testing.T) {
 }
 func TestLegacyPreferencesAndUnavailableStartupView(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "claude")
 	legacy := []byte(`{"appearance":"light","theme":"ayu","terminalFontSize":16,"terminalFontSmoothing":false,"sidebarWidth":248.4453125}`)
 	var prefs Preferences
@@ -302,7 +302,7 @@ func TestLegacyPreferencesAndUnavailableStartupView(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer unavailable.Shutdown()
-	restored := unavailable.Snapshot().Projects[0]
+	restored := unavailable.Snapshot().Workspaces[0]
 	if restored.ShowsGitHub || restored.SelectedSessionID != sess.ID {
 		t.Fatal("unavailable GitHub should preserve last selection")
 	}

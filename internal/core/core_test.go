@@ -47,22 +47,22 @@ func shutdownAndWait(t *testing.T, s *Store) {
 		}
 	}
 }
-func projectFixture(t *testing.T, s *Store) *Project {
+func workspaceFixture(t *testing.T, s *Store) *Workspace {
 	t.Helper()
-	state, err := s.CreateProject("Fixture", t.TempDir(), "")
+	state, err := s.CreateWorkspace("Fixture", t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return state.Projects[len(state.Projects)-1]
+	return state.Workspaces[len(state.Workspaces)-1]
 }
-func sessionFixture(t *testing.T, s *Store, p *Project, agent string) *Session {
+func sessionFixture(t *testing.T, s *Store, p *Workspace, agent string) *Session {
 	t.Helper()
 	state, err := s.CreateSession(p.ID, "", agent, "", "", false, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, p := range state.Projects {
-		if p.ID == state.SelectedProjectID {
+	for _, p := range state.Workspaces {
+		if p.ID == state.SelectedWorkspaceID {
 			return p.Sessions[len(p.Sessions)-1]
 		}
 	}
@@ -117,13 +117,13 @@ func TestSidebarWidthPreferencesRoundTrip(t *testing.T) {
 		})
 	}
 }
-func TestRemoveProjectPreservesFolderAndStopsOnlyItsSessions(t *testing.T) {
+func TestRemoveWorkspacePreservesFolderAndStopsOnlyItsSessions(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	sender := sessionFixture(t, s, p, "pi")
 	file := filepath.Join(p.Repositories[0].Directory, "keep.txt")
-	if err := os.WriteFile(file, []byte("project files stay on disk"), 0600); err != nil {
+	if err := os.WriteFile(file, []byte("workspace files stay on disk"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	fixture := t.TempDir()
@@ -149,37 +149,37 @@ func TestRemoveProjectPreservesFolderAndStopsOnlyItsSessions(t *testing.T) {
 		t.Fatal(err)
 	}
 	runID := state.Runs[0].ID
-	keeper := projectFixture(t, s)
+	keeper := workspaceFixture(t, s)
 	if _, err = s.Select(keeper.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = s.SaveScratchpad(keeper.ID, "keep other notes", 0); err != nil {
 		t.Fatal(err)
 	}
-	unselected := projectFixture(t, s)
-	if _, err = s.Select(p.ID, "project"); err != nil {
+	unselected := workspaceFixture(t, s)
+	if _, err = s.Select(p.ID, "workspace"); err != nil {
 		t.Fatal(err)
 	}
-	if state, err = s.RemoveProject(unselected.ID); err != nil || state.SelectedProjectID != p.ID {
-		t.Fatalf("removing another project changed selection: %+v %v", state, err)
+	if state, err = s.RemoveWorkspace(unselected.ID); err != nil || state.SelectedWorkspaceID != p.ID {
+		t.Fatalf("removing another workspace changed selection: %+v %v", state, err)
 	}
 	s.mu.Lock()
 	terminal, token, savedPath := s.terminals[agent.ID], s.collaboration.tokens[agent.ID], s.path
 	s.path = t.TempDir() // Replacing a directory with the state file must fail.
 	s.mu.Unlock()
-	if _, err = s.RemoveProject(p.ID); err == nil {
+	if _, err = s.RemoveWorkspace(p.ID); err == nil {
 		t.Fatal("removal succeeded despite failed persistence")
 	}
 	s.mu.Lock()
 	s.path = savedPath
-	retained := len(s.state.Projects) == 2 && s.state.SelectedProjectID == p.ID && !terminal.stopped && s.collaboration.tokens[agent.ID] == token
+	retained := len(s.state.Workspaces) == 2 && s.state.SelectedWorkspaceID == p.ID && !terminal.stopped && s.collaboration.tokens[agent.ID] == token
 	s.mu.Unlock()
 	if !retained {
 		t.Fatal("failed removal changed metadata or stopped a session")
 	}
-	state, err = s.RemoveProject(p.ID)
-	if err != nil || len(state.Projects) != 1 || state.SelectedProjectID != keeper.ID || state.Projects[0].ScratchpadText != "keep other notes" {
-		t.Fatalf("project removal affected other metadata: %+v %v", state, err)
+	state, err = s.RemoveWorkspace(p.ID)
+	if err != nil || len(state.Workspaces) != 1 || state.SelectedWorkspaceID != keeper.ID || state.Workspaces[0].ScratchpadText != "keep other notes" {
+		t.Fatalf("workspace removal affected other metadata: %+v %v", state, err)
 	}
 	s.mu.Lock()
 	_, live := s.terminals[agent.ID]
@@ -188,37 +188,37 @@ func TestRemoveProjectPreservesFolderAndStopsOnlyItsSessions(t *testing.T) {
 	interrupted := run.Status == "interrupted"
 	s.mu.Unlock()
 	if live || authorized || !interrupted {
-		t.Fatal("removed project's terminal, capability or pending request retained")
+		t.Fatal("removed workspace's terminal, capability or pending request retained")
 	}
 	select {
 	case <-terminal.done:
 	case <-time.After(3 * time.Second):
-		t.Fatal("removed project's process did not stop")
+		t.Fatal("removed workspace's process did not stop")
 	}
-	if data, err := os.ReadFile(file); err != nil || string(data) != "project files stay on disk" {
-		t.Fatalf("project file changed: %q %v", data, err)
+	if data, err := os.ReadFile(file); err != nil || string(data) != "workspace files stay on disk" {
+		t.Fatalf("workspace file changed: %q %v", data, err)
 	}
 	reopened, err := NewStore(savedPath, s.executable, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer reopened.Shutdown()
-	if restored := reopened.Snapshot(); len(restored.Projects) != 1 || restored.SelectedProjectID != keeper.ID {
-		t.Fatal("removed project reappeared after reopening")
+	if restored := reopened.Snapshot(); len(restored.Workspaces) != 1 || restored.SelectedWorkspaceID != keeper.ID {
+		t.Fatal("removed workspace reappeared after reopening")
 	}
-	if state, err = s.RemoveProject(keeper.ID); err != nil || len(state.Projects) != 0 || state.SelectedProjectID != "" {
+	if state, err = s.RemoveWorkspace(keeper.ID); err != nil || len(state.Workspaces) != 0 || state.SelectedWorkspaceID != "" {
 		t.Fatalf("last removal did not clear selection: %+v %v", state, err)
 	}
-	if _, err = s.RemoveProject(p.ID); err == nil {
-		t.Fatal("accepted unavailable project")
+	if _, err = s.RemoveWorkspace(p.ID); err == nil {
+		t.Fatal("accepted unavailable workspace")
 	}
-	if _, err = s.CreateProject("Re-added", p.Repositories[0].Directory, ""); err != nil {
-		t.Fatal("removed project's folder could not be re-added", err)
+	if _, err = s.CreateWorkspace("Re-added", p.Repositories[0].Directory, ""); err != nil {
+		t.Fatal("removed workspace's repository folder could not be re-added", err)
 	}
 }
 func TestWorkspacePersistence(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "claude")
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
@@ -235,7 +235,7 @@ func TestWorkspacePersistence(t *testing.T) {
 	}
 	var saved State
 	_ = json.Unmarshal(data, &saved)
-	if saved.Projects[0].Sessions[0].Running || saved.Projects[0].Sessions[0].Restored || saved.Runs != nil {
+	if saved.Workspaces[0].Sessions[0].Running || saved.Workspaces[0].Sessions[0].Restored || saved.Runs != nil {
 		t.Fatal("persisted live state")
 	}
 	other, err := NewStore(s.path, s.executable, nil, nil)
@@ -244,19 +244,19 @@ func TestWorkspacePersistence(t *testing.T) {
 	}
 	defer other.Shutdown()
 	restored := other.Snapshot()
-	if len(other.terminals) != 0 || restored.Projects[0].ScratchpadText != "notes α\nsecond line" || !restored.Projects[0].ShowsScratchpad || !restored.Projects[0].Sessions[0].Restored {
+	if len(other.terminals) != 0 || restored.Workspaces[0].ScratchpadText != "notes α\nsecond line" || !restored.Workspaces[0].ShowsScratchpad || !restored.Workspaces[0].Sessions[0].Restored {
 		t.Fatal("restore lost metadata or launched a process")
 	}
 }
-func TestMoveProjectsAndSessionsPersistsOrder(t *testing.T) {
+func TestMoveWorkspacesAndSessionsPersistsOrder(t *testing.T) {
 	s := fixtureStore(t)
-	a, b, c := projectFixture(t, s), projectFixture(t, s), projectFixture(t, s)
+	a, b, c := workspaceFixture(t, s), workspaceFixture(t, s), workspaceFixture(t, s)
 	first, second, third := sessionFixture(t, s, b, "claude"), sessionFixture(t, s, b, "codex"), sessionFixture(t, s, b, "claude")
 	other := sessionFixture(t, s, a, "claude")
-	if _, err := s.MoveProject(c.ID, 0); err != nil {
+	if _, err := s.MoveWorkspace(c.ID, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.MoveProject(a.ID, 99); err != nil {
+	if _, err := s.MoveWorkspace(a.ID, 99); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.MoveSession(third.ID, 0); err != nil {
@@ -266,12 +266,12 @@ func TestMoveProjectsAndSessionsPersistsOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.MoveProject("missing", 0); err == nil {
-		t.Fatal("moved a missing project")
+	if _, err = s.MoveWorkspace("missing", 0); err == nil {
+		t.Fatal("moved a missing workspace")
 	}
 	ids := func(state State) string {
 		var out []string
-		for _, p := range state.Projects {
+		for _, p := range state.Workspaces {
 			out = append(out, p.ID)
 			for _, sess := range p.Sessions {
 				out = append(out, sess.ID)
@@ -294,7 +294,7 @@ func TestMoveProjectsAndSessionsPersistsOrder(t *testing.T) {
 }
 func TestCorruptStatePreserved(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	raw := []byte(`{"version":999,"projects":[]}`)
+	raw := []byte(`{"version":999,"workspaces":[]}`)
 	_ = os.WriteFile(path, raw, 0600)
 	s, err := NewStore(path, "/tmp/test", nil, nil)
 	if err != nil {
@@ -304,7 +304,7 @@ func TestCorruptStatePreserved(t *testing.T) {
 	if s.Snapshot().Error == "" {
 		t.Fatal("missing recovery error")
 	}
-	_, _ = s.CreateProject("x", t.TempDir(), "")
+	_, _ = s.CreateWorkspace("x", t.TempDir(), "")
 	after, _ := os.ReadFile(path)
 	if !bytes.Equal(raw, after) {
 		t.Fatal("corrupt state overwritten")
@@ -312,9 +312,9 @@ func TestCorruptStatePreserved(t *testing.T) {
 }
 func TestScratchpadRenameDeleteAndRecreate(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "claude")
-	other := projectFixture(t, s)
+	other := workspaceFixture(t, s)
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
 	}
@@ -324,7 +324,7 @@ func TestScratchpadRenameDeleteAndRecreate(t *testing.T) {
 	if _, err := s.RenameScratchpad(p.ID, "   "); err == nil {
 		t.Fatal("accepted empty scratchpad name")
 	}
-	if _, err := s.RenameScratchpad(p.ID, "  Project Notes  "); err != nil {
+	if _, err := s.RenameScratchpad(p.ID, "  Workspace Notes  "); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.SetScratchpadMode(p.ID, "preview"); err == nil {
@@ -333,17 +333,17 @@ func TestScratchpadRenameDeleteAndRecreate(t *testing.T) {
 	if _, err := s.SetScratchpadMode(p.ID, "read"); err != nil {
 		t.Fatal(err)
 	}
-	checkSaved := func() *Project {
+	checkSaved := func() *Workspace {
 		t.Helper()
 		reopened, err := NewStore(s.path, s.executable, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer reopened.Shutdown()
-		return reopened.Snapshot().Projects[0]
+		return reopened.Snapshot().Workspaces[0]
 	}
 	saved := checkSaved()
-	if saved.ScratchpadName != "Project Notes" || saved.ScratchpadMode != "read" || saved.ScratchpadText != "Keep these notes α" || !saved.HasScratchpad || !saved.ShowsScratchpad || saved.Name != p.Name {
+	if saved.ScratchpadName != "Workspace Notes" || saved.ScratchpadMode != "read" || saved.ScratchpadText != "Keep these notes α" || !saved.HasScratchpad || !saved.ShowsScratchpad || saved.Name != p.Name {
 		t.Fatalf("scratchpad rename lost metadata: %+v", saved)
 	}
 	state, err := s.DeleteScratchpad(p.ID)
@@ -354,8 +354,8 @@ func TestScratchpadRenameDeleteAndRecreate(t *testing.T) {
 	if saved.HasScratchpad || saved.ShowsScratchpad || saved.ScratchpadName != "" || saved.ScratchpadMode != "" || saved.ScratchpadText != "" || saved.SelectedSessionID != sess.ID {
 		t.Fatalf("scratchpad deletion did not persist cleanly: %+v", saved)
 	}
-	if len(state.Projects) != 2 || state.Projects[1].ID != other.ID || len(saved.Sessions) != 1 {
-		t.Fatal("scratchpad deletion affected projects or sessions")
+	if len(state.Workspaces) != 2 || state.Workspaces[1].ID != other.ID || len(saved.Sessions) != 1 {
+		t.Fatal("scratchpad deletion affected workspaces or sessions")
 	}
 	if _, err := s.SaveScratchpad(p.ID, "Late autosave", 1); err == nil {
 		t.Fatal("late autosave accepted after deletion")
@@ -376,13 +376,13 @@ func TestScratchpadRenameDeleteAndRecreate(t *testing.T) {
 }
 func TestCollaborationRoutingAndRecovery(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a := sessionFixture(t, s, p, "claude")
 	b := sessionFixture(t, s, p, "codex")
-	other := projectFixture(t, s)
+	other := workspaceFixture(t, s)
 	cross := sessionFixture(t, s, other, "pi")
-	if _, err := s.SendRequest(a.ID, cross.ID, "cross project"); err == nil {
-		t.Fatal("cross project request accepted")
+	if _, err := s.SendRequest(a.ID, cross.ID, "cross workspace"); err == nil {
+		t.Fatal("cross workspace request accepted")
 	}
 	if _, err := s.SendRequest(a.ID, a.ID, "self"); err == nil {
 		t.Fatal("self request accepted")
@@ -406,7 +406,7 @@ func TestCollaborationRoutingAndRecovery(t *testing.T) {
 	var list []map[string]string
 	_ = json.Unmarshal(data, &list)
 	if len(list) != 2 {
-		t.Fatal("project session isolation failed")
+		t.Fatal("workspace session isolation failed")
 	}
 	s.mu.Lock()
 	run, err := s.collaboration.requestLocked(a.ID, b.ID, "Review fixture", "12345678-1234-1234-1234-123456789abc")
@@ -482,7 +482,7 @@ func TestCollaborationRoutingAndRecovery(t *testing.T) {
 }
 func TestWaitCycleAndCancellation(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a := sessionFixture(t, s, p, "claude")
 	b := sessionFixture(t, s, p, "pi")
 	s.mu.Lock()
@@ -568,7 +568,7 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 }
 func TestTerminalPTYLifecycleAndExplicitExecution(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	sender := sessionFixture(t, s, p, "pi")
 	fixture := t.TempDir()
@@ -598,7 +598,7 @@ func TestTerminalPTYLifecycleAndExplicitExecution(t *testing.T) {
 		return strings.Contains(string(raw), "received: hello")
 	})
 	waitUntil(t, func() bool {
-		for _, sess := range s.Snapshot().Projects[0].Sessions {
+		for _, sess := range s.Snapshot().Workspaces[0].Sessions {
 			if sess.ID == agent.ID {
 				return sess.Activity == "waiting" && sess.AgentSessionID == "fixture-conversation"
 			}
@@ -608,7 +608,7 @@ func TestTerminalPTYLifecycleAndExplicitExecution(t *testing.T) {
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
 	}
-	if !s.Snapshot().Projects[0].Sessions[0].Running {
+	if !s.Snapshot().Workspaces[0].Sessions[0].Running {
 		t.Fatal("navigation terminated process")
 	}
 	state, err := s.SendRequest(sender.ID, agent.ID, "test request")
@@ -690,7 +690,7 @@ func TestGitHubCommandResolvesBeforeCreation(t *testing.T) {
 }
 func TestCreateSessionNames(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	long := strings.Repeat("é", 70)
 	for _, tc := range []struct{ name, want string }{
 		{"", "Claude Code 1"},
@@ -706,24 +706,24 @@ func TestCreateSessionNames(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		sessions := state.Projects[len(state.Projects)-1].Sessions
+		sessions := state.Workspaces[len(state.Workspaces)-1].Sessions
 		got := sessions[len(sessions)-1].Name
 		if got != tc.want || !utf8.ValidString(got) {
 			t.Fatalf("name %q became %q, want %q", tc.name, got, tc.want)
 		}
 	}
-	sessions := s.Snapshot().Projects[len(s.Snapshot().Projects)-1].Sessions
+	sessions := s.Snapshot().Workspaces[len(s.Snapshot().Workspaces)-1].Sessions
 	state, err := s.Rename(sessions[len(sessions)-1].ID, "Renamed")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if sessions = state.Projects[len(state.Projects)-1].Sessions; sessions[len(sessions)-1].Name != "Renamed" {
+	if sessions = state.Workspaces[len(state.Workspaces)-1].Sessions; sessions[len(sessions)-1].Name != "Renamed" {
 		t.Fatal("rename failed")
 	}
 }
 func TestSessionGitHubItemPersists(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	if _, err := s.CreateSession(p.ID, "", "claude", "#22 Show sessions", "", false, &GitHubItem{Number: 22}, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -734,10 +734,10 @@ func TestSessionGitHubItemPersists(t *testing.T) {
 	if _, err = s.CreateSession(p.ID, "", "claude", "", "", false, &GitHubItem{}, "", "", "", "", ""); err == nil {
 		t.Fatal("accepted an invalid GitHub item")
 	}
-	if state, err = s.CreateSession(p.ID, "", terminalAgent, "", "", false, &GitHubItem{Number: 24}, "", "", "", "", ""); err != nil || state.Projects[0].Sessions[2].GitHubItem != nil {
-		t.Fatalf("terminal kept a GitHub item: %+v, %v", state.Projects[0].Sessions[2].GitHubItem, err)
+	if state, err = s.CreateSession(p.ID, "", terminalAgent, "", "", false, &GitHubItem{Number: 24}, "", "", "", "", ""); err != nil || state.Workspaces[0].Sessions[2].GitHubItem != nil {
+		t.Fatalf("terminal kept a GitHub item: %+v, %v", state.Workspaces[0].Sessions[2].GitHubItem, err)
 	}
-	issue, review := state.Projects[0].Sessions[0], state.Projects[0].Sessions[1]
+	issue, review := state.Workspaces[0].Sessions[0], state.Workspaces[0].Sessions[1]
 	if _, err = s.Rename(issue.ID, "Renamed"); err != nil {
 		t.Fatal(err)
 	}
@@ -752,20 +752,20 @@ func TestSessionGitHubItemPersists(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(restored.Shutdown)
-	sessions := restored.Snapshot().Projects[0].Sessions
+	sessions := restored.Snapshot().Workspaces[0].Sessions
 	if len(sessions) != 2 || sessions[0].Name != "Renamed" || sessions[0].GitHubItem == nil || *sessions[0].GitHubItem != (GitHubItem{Number: 22}) || sessions[1].GitHubItem != nil {
 		t.Fatalf("restored sessions lost their GitHub items: %+v", sessions)
 	}
 }
 func TestPlainTerminalLaunchAndDirectory(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sender := sessionFixture(t, s, p, "claude")
 	state, err := s.CreateSession(p.ID, "", terminalAgent, "", "ignored prompt", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	terminal := state.Projects[0].Sessions[1]
+	terminal := state.Workspaces[0].Sessions[1]
 	if terminal.Name != "Terminal 1" || terminal.InitialPrompt != "" || terminal.WorktreeDirectory != "" || terminal.AgentSessionID != "" {
 		t.Fatalf("unexpected terminal session: %+v", terminal)
 	}
@@ -799,7 +799,7 @@ func TestPlainTerminalLaunchAndDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer shutdownAndWait(t, reopened)
-	restored := reopened.Snapshot().Projects[0].Sessions[1]
+	restored := reopened.Snapshot().Workspaces[0].Sessions[1]
 	if reopened.Snapshot().Error != "" || !restored.Restored || !restored.HasLaunched {
 		t.Fatalf("terminal was not restored: %+v", restored)
 	}
@@ -809,7 +809,7 @@ func TestPlainTerminalLaunchAndDirectory(t *testing.T) {
 }
 func TestMoveScratchpadAmongSessionsPersistsPosition(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a, b, c := sessionFixture(t, s, p, "claude"), sessionFixture(t, s, p, "terminal"), sessionFixture(t, s, p, "codex")
 	if _, err := s.MoveScratchpad(p.ID, 1); err == nil {
 		t.Fatal("moved a missing scratchpad")
@@ -817,7 +817,7 @@ func TestMoveScratchpadAmongSessionsPersistsPosition(t *testing.T) {
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
 	}
-	rows := func(p *Project) string {
+	rows := func(p *Workspace) string {
 		var out []string
 		for _, sess := range p.Sessions {
 			out = append(out, sess.ID)
@@ -827,14 +827,14 @@ func TestMoveScratchpadAmongSessionsPersistsPosition(t *testing.T) {
 		}
 		return strings.Join(out, ",")
 	}
-	reopen := func() *Project {
+	reopen := func() *Workspace {
 		t.Helper()
 		reopened, err := NewStore(s.path, s.executable, nil, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		defer reopened.Shutdown()
-		return reopened.Snapshot().Projects[0]
+		return reopened.Snapshot().Workspaces[0]
 	}
 	if got, want := rows(reopen()), strings.Join([]string{"scratchpad", a.ID, b.ID, c.ID}, ","); got != want {
 		t.Fatalf("default rows = %s, want %s", got, want)
@@ -852,7 +852,7 @@ func TestMoveScratchpadAmongSessionsPersistsPosition(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, want := rows(state.Projects[0]), strings.Join([]string{c.ID, b.ID, "scratchpad", a.ID}, ","); got != want {
+	if got, want := rows(state.Workspaces[0]), strings.Join([]string{c.ID, b.ID, "scratchpad", a.ID}, ","); got != want {
 		t.Fatalf("after moving sessions = %s, want %s", got, want)
 	}
 	if state, err = s.CloseSession(c.ID, false); err != nil {
@@ -870,13 +870,13 @@ func TestMoveScratchpadAmongSessionsPersistsPosition(t *testing.T) {
 	if state, err = s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := rows(state.Projects[0]), strings.Join([]string{"scratchpad", b.ID, a.ID}, ","); got != want {
+	if got, want := rows(state.Workspaces[0]), strings.Join([]string{"scratchpad", b.ID, a.ID}, ","); got != want {
 		t.Fatalf("recreated scratchpad = %s, want %s", got, want)
 	}
 }
 func TestScratchpadIndexDefaultsAndClampsOnLoad(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sessionFixture(t, s, p, "claude")
 	sessionFixture(t, s, p, "terminal")
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
@@ -889,7 +889,7 @@ func TestScratchpadIndexDefaultsAndClampsOnLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	load := func(raw string) *Project {
+	load := func(raw string) *Workspace {
 		t.Helper()
 		path := filepath.Join(t.TempDir(), "state.json")
 		if err := os.WriteFile(path, []byte(raw), 0600); err != nil {
@@ -900,7 +900,7 @@ func TestScratchpadIndexDefaultsAndClampsOnLoad(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer reopened.Shutdown()
-		return reopened.Snapshot().Projects[0]
+		return reopened.Snapshot().Workspaces[0]
 	}
 	index := regexp.MustCompile(`"scratchpadIndex":\s*1,`)
 	if !index.Match(saved) {
@@ -913,56 +913,56 @@ func TestScratchpadIndexDefaultsAndClampsOnLoad(t *testing.T) {
 		t.Fatalf("out of range scratchpad index = %d, want 2", got.ScratchpadIndex)
 	}
 }
-func TestProjectDescriptionPersistsAndClears(t *testing.T) {
+func TestWorkspaceDescriptionPersistsAndClears(t *testing.T) {
 	s := fixtureStore(t)
-	state, err := s.CreateProject("Described", t.TempDir(), "  Client API  ")
+	state, err := s.CreateWorkspace("Described", t.TempDir(), "  Client API  ")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := state.Projects[len(state.Projects)-1]
+	p := state.Workspaces[len(state.Workspaces)-1]
 	if p.Description != "Client API" {
 		t.Fatalf("description was not trimmed: %q", p.Description)
 	}
-	if _, err = s.EditProject(p.ID, "Renamed", "Billing service\nfor invoices", ""); err != nil {
+	if _, err = s.EditWorkspace(p.ID, "Renamed", "Billing service\nfor invoices", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.EditProject(p.ID, " ", "x", ""); err == nil {
-		t.Fatal("accepted an empty project name")
+	if _, err = s.EditWorkspace(p.ID, " ", "x", ""); err == nil {
+		t.Fatal("accepted an empty workspace name")
 	}
 	reopened, err := NewStore(s.path, s.executable, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := reopened.Snapshot().Projects[0]
+	got := reopened.Snapshot().Workspaces[0]
 	reopened.Shutdown()
 	if got.Name != "Renamed" || got.Description != "Billing service\nfor invoices" {
 		t.Fatalf("description was not restored: %+v", got)
 	}
-	if state, err = s.EditProject(p.ID, "Renamed", "   ", ""); err != nil || state.Projects[0].Description != "" {
-		t.Fatalf("description was not cleared: %+v %v", state.Projects[0], err)
+	if state, err = s.EditWorkspace(p.ID, "Renamed", "   ", ""); err != nil || state.Workspaces[0].Description != "" {
+		t.Fatalf("description was not cleared: %+v %v", state.Workspaces[0], err)
 	}
 	data, err := os.ReadFile(s.path)
 	if err != nil || bytes.Contains(data, []byte(`"description"`)) {
 		t.Fatalf("cleared description was saved: %s %v", data, err)
 	}
 }
-func TestProjectEmojiPersistsAndClears(t *testing.T) {
+func TestWorkspaceEmojiPersistsAndClears(t *testing.T) {
 	s := fixtureStore(t)
-	state, err := s.CreateProject("Emoji", t.TempDir(), "")
+	state, err := s.CreateWorkspace("Emoji", t.TempDir(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	p := state.Projects[len(state.Projects)-1]
+	p := state.Workspaces[len(state.Workspaces)-1]
 	for _, emoji := range []string{"🚀", "👍🏽", "🇧🇷", "👨‍💻", "1️⃣"} {
-		if state, err = s.EditProject(p.ID, "Emoji", "", " "+emoji+" "); err != nil {
+		if state, err = s.EditWorkspace(p.ID, "Emoji", "", " "+emoji+" "); err != nil {
 			t.Fatalf("rejected %q: %v", emoji, err)
 		}
-		if got := state.Projects[len(state.Projects)-1]; got.Emoji != emoji || got.Name != "Emoji" {
+		if got := state.Workspaces[len(state.Workspaces)-1]; got.Emoji != emoji || got.Name != "Emoji" {
 			t.Fatalf("emoji was not stored apart from the name: %+v", got)
 		}
 	}
 	for _, emoji := range []string{"🚀🚀", "a b", "\a", "👨 💻"} {
-		if _, err = s.EditProject(p.ID, "Emoji", "", emoji); err == nil {
+		if _, err = s.EditWorkspace(p.ID, "Emoji", "", emoji); err == nil {
 			t.Fatalf("accepted %q", emoji)
 		}
 	}
@@ -970,12 +970,12 @@ func TestProjectEmojiPersistsAndClears(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := reopened.Snapshot().Projects[len(state.Projects)-1]
+	got := reopened.Snapshot().Workspaces[len(state.Workspaces)-1]
 	reopened.Shutdown()
 	if got.Emoji != "1️⃣" {
 		t.Fatalf("emoji was not restored: %+v", got)
 	}
-	if state, err = s.EditProject(p.ID, "Emoji", "", ""); err != nil || state.Projects[len(state.Projects)-1].Emoji != "" {
+	if state, err = s.EditWorkspace(p.ID, "Emoji", "", ""); err != nil || state.Workspaces[len(state.Workspaces)-1].Emoji != "" {
 		t.Fatalf("emoji was not cleared: %v", err)
 	}
 	data, err := os.ReadFile(s.path)
@@ -985,7 +985,7 @@ func TestProjectEmojiPersistsAndClears(t *testing.T) {
 }
 func TestAutomaticRequestDelivery(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	stopped := sessionFixture(t, s, p, "codex")
 	sender := sessionFixture(t, s, p, "pi")
@@ -1058,7 +1058,7 @@ func TestAutomaticRequestDelivery(t *testing.T) {
 		t.Fatal("queued request not delivered to a free agent")
 	}
 	output("Orchestra request " + first)
-	if selected := s.Snapshot().Projects[0].SelectedSessionID; selected != sender.ID {
+	if selected := s.Snapshot().Workspaces[0].SelectedSessionID; selected != sender.ID {
 		t.Fatal("automatic delivery changed the selection")
 	}
 
@@ -1221,7 +1221,7 @@ func TestLoginShellFallback(t *testing.T) {
 
 func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	fixture := t.TempDir()
 	shell := filepath.Join(fixture, "shell")
@@ -1262,9 +1262,9 @@ func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
 
 func TestSelectReviews(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	shown := func(state State) string {
-		p := state.Projects[0]
+		p := state.Workspaces[0]
 		return fmt.Sprint(p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad)
 	}
 	state, err := s.Select(p.ID, "reviews")

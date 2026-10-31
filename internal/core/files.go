@@ -32,9 +32,9 @@ func (s *Store) SessionFiles(id, relative string) (SessionFiles, error) {
 		s.mu.Unlock()
 		return SessionFiles{}, err
 	}
-	project, worktree := repo.Directory, sess.WorktreeDirectory
+	repository, worktree := repo.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
-	root, err := sessionFolder(project, worktree)
+	root, err := sessionFolder(repository, worktree)
 	if err != nil {
 		return SessionFiles{}, err
 	}

@@ -127,19 +127,19 @@ export function agentIcon(id, appearance) {
   const agent = agents.find((a) => a.id === id) || agents[0]
   return `/agents/${agent.icon}${agent.dark && appearance === 'dark' ? '-dark' : ''}.svg`
 }
-export function destination(project) {
-  return project?.showsScratchpad
+export function destination(workspace) {
+  return workspace?.showsScratchpad
     ? 'scratchpad'
-    : project?.showsGitHub
+    : workspace?.showsGitHub
       ? 'github'
-      : project?.showsReviews
+      : workspace?.showsReviews
         ? 'reviews'
-        : project?.selectedSessionID || 'empty'
+        : workspace?.selectedSessionID || 'empty'
 }
-// Arc spaces show only the active project, including a previously collapsed project.
-export function visibleSidebarProjects(projects, selectedID, arcMode) {
-  if (!arcMode) return projects
-  const selected = projects.find((p) => p.id === selectedID) || projects[0]
+// Arc spaces show only the active workspace, including a previously collapsed workspace.
+export function visibleSidebarWorkspaces(workspaces, selectedID, arcMode) {
+  if (!arcMode) return workspaces
+  const selected = workspaces.find((p) => p.id === selectedID) || workspaces[0]
   return selected ? [selected] : []
 }
 // A native horizontal scroll snaps to the closest space; rubber-band offsets stay bounded.
@@ -151,29 +151,31 @@ export function arcScrollDelta(event, width) {
   )
 }
 // Work Items and Reviews list a workspace's GitHub repositories. It matches hasWorkItems in
-// project.js, kept here because the website's build reads this file alone.
+// workspace.js, kept here because the website's build reads this file alone.
 const listsWorkItems = (p) => (p?.repositories || []).some((r) => r.gitHub)
 // Reorderable rows under Work Items and Reviews: sessions with the Scratchpad at its saved position.
-export function projectRows(p) {
+export function workspaceRows(p) {
   const rows = [...(p.sessions || [])]
   if (p.hasScratchpad)
     rows.splice(Math.max(0, Math.min(p.scratchpadIndex || 0, rows.length)), 0, { id: 'scratchpad', scratchpad: true })
   return rows
 }
-export function sidebarItems(projects) {
-  return (projects || [])
+export function sidebarItems(workspaces) {
+  return (workspaces || [])
     .filter((p) => p.isExpanded)
     .flatMap((p) =>
-      [...(listsWorkItems(p) ? ['github', 'reviews'] : []), ...projectRows(p).map((s) => s.id)].map((destination) => ({
-        project: p,
-        destination,
-      })),
+      [...(listsWorkItems(p) ? ['github', 'reviews'] : []), ...workspaceRows(p).map((s) => s.id)].map(
+        (destination) => ({
+          workspace: p,
+          destination,
+        }),
+      ),
     )
 }
-export function adjacentItem(projects, projectID, current, step) {
-  const items = sidebarItems(projects)
+export function adjacentItem(workspaces, workspaceID, current, step) {
+  const items = sidebarItems(workspaces)
   if (!items.length) return null
-  const index = items.findIndex((i) => i.project.id === projectID && i.destination === current)
+  const index = items.findIndex((i) => i.workspace.id === workspaceID && i.destination === current)
   if (index < 0) return items[step > 0 ? 0 : items.length - 1]
   return items[(index + step + items.length) % items.length]
 }
@@ -224,10 +226,10 @@ export function accentForeground(color) {
   return rgb[0] * 0.2126 + rgb[1] * 0.7152 + rgb[2] * 0.0722 > 0.45 ? '#000000' : '#FFFFFF'
 }
 
-export function startupDestination(project, preferences) {
-  if (!project) return null
+export function startupDestination(workspace, preferences) {
+  if (!workspace) return null
   if (preferences.startupView === 'scratchpad') return 'scratchpad'
-  if ((preferences.startupView === 'github' || preferences.startupView === 'reviews') && listsWorkItems(project))
+  if ((preferences.startupView === 'github' || preferences.startupView === 'reviews') && listsWorkItems(workspace))
     return preferences.startupView
   return null
 }
@@ -236,8 +238,8 @@ export function activityLabel(activity) {
     { waiting: 'Waiting for input', working: 'Agent working', ended: 'Session ended' }[activity] || 'Status unavailable'
   )
 }
-export function statusSummary(projects, runs) {
-  const sessions = (projects || []).flatMap((p) => p.sessions || []).filter((s) => s.running)
+export function statusSummary(workspaces, runs) {
+  const sessions = (workspaces || []).flatMap((p) => p.sessions || []).filter((s) => s.running)
   const count = (status) => (runs || []).filter((r) => r.status === status).length
   return {
     running: sessions.length,

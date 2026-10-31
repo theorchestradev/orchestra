@@ -1,8 +1,8 @@
 // Links between Work on / Review sessions and the GitHub items they came from. An item's number is
 // only unique within its repository, which Work Items records on each item as repositoryID.
 export const gitHubItem = (item) => ({ number: item.number, pullRequest: Boolean(item.pull_request) })
-export const itemSessions = (project, item) =>
-  project?.sessions?.filter(
+export const itemSessions = (workspace, item) =>
+  workspace?.sessions?.filter(
     (s) =>
       s.repositoryID === item.repositoryID &&
       s.gitHubItem?.number === item.number &&

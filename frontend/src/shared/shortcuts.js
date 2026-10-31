@@ -9,14 +9,14 @@ import { mac, shortcutLabel } from './platform.js'
 export const shortcuts = [
   { id: 'command', group: 'General', name: 'Command Bar', keys: '⌘K', terminal: '⇧⌘K', app: true },
   { id: 'session', group: 'General', name: 'New Session', keys: '⌘N', terminal: null, app: true },
-  { id: 'project', group: 'General', name: 'New Workspace', keys: '⇧⌘N', app: true },
+  { id: 'workspace', group: 'General', name: 'New Workspace', keys: '⇧⌘N', app: true },
   { id: 'settings', group: 'General', name: 'Settings', keys: '⌘,', app: true },
   { id: 'dismiss', group: 'General', name: 'Close Dialog or Menu', keys: 'Esc' },
   { id: 'confirmDialog', group: 'General', name: 'Confirm Dialog', keys: '⌘↩' },
   { id: 'previous', group: 'Navigation', name: 'Previous Item', keys: '⇧⌘[', app: true },
   { id: 'next', group: 'Navigation', name: 'Next Item', keys: '⇧⌘]', app: true },
-  { id: 'previousProject', group: 'Navigation', name: 'Previous Workspace', keys: '⇧⌘←', app: true, menu: false },
-  { id: 'nextProject', group: 'Navigation', name: 'Next Workspace', keys: '⇧⌘→', app: true, menu: false },
+  { id: 'previousWorkspace', group: 'Navigation', name: 'Previous Workspace', keys: '⇧⌘←', app: true, menu: false },
+  { id: 'nextWorkspace', group: 'Navigation', name: 'Next Workspace', keys: '⇧⌘→', app: true, menu: false },
   { id: 'contextMenu', group: 'Navigation', name: 'Open Context Menu', keys: '⇧F10' },
   { id: 'sidebar', group: 'View', name: 'Toggle Sidebar', keys: '⌘B', terminal: null, app: true },
   { id: 'diff', group: 'View', name: 'Toggle Changes', keys: '⇧⌘B', app: true },
@@ -68,14 +68,14 @@ export function appCommand(event) {
     return event.code === 'BracketRight' ? 'next' : 'previous'
   // In text fields, Shift and an arrow select to the start or end of the line instead.
   if (event.shiftKey && ['ArrowLeft', 'ArrowRight'].includes(event.code) && !textField(event.target))
-    return event.code === 'ArrowRight' ? 'nextProject' : 'previousProject'
+    return event.code === 'ArrowRight' ? 'nextWorkspace' : 'previousWorkspace'
   if (event.shiftKey && event.code === 'KeyB') return 'diff'
   if (event.shiftKey && event.code === 'KeyE') return 'files'
   const key = event.key.toLowerCase()
   if (key === 'b' && !event.shiftKey) return 'sidebar'
   if (key === 'k') return 'command'
   if (key === ',') return 'settings'
-  if (key === 'n') return event.shiftKey ? 'project' : 'session'
+  if (key === 'n') return event.shiftKey ? 'workspace' : 'session'
   return null
 }
 

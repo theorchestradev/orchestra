@@ -14,7 +14,7 @@ import (
 // Saved sessions must keep their original launch and resume location.
 func TestExistingWorktreeSessionRestoreLaunchAndPreserve(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	ordinary := sessionFixture(t, s, p, "claude")
 	worktree := sessionFixture(t, s, p, "claude")
 	directory := t.TempDir()
@@ -39,11 +39,11 @@ func TestExistingWorktreeSessionRestoreLaunchAndPreserve(t *testing.T) {
 	}
 	defer shutdownAndWait(t, reopened)
 	state := reopened.Snapshot()
-	restored := state.Projects[0].Sessions[1]
+	restored := state.Workspaces[0].Sessions[1]
 	if state.Error != "" || !restored.Restored || restored.Running || restored.WorktreeDirectory != directory || restored.WorktreeBranch != "codex/orchestra-claude-existing" {
 		t.Fatalf("existing worktree session was not restored: %+v", state)
 	}
-	if state.Projects[0].Sessions[0].WorktreeDirectory != "" {
+	if state.Workspaces[0].Sessions[0].WorktreeDirectory != "" {
 		t.Fatal("ordinary session acquired a worktree")
 	}
 	fixture := t.TempDir()
@@ -72,11 +72,11 @@ func TestExistingWorktreeSessionRestoreLaunchAndPreserve(t *testing.T) {
 	if _, err = reopened.CloseSession(restored.ID, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = reopened.RemoveProject(p.ID); err != nil {
+	if _, err = reopened.RemoveWorkspace(p.ID); err != nil {
 		t.Fatal(err)
 	}
 	if data, err := os.ReadFile(file); err != nil || string(data) != "existing session work" {
-		t.Fatal("session close/project removal discarded worktree files")
+		t.Fatal("session close/workspace removal discarded worktree files")
 	}
 	// Missing saved folders must never launch a process in the original checkout instead.
 	if err = os.Remove(file); err != nil {
@@ -89,8 +89,8 @@ func TestExistingWorktreeSessionRestoreLaunchAndPreserve(t *testing.T) {
 		t.Fatalf("missing worktree did not produce an explicit error: %v", err)
 	}
 	for _, invalid := range []Session{{WorktreeDirectory: "relative", WorktreeBranch: "branch"}, {WorktreeDirectory: "/tmp/path"}, {WorktreeBranch: "branch"}} {
-		state.Projects[0].Sessions[1].WorktreeDirectory = invalid.WorktreeDirectory
-		state.Projects[0].Sessions[1].WorktreeBranch = invalid.WorktreeBranch
+		state.Workspaces[0].Sessions[1].WorktreeDirectory = invalid.WorktreeDirectory
+		state.Workspaces[0].Sessions[1].WorktreeBranch = invalid.WorktreeBranch
 		if validateState(state) == nil {
 			t.Fatal("invalid imported worktree metadata accepted")
 		}
@@ -110,7 +110,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	root := p.Repositories[0].Directory
 	gitWorktreeFixture(t, root, "init", "-b", "main")
 	gitWorktreeFixture(t, root, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
@@ -127,13 +127,13 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.Repositories[0].Directory = filepath.Join(root, "nested")
-	s.state.Projects[0].Repositories[0].Directory = p.Repositories[0].Directory
+	s.state.Workspaces[0].Repositories[0].Directory = p.Repositories[0].Directory
 	before := gitWorktreeFixture(t, root, "status", "--porcelain")
 	state, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	first := state.Projects[0].Sessions[0]
+	first := state.Workspaces[0].Sessions[0]
 	expected := filepath.Join(filepath.Dir(s.path), "Worktrees", filepath.Base(root), "claude-code-1", "nested")
 	if first.WorktreeDirectory != expected || !strings.HasPrefix(first.WorktreeBranch, "orchestra/claude-") {
 		t.Fatalf("unexpected worktree metadata: %+v", first)
@@ -149,7 +149,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	second := state.Projects[0].Sessions[1]
+	second := state.Workspaces[0].Sessions[1]
 	if first.WorktreeDirectory == second.WorktreeDirectory || first.WorktreeBranch == second.WorktreeBranch {
 		t.Fatal("sessions share the same checkout or branch")
 	}
@@ -165,7 +165,7 @@ func TestCreateSessionWorktreesAndRollback(t *testing.T) {
 	if _, err = s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", ""); err == nil {
 		t.Fatal("expected failed save")
 	}
-	after := s.Snapshot().Projects[0]
+	after := s.Snapshot().Workspaces[0]
 	if len(after.Sessions) != 2 || after.SelectedSessionID != second.ID || gitWorktreeFixture(t, root, "worktree", "list", "--porcelain") != beforeTrees || gitWorktreeFixture(t, root, "branch", "--list") != beforeBranches {
 		t.Fatal("failed creation left metadata, branch or worktree changes behind")
 	}
@@ -203,7 +203,7 @@ func TestCreateSessionWorktreeBranchNames(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	root := p.Repositories[0].Directory
 	gitWorktreeFixture(t, root, "init", "-b", "main")
 	commit := func(message string) string {
@@ -219,7 +219,7 @@ func TestCreateSessionWorktreeBranchNames(t *testing.T) {
 	if err != nil || branches.Current != "main" || strings.Join(branches.Branches, ",") != "orchestra/32-fix-login,release" {
 		t.Fatalf("unexpected branches: %+v %v", branches, err)
 	}
-	sessions := func() []*Session { return s.Snapshot().Projects[0].Sessions }
+	sessions := func() []*Session { return s.Snapshot().Workspaces[0].Sessions }
 	if _, err = s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
@@ -264,13 +264,13 @@ func TestCreateSessionWorktreeBranchNames(t *testing.T) {
 	}
 }
 
-func TestCreateSessionWorktreeRequiresCommittedProject(t *testing.T) {
+func TestCreateSessionWorktreeRequiresCommittedWorkspace(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	for _, kind := range []string{"not-git", "no-commit", "uncommitted-subfolder"} {
 		t.Run(kind, func(t *testing.T) {
 			s := fixtureStore(t)
-			p := projectFixture(t, s)
+			p := workspaceFixture(t, s)
 			root := p.Repositories[0].Directory
 			if kind != "not-git" {
 				gitWorktreeFixture(t, root, "init", "-b", "main")
@@ -281,9 +281,9 @@ func TestCreateSessionWorktreeRequiresCommittedProject(t *testing.T) {
 				if err := os.Mkdir(p.Repositories[0].Directory, 0700); err != nil {
 					t.Fatal(err)
 				}
-				s.state.Projects[0].Repositories[0].Directory = p.Repositories[0].Directory
+				s.state.Workspaces[0].Repositories[0].Directory = p.Repositories[0].Directory
 			}
-			if _, err := s.CreateSession(p.ID, "", "pi", "", "", true, nil, "", "", "", "", ""); err == nil || len(s.Snapshot().Projects[0].Sessions) != 0 {
+			if _, err := s.CreateSession(p.ID, "", "pi", "", "", true, nil, "", "", "", "", ""); err == nil || len(s.Snapshot().Workspaces[0].Sessions) != 0 {
 				t.Fatal("invalid worktree creation was accepted or left a session behind")
 			}
 			if kind == "uncommitted-subfolder" && (strings.Count(gitWorktreeFixture(t, root, "worktree", "list", "--porcelain"), "worktree ") != 1 || gitWorktreeFixture(t, root, "branch", "--list", "orchestra/*") != "") {
@@ -298,7 +298,7 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "init", "-b", "main")
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
 	if _, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", ""); err != nil {
@@ -308,12 +308,12 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	merged, unmerged := state.Projects[0].Sessions[0], state.Projects[0].Sessions[1]
+	merged, unmerged := state.Workspaces[0].Sessions[0], state.Workspaces[0].Sessions[1]
 	untracked := filepath.Join(merged.WorktreeDirectory, "draft.txt")
 	if err = os.WriteFile(untracked, []byte("draft"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CloseSession(merged.ID, true); err == nil || len(s.Snapshot().Projects[0].Sessions) != 2 {
+	if _, err = s.CloseSession(merged.ID, true); err == nil || len(s.Snapshot().Workspaces[0].Sessions) != 2 {
 		t.Fatal("dirty worktree was removed or its session closed")
 	}
 	if _, err = os.Stat(untracked); err != nil {
@@ -332,7 +332,7 @@ func TestCloseSessionRemovesWorktree(t *testing.T) {
 	if _, err = s.CloseSession(unmerged.ID, true); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = os.Stat(unmerged.WorktreeDirectory); !os.IsNotExist(err) || len(s.Snapshot().Projects[0].Sessions) != 0 {
+	if _, err = os.Stat(unmerged.WorktreeDirectory); !os.IsNotExist(err) || len(s.Snapshot().Workspaces[0].Sessions) != 0 {
 		t.Fatal("worktree session was not closed")
 	}
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "show-ref", "--verify", "refs/heads/"+unmerged.WorktreeBranch)
@@ -355,14 +355,14 @@ func TestCloseSessionReleasesLockDuringWorktreeRemoval(t *testing.T) {
 	}
 	t.Setenv("PATH", slow+":"+os.Getenv("PATH"))
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "init", "-b", "main")
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "Fixture")
 	state, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := state.Projects[0].Sessions[0]
+	sess := state.Workspaces[0].Sessions[0]
 	if _, err = s.StartSession(sess.ID, false, 80, 24); err != nil {
 		t.Fatal(err)
 	}
@@ -390,7 +390,7 @@ func TestCloseSessionReleasesLockDuringWorktreeRemoval(t *testing.T) {
 	if err = <-closed; err != nil {
 		t.Fatal(err)
 	}
-	if _, err = os.Stat(sess.WorktreeDirectory); !os.IsNotExist(err) || len(s.Snapshot().Projects[0].Sessions) != 0 {
+	if _, err = os.Stat(sess.WorktreeDirectory); !os.IsNotExist(err) || len(s.Snapshot().Workspaces[0].Sessions) != 0 {
 		t.Fatal("worktree session was not closed")
 	}
 }
@@ -401,7 +401,7 @@ func TestInitializeGitRepository(t *testing.T) {
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	t.Setenv("LANG", "pt_BR.UTF-8")
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	file := filepath.Join(p.Repositories[0].Directory, "keep.txt")
 	if err := os.WriteFile(file, []byte("existing"), 0600); err != nil {
 		t.Fatal(err)
@@ -433,16 +433,16 @@ func TestInitializeGitRepository(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// A project folder inside a parent repository is left alone.
+	// A repository folder inside a parent repository is left alone.
 	sub := filepath.Join(p.Repositories[0].Directory, "nested")
 	if err := os.Mkdir(sub, 0700); err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.CreateProject("Nested", sub, "")
+	state, err := s.CreateWorkspace("Nested", sub, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.InitializeGitRepository(state.SelectedProjectID, ""); err == nil {
+	if _, err = s.InitializeGitRepository(state.SelectedWorkspaceID, ""); err == nil {
 		t.Fatal("folder inside a repository was reinitialized")
 	}
 	if _, err = os.Stat(filepath.Join(sub, ".git")); !os.IsNotExist(err) {
@@ -450,7 +450,7 @@ func TestInitializeGitRepository(t *testing.T) {
 	}
 
 	// Other Git failures do not offer initialization.
-	other := projectFixture(t, s)
+	other := workspaceFixture(t, s)
 	fixture := t.TempDir()
 	if err = os.WriteFile(filepath.Join(fixture, "git"), []byte("#!/bin/sh\necho \"fatal: cannot change to '$PWD': Permission denied\" >&2\nexit 128\n"), 0700); err != nil {
 		t.Fatal(err)
@@ -469,7 +469,7 @@ func TestCanCreateWorktree(t *testing.T) {
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
 	s := fixtureStore(t)
-	parent := projectFixture(t, s)
+	parent := workspaceFixture(t, s)
 	clone := filepath.Join(parent.Repositories[0].Directory, "api")
 	writeFixture(t, filepath.Join(clone, "keep.txt"), "kept\n")
 	gitWorktreeFixture(t, clone, "init", "-b", "main")
@@ -479,24 +479,24 @@ func TestCanCreateWorktree(t *testing.T) {
 	repository := repositoryFixture(t, s)
 	subfolder := filepath.Join(repository.Repositories[0].Directory, "nested")
 	writeFixture(t, filepath.Join(subfolder, "keep.txt"), "kept\n")
-	state, err := s.CreateProject("Nested", subfolder, "")
+	state, err := s.CreateWorkspace("Nested", subfolder, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	nested := state.Projects[len(state.Projects)-1]
-	for _, p := range []*Project{repository, nested} {
+	nested := state.Workspaces[len(state.Workspaces)-1]
+	for _, p := range []*Workspace{repository, nested} {
 		if ok, err := s.CanCreateWorktree(p.ID, ""); err != nil || !ok {
 			t.Fatalf("repository folder %s did not offer worktrees: %v %v", p.Repositories[0].Directory, ok, err)
 		}
 	}
 	if _, err := s.CanCreateWorktree("missing", ""); err == nil {
-		t.Fatal("missing project did not fail")
+		t.Fatal("missing workspace did not fail")
 	}
 }
 
-// localMainFixture clones a fresh origin into the project, then adds a commit to origin that
-// the project's local main does not have yet.
-func localMainFixture(t *testing.T, s *Store) (*Project, string) {
+// localMainFixture clones a fresh origin into the workspace, then adds a commit to origin that
+// the workspace's local main does not have yet.
+func localMainFixture(t *testing.T, s *Store) (*Workspace, string) {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
@@ -506,7 +506,7 @@ func localMainFixture(t *testing.T, s *Store) (*Project, string) {
 	gitWorktreeFixture(t, t.TempDir(), "clone", "--quiet", origin, upstream)
 	gitWorktreeFixture(t, upstream, append(commit, "First")...)
 	gitWorktreeFixture(t, upstream, "push", "--quiet", "origin", "main")
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	if err := os.Remove(p.Repositories[0].Directory); err != nil {
 		t.Fatal(err)
 	}

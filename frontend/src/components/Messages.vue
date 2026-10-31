@@ -3,17 +3,17 @@ import { ref, computed } from 'vue'
 import { call, copy } from '../shared/api'
 import { relativeDate, runLabel, agentIcon, isTerminal } from '../shared/appearance'
 import Icon from './Icon.vue'
-const props = defineProps({ session: Object, project: Object, runs: Array, preferences: Object })
+const props = defineProps({ session: Object, workspace: Object, runs: Array, preferences: Object })
 const emit = defineEmits(['close', 'state', 'error', 'execute'])
-const to = ref(props.project.sessions.find((s) => s.id !== props.session.id && !isTerminal(s))?.id || ''),
+const to = ref(props.workspace.sessions.find((s) => s.id !== props.session.id && !isTerminal(s))?.id || ''),
   text = ref(''),
   error = ref(''),
   busy = ref(false)
-const peers = computed(() => props.project.sessions.filter((s) => s.id !== props.session.id && !isTerminal(s)))
+const peers = computed(() => props.workspace.sessions.filter((s) => s.id !== props.session.id && !isTerminal(s)))
 const history = computed(() =>
   props.runs.filter((r) => r.fromSessionID === props.session.id || r.toSessionID === props.session.id).toReversed(),
 )
-const name = (id) => props.project.sessions.find((s) => s.id === id)?.name || 'Closed session'
+const name = (id) => props.workspace.sessions.find((s) => s.id === id)?.name || 'Closed session'
 const canExecute = (run) =>
   props.session.running &&
   props.session.activity !== 'working' &&
@@ -97,7 +97,7 @@ async function action(method, ...args) {
       ><label class="recipient-select"
         ><img
           v-if="to"
-          :src="agentIcon(project.sessions.find((s) => s.id === to)?.agent, preferences.appearance)"
+          :src="agentIcon(workspace.sessions.find((s) => s.id === to)?.agent, preferences.appearance)"
           alt="" /><select v-model="to" aria-label="Message recipient">
           <option disabled value="">Choose a recipient</option>
           <option v-for="peer in peers" :key="peer.id" :value="peer.id">To: {{ peer.name }}</option></select

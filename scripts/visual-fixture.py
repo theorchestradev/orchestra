@@ -3,7 +3,7 @@
 import json, os, pathlib, shutil, subprocess, sys, uuid
 root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else '/tmp/orchestra-visual')
 root.mkdir(parents=True, exist_ok=True)
-folder = root / 'project'
+folder = root / 'workspace'
 folder.mkdir(exist_ok=True)
 subprocess.run(['/usr/bin/git', 'init', '-q', str(folder)], check=True)
 subprocess.run(['/usr/bin/git', '-C', str(folder), 'config', '--local', 'remote.origin.url', 'https://github.com/example/orchestra.git'], check=True)
@@ -63,12 +63,12 @@ if '/check-runs/' in endpoint:
  print(json.dumps({{'name':'server-tests (ubuntu-latest)','conclusion':'failure','html_url':'https://github.com/example/orchestra/actions/runs/7/job/2','output':{{'title':'Tests failed','summary':'1 test failed.'}}}})); sys.exit(0)
 if '/reviews' in endpoint:
  print(json.dumps([[{{'id':7,'state':'CHANGES_REQUESTED','user':{{'login':'reviewer-with-a-long-handle'}},'submitted_at':'2026-10-21T18:00:00Z','body':'Cover the empty state.','body_html':'<p>Cover the empty state.</p>','html_url':'https://github.com/example/orchestra/pull/43#pullrequestreview-7'}},{{'id':8,'state':'APPROVED','user':{{'login':'maintainer'}},'submitted_at':'2026-10-21T19:00:00Z','body':'','html_url':'https://github.com/example/orchestra/pull/43#pullrequestreview-8'}}]])); sys.exit(0)
-item = {{'number':42,'title':'Preserve terminal sessions when switching projects','state':'open','html_url':'https://github.com/example/orchestra/issues/42','updated_at':'2026-10-06T12:00:00Z','created_at':'2026-10-06T12:00:00Z','user':{{'login':'contributor'}},'labels':[{{'name':'enhancement','color':'58a6ff'}}],'assignees':[]}}
+item = {{'number':42,'title':'Preserve terminal sessions when switching workspaces','state':'open','html_url':'https://github.com/example/orchestra/issues/42','updated_at':'2026-10-06T12:00:00Z','created_at':'2026-10-06T12:00:00Z','user':{{'login':'contributor'}},'labels':[{{'name':'enhancement','color':'58a6ff'}}],'assignees':[]}}
 if '/releases' in endpoint: result = [{{'tag_name':'v9.0.0','name':'Orchestra 9.0.0','body':'## What changed\\n\\n* Illustrative fixture release with a long note that wraps in the update dialog by @contributor in #42','html_url':'https://github.com/example/orchestra/releases/tag/v9.0.0','prerelease':False,'draft':False,'published_at':'2026-10-06T12:00:00Z'}}]
 elif '/comments' in endpoint: result = [[{{'id':1,'user':{{'login':'reviewer'}},'created_at':'2026-10-06T12:00:00Z','body':'The session owns the process.','body_html':'<p>The session owns the process.</p>'}}]]
 elif '?' in endpoint: result = [[item,{{**item,'number':43,'title':'Update session activity indicators','labels':[],'pull_request':{{'html_url':'https://github.com/example/orchestra/pull/43'}}}}]] if 'state=closed' not in endpoint else [[]]
 else:
- result = {{**item,'body_html':'<p>Keep processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch projects → return to the same conversation</code></pre>'}}
+ result = {{**item,'body_html':'<p>Keep processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch workspaces → return to the same conversation</code></pre>'}}
  if '/pulls/' in endpoint: result.update(number=43,title='Update session activity indicators',html_url='https://github.com/example/orchestra/pull/43',head={{'label':'feature/status','ref':'feature/status','repo':{{'full_name':'example/orchestra'}}}},base={{'label':'release/2026-10-a-very-long-base-branch-name','ref':'release/2026-10-a-very-long-base-branch-name','repo':{{'full_name':'example/orchestra'}}}},mergeable=False,mergeable_state='dirty',changed_files=3,additions=52,deletions=12)
 print(json.dumps(result))
 ''')
@@ -83,24 +83,24 @@ for profile in profiles:
 # A dirty worktree for the Changes pane: a commit, edits, a deletion, a rename and untracked files.
 git = lambda *args, cwd=folder: subprocess.run(['/usr/bin/git', '-C', str(cwd), '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', '-c', 'commit.gpgsign=false', *args], check=True, capture_output=True)
 if not (folder / 'README.md').exists():
- (folder / 'README.md').write_text('# Orchestra fixture\n\nIsolated visual QA project.\n')
+ (folder / 'README.md').write_text('# Orchestra fixture\n\nIsolated visual QA workspace.\n')
  (folder / 'legacy.txt').write_text('Remove me\n')
  (folder / 'NOTES.md').write_text('Notes that move into docs/.\n' * 8)
  git('add', '-A'); git('commit', '-q', '-m', 'Fixture')
 branch = 'orchestra/claude-code-1'
-worktree = root / 'Worktrees' / 'project' / 'claude-code-1'
+worktree = root / 'Worktrees' / 'workspace' / 'claude-code-1'
 base = git('rev-parse', 'HEAD').stdout.decode().strip()
 git('worktree', 'add', '-q', '-b', branch, str(worktree), base)
 (worktree / 'docs').mkdir()
 git('mv', 'NOTES.md', 'docs/notes.md', cwd=worktree)
 (worktree / 'CHANGELOG.md').write_text('Committed by the session.\n')
 git('add', '-A', cwd=worktree); git('commit', '-q', '-m', 'Session work', cwd=worktree)
-(worktree / 'README.md').write_text('# Orchestra fixture\n\nIsolated visual QA project with a dirty worktree.\n')
+(worktree / 'README.md').write_text('# Orchestra fixture\n\nIsolated visual QA workspace with a dirty worktree.\n')
 (worktree / 'legacy.txt').unlink()
 long = worktree / 'frontend' / 'src' / 'components' / 'a-very-long-folder-name-for-compact-window-verification'
 long.mkdir(parents=True)
 (long / 'SessionDiff.vue').write_text('<template><aside /></template>\n')
 (worktree / 'preview.png').write_bytes(b'\x89PNG\r\n\x1a\n\x00\x00')
-state = {'version':2,'selectedProjectID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'projects':[{'id':pid,'name':'Orchestra','repositories':[{'id':app_repo,'name':'project','directory':str(folder)},{'id':site_repo,'name':'site','directory':str(site)}],'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'profileID':work,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base,'profileID':work,'repositoryID':app_repo},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False,'profileID':side,'repositoryID':site_repo}]}],'profiles':profiles}
+state = {'version':2,'selectedWorkspaceID':pid,'preferences':{'appearance':'dark','theme':'system','terminalFontSize':14,'terminalFontSmoothing':True,'terminalPaddingX':12,'terminalPaddingY':8,'sidebarWidth':280},'workspaces':[{'id':pid,'name':'Orchestra','repositories':[{'id':app_repo,'name':'workspace','directory':str(folder)},{'id':site_repo,'name':'site','directory':str(site)}],'isExpanded':True,'hasScratchpad':True,'scratchpadText':'','showsScratchpad':True,'showsGitHub':False,'selectedSessionID':sid,'profileID':work,'sessions':[{'id':sid,'name':'Claude Code 1','agent':'claude','agentSessionID':sid,'hasLaunched':True,'worktreeDirectory':str(worktree),'worktreeBranch':branch,'worktreeBase':base,'profileID':work,'repositoryID':app_repo},{'id':peer,'name':'Codex 1','agent':'codex','hasLaunched':False,'profileID':side,'repositoryID':site_repo}]}],'profiles':profiles}
 (root/'state.json').write_text(json.dumps(state,indent=2))
 print(f'Fixture created at {root}. Launch with ORCHESTRA_STATE_FILE={root}/state.json, SHELL={shell}, and PATH={bin_dir}:$PATH.')

@@ -10,9 +10,9 @@ import (
 
 func TestGitHubMetadataEditing(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	s.mu.Lock()
-	stored, err := s.projectLocked(p.ID)
+	stored, err := s.workspaceLocked(p.ID)
 	if err != nil {
 		s.mu.Unlock()
 		t.Fatal(err)
@@ -156,9 +156,9 @@ cat "$base/response"
 
 func TestGitHubDescriptionEditing(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	s.mu.Lock()
-	stored, err := s.projectLocked(p.ID)
+	stored, err := s.workspaceLocked(p.ID)
 	if err != nil {
 		s.mu.Unlock()
 		t.Fatal(err)

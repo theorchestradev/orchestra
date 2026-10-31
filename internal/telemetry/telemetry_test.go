@@ -18,7 +18,7 @@ type roundTrip func(*http.Request) (*http.Response, error)
 func (fn roundTrip) RoundTrip(r *http.Request) (*http.Response, error) { return fn(r) }
 func fakeClient(t *testing.T, transport roundTrip) *Client {
 	t.Helper()
-	c := newClient("fake-project-token", "https://eu.i.posthog.com", "1.2.3", nil, nil, false)
+	c := newClient("fake-workspace-token", "https://eu.i.posthog.com", "1.2.3", nil, nil, false)
 	c.http.Transport = transport
 	t.Cleanup(func() { c.Close(context.Background()) })
 	return c
@@ -64,11 +64,11 @@ func TestConsentAndAllowlist(t *testing.T) {
 	if len(c.queue) != 0 {
 		t.Fatal("unknown/invalid events accepted")
 	}
-	props := map[string]any{"feature": "command_bar", "prompt": "private prompt", "path": "/private/project", "name": "private name", "$set": map[string]any{"email": "private@email"}, "$process_person_profile": true}
+	props := map[string]any{"feature": "command_bar", "prompt": "private prompt", "path": "/private/workspace", "name": "private name", "$set": map[string]any{"email": "private@email"}, "$process_person_profile": true}
 	c.Track("feature_used", props)
 	props["feature"] = "private path" // Caller mutation must not alter the queued copy.
 	c.Flush(context.Background())
-	for _, secret := range []string{"private prompt", "/private/project", "private name", "private@email", "private path"} {
+	for _, secret := range []string{"private prompt", "/private/workspace", "private name", "private@email", "private path"} {
 		if bytes.Contains(payload, []byte(secret)) {
 			t.Fatalf("leaked %s", secret)
 		}

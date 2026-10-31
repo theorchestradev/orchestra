@@ -1,10 +1,17 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
-import { hasWorkItems, projectTitle, sessionRepository } from './project.js'
+import { hasWorkItems, workspaceTitle, sessionRepository } from './workspace.js'
 import { shortcut } from './shortcuts.js'
 import { appSymbol } from './openIn.js'
 
 // Command bar entries. `children` opens a nested list; leaves are run by App.vue through `run`.
-export function commandItems({ projects = [], project, session, apps = [], preferences = {}, sidebarHidden = false }) {
+export function commandItems({
+  workspaces = [],
+  workspace,
+  session,
+  apps = [],
+  preferences = {},
+  sidebarHidden = false,
+}) {
   const sessionAgents = [...agents]
     .sort((a, b) => Number(b.id === preferences.defaultAgent) - Number(a.id === preferences.defaultAgent))
     .map((a) => ({ id: a.id, name: a.name, agent: a.id, detail: a.id === preferences.defaultAgent ? 'Default' : '' }))
@@ -15,24 +22,24 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       name: 'Go to…',
       icon: 'magnifyingglass',
       placeholder: 'Search workspaces and sessions',
-      children: destinations(projects),
+      children: destinations(workspaces),
     },
-    hasWorkItems(project) && {
+    hasWorkItems(workspace) && {
       id: 'github',
       group: 'Navigation',
       name: 'Open Work Items',
       icon: 'list.bullet.rectangle',
     },
-    hasWorkItems(project) && {
+    hasWorkItems(workspace) && {
       id: 'reviews',
       group: 'Navigation',
       name: 'Open Reviews',
       icon: 'arrow.triangle.pull',
     },
-    project && {
+    workspace && {
       id: 'scratchpad',
       group: 'Navigation',
-      name: project.hasScratchpad ? 'Open ' + (project.scratchpadName || 'Scratchpad') : 'New Scratchpad',
+      name: workspace.hasScratchpad ? 'Open ' + (workspace.scratchpadName || 'Scratchpad') : 'New Scratchpad',
       icon: 'note.text',
     },
     // Leaves with `command` run that command with themselves as the item.
@@ -50,7 +57,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
     session && { id: 'renameSession', group: 'Session', name: 'Rename Session…', icon: 'square.and.pencil' },
     session && { id: 'copyPath', group: 'Session', name: 'Copy Path', icon: 'doc.on.doc' },
     session && { id: 'closeSession', group: 'Session', name: 'Close Current Session', icon: 'trash' },
-    project && {
+    workspace && {
       id: 'session',
       group: 'Create',
       name: 'New Session…',
@@ -59,7 +66,7 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       placeholder: 'Search agents',
       children: sessionAgents,
     },
-    project && {
+    workspace && {
       id: 'worktreeSession',
       group: 'Create',
       name: 'New Session in Worktree…',
@@ -67,8 +74,8 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       placeholder: 'Search agents',
       children: sessionAgents,
     },
-    project && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
-    { id: 'project', group: 'Create', name: 'New Workspace…', icon: 'folder', shortcut: shortcut('project') },
+    workspace && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
+    { id: 'workspace', group: 'Create', name: 'New Workspace…', icon: 'folder', shortcut: shortcut('workspace') },
     { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: shortcut('settings') },
     { id: 'update', group: 'App', name: 'Check for Updates…', icon: 'arrow.down.circle' },
     {
@@ -78,15 +85,15 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
       icon: 'sidebar.left',
       shortcut: shortcut('sidebar'),
     },
-    project && {
+    workspace && {
       id: 'diff',
       group: 'App',
       name: preferences.diffPaneOpen ? 'Hide Changes' : 'Show Changes',
       icon: 'sidebar.right',
       shortcut: shortcut('diff'),
     },
-    project && { id: 'files', group: 'App', name: 'Toggle Files', icon: 'folder', shortcut: shortcut('files') },
-    (session ? sessionRepository(project, session)?.gitHub : hasWorkItems(project)) && {
+    workspace && { id: 'files', group: 'App', name: 'Toggle Files', icon: 'folder', shortcut: shortcut('files') },
+    (session ? sessionRepository(workspace, session)?.gitHub : hasWorkItems(workspace)) && {
       id: 'pullRequest',
       group: 'App',
       name: 'Toggle Pull Request',
@@ -111,25 +118,25 @@ export function commandItems({ projects = [], project, session, apps = [], prefe
   return items.filter(Boolean)
 }
 
-export function destinations(projects = []) {
-  return projects.flatMap((p) => [
-    { id: p.id + ':project', name: projectTitle(p), icon: 'folder', project: p, destination: 'project' },
+export function destinations(workspaces = []) {
+  return workspaces.flatMap((p) => [
+    { id: p.id + ':workspace', name: workspaceTitle(p), icon: 'folder', workspace: p, destination: 'workspace' },
     ...(hasWorkItems(p)
       ? [
           {
             id: p.id + ':github',
             name: 'Work Items',
-            detail: projectTitle(p),
+            detail: workspaceTitle(p),
             icon: 'list.bullet.rectangle',
-            project: p,
+            workspace: p,
             destination: 'github',
           },
           {
             id: p.id + ':reviews',
             name: 'Reviews',
-            detail: projectTitle(p),
+            detail: workspaceTitle(p),
             icon: 'arrow.triangle.pull',
-            project: p,
+            workspace: p,
             destination: 'reviews',
           },
         ]
@@ -139,9 +146,9 @@ export function destinations(projects = []) {
           {
             id: p.id + ':scratchpad',
             name: p.scratchpadName || 'Scratchpad',
-            detail: projectTitle(p),
+            detail: workspaceTitle(p),
             icon: 'note.text',
-            project: p,
+            workspace: p,
             destination: 'scratchpad',
           },
         ]
@@ -149,11 +156,11 @@ export function destinations(projects = []) {
     ...p.sessions.map((s) => ({
       id: s.id,
       name: s.name,
-      detail: [projectTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
+      detail: [workspaceTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
         .filter(Boolean)
         .join(' · '),
       ...(isTerminal(s) ? { icon: 'terminal' } : { agent: s.agent }),
-      project: p,
+      workspace: p,
       destination: s.id,
     })),
   ])

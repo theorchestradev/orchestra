@@ -190,7 +190,7 @@ func (c *Client) Track(name string, props map[string]any) {
 	c.rates[name] = r
 	clean["$process_person_profile"] = false
 	// PostHog derives approximate location from the connection, then discards the IP.
-	// The project pipeline retains only city/country; see docs/privacy.md for release configuration.
+	// The workspace pipeline retains only city/country; see docs/privacy.md for release configuration.
 	clean["$geoip_disable"] = false
 	clean["$lib"] = "orchestra"
 	e := event{name, c.id, clean, now}

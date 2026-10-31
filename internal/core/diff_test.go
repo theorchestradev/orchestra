@@ -35,12 +35,12 @@ func diffFile(t *testing.T, diff SessionDiff, path string) DiffFile {
 	return DiffFile{}
 }
 
-// repositoryFixture creates a project repository with a few committed files.
-func repositoryFixture(t *testing.T, s *Store) *Project {
+// repositoryFixture creates a workspace repository with a few committed files.
+func repositoryFixture(t *testing.T, s *Store) *Workspace {
 	t.Helper()
 	t.Setenv("GIT_CONFIG_GLOBAL", os.DevNull)
 	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	gitWorktreeFixture(t, p.Repositories[0].Directory, "init", "-b", "main")
 	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "keep.txt"), "one\ntwo\nthree\n")
 	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "remove.txt"), "gone\n")
@@ -57,13 +57,13 @@ func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := state.Projects[0].Sessions[0]
+	sess := state.Workspaces[0].Sessions[0]
 	if sess.WorktreeBase != gitWorktreeFixture(t, p.Repositories[0].Directory, "rev-parse", "HEAD") {
 		t.Fatalf("worktree base not recorded: %+v", sess)
 	}
-	// The project folder moves on after the worktree is created; that must not appear.
-	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "later.txt"), "project work\n")
-	commitFixture(t, p.Repositories[0].Directory, "Later project work")
+	// The repository folder moves on after the worktree is created; that must not appear.
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "later.txt"), "workspace work\n")
+	commitFixture(t, p.Repositories[0].Directory, "Later workspace work")
 	w := sess.WorktreeDirectory
 	writeFixture(t, filepath.Join(w, "committed.txt"), "session commit\n")
 	commitFixture(t, w, "Session work")
@@ -117,9 +117,9 @@ func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 		t.Fatalf("unexpected totals: %+v", diff)
 	}
 
-	// Older sessions without a saved base fall back to the merge base with the project.
+	// Older sessions without a saved base fall back to the merge base with the workspace.
 	s.mu.Lock()
-	s.state.Projects[0].Sessions[0].WorktreeBase = ""
+	s.state.Workspaces[0].Sessions[0].WorktreeBase = ""
 	s.mu.Unlock()
 	fallback, err := s.SessionDiff(sess.ID)
 	if err != nil || fallback.Base != sess.WorktreeBase || len(fallback.Files) != len(diff.Files) {
@@ -141,7 +141,7 @@ func TestSessionDiffWorktreeSinceStart(t *testing.T) {
 	}
 }
 
-func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
+func TestSessionDiffWorkspaceFolderAndEmptyStates(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)
 	sess := sessionFixture(t, s, p, "pi")
@@ -159,7 +159,7 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 	if diff, err = s.SessionDiff(terminal.ID); err != nil || diff.Scope != "" || diff.Message == "" {
 		t.Fatalf("terminal session: %+v %v", diff, err)
 	}
-	plain := projectFixture(t, s)
+	plain := workspaceFixture(t, s)
 	other := sessionFixture(t, s, plain, "claude")
 	if diff, err = s.SessionDiff(other.ID); err != nil || diff.Scope != "" || !strings.Contains(diff.Message, "Git") {
 		t.Fatalf("folder without Git: %+v %v", diff, err)
@@ -167,15 +167,15 @@ func TestSessionDiffProjectFolderAndEmptyStates(t *testing.T) {
 	if _, err = s.SessionDiff("missing"); err == nil {
 		t.Fatal("unknown session accepted")
 	}
-	// Sessions without a worktree, terminals included, open the project folder.
+	// Sessions without a worktree, terminals included, open the repository folder.
 	if folder, err := s.SessionFolder(terminal.ID); err != nil || folder != p.Repositories[0].Directory {
-		t.Fatalf("project folder: %q %v", folder, err)
+		t.Fatalf("repository folder: %q %v", folder, err)
 	}
 	if _, err = s.SessionFolder("missing"); err == nil {
 		t.Fatal("unknown session folder accepted")
 	}
 	// A repository without commits compares against the empty tree.
-	empty := projectFixture(t, s)
+	empty := workspaceFixture(t, s)
 	gitWorktreeFixture(t, empty.Repositories[0].Directory, "init", "-b", "main")
 	writeFixture(t, filepath.Join(empty.Repositories[0].Directory, "first.txt"), "first\n")
 	gitWorktreeFixture(t, empty.Repositories[0].Directory, "add", "first.txt")

@@ -16,7 +16,7 @@ pending requests, discards the memory queue and deletes the UUID. Opting in agai
 creates a new one. Already delivered events remain in PostHog.
 
 Never collected: prompts, code, terminal input/output, Scratchpad text, inbox
-bodies, file names, paths, project/session/repository/branch names, GitHub titles
+bodies, file names, paths, workspace/session/repository/branch names, GitHub titles
 or numbers, error messages, credentials or anything typed by the user. There is
 no autocapture, session replay, person identification or analytics SDK.
 

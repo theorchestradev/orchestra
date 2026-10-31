@@ -94,7 +94,7 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 		s.mu.Unlock()
 		return PullRequestStatus{}, err
 	}
-	repo, projectDirectory, worktreeDirectory, number := repository.GitHub, repository.Directory, sess.WorktreeDirectory, 0
+	repo, repositoryDirectory, worktreeDirectory, number := repository.GitHub, repository.Directory, sess.WorktreeDirectory, 0
 	if sess.GitHubItem != nil && sess.GitHubItem.PullRequest {
 		number = sess.GitHubItem.Number
 	}
@@ -104,7 +104,7 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 		result.Message = repository.Name + " has no GitHub remote."
 		return result, nil
 	}
-	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	directory, err := sessionFolder(repositoryDirectory, worktreeDirectory)
 	if err != nil {
 		return PullRequestStatus{}, err
 	}
@@ -150,8 +150,8 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 
 // GitHubPullRequest reads a repository's pull request and its checks for Work Items. It
 // only reads GitHub, from the repository folder.
-func (s *Store) GitHubPullRequest(projectID, repositoryID string, number int) (PullRequestStatus, error) {
-	repo, directory, err := s.repository(projectID, repositoryID)
+func (s *Store) GitHubPullRequest(workspaceID, repositoryID string, number int) (PullRequestStatus, error) {
+	repo, directory, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return PullRequestStatus{}, err
 	}
@@ -379,12 +379,12 @@ func (s *Store) PullRequestCheckFailure(id string, jobID int64) (string, error) 
 		s.mu.Unlock()
 		return "", err
 	}
-	repo, projectDirectory, worktreeDirectory := repository.GitHub, repository.Directory, sess.WorktreeDirectory
+	repo, repositoryDirectory, worktreeDirectory := repository.GitHub, repository.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
 	if !repoRE.MatchString(repo) {
 		return "", errors.New(repository.Name + " has no GitHub remote.")
 	}
-	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	directory, err := sessionFolder(repositoryDirectory, worktreeDirectory)
 	if err != nil {
 		return "", err
 	}
@@ -392,8 +392,8 @@ func (s *Store) PullRequestCheckFailure(id string, jobID int64) (string, error) 
 }
 
 // GitHubCheckFailure is PullRequestCheckFailure for a pull request in Work Items.
-func (s *Store) GitHubCheckFailure(projectID, repositoryID string, jobID int64) (string, error) {
-	repo, directory, err := s.repository(projectID, repositoryID)
+func (s *Store) GitHubCheckFailure(workspaceID, repositoryID string, jobID int64) (string, error) {
+	repo, directory, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return "", err
 	}

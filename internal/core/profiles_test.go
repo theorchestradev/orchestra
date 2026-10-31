@@ -45,13 +45,13 @@ func terminalText(s *Store, id string) string {
 func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 	fakeAgents(t)
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	work := profileFixture(t, s, "Work")
 	workClaude := filepath.Join(filepath.Dir(s.path), "profiles", "work", "claude")
 	if work.Folders["claude"] != workClaude || work.Folders["codex"] != filepath.Join(filepath.Dir(s.path), "profiles", "work", "codex") {
 		t.Fatalf("new profile folders = %+v", work.Folders)
 	}
-	if _, err := s.SetProjectProfile(p.ID, work.ID); err != nil {
+	if _, err := s.SetWorkspaceProfile(p.ID, work.ID); err != nil {
 		t.Fatal(err)
 	}
 	personal := sessionFixture(t, s, p, "claude")
@@ -59,7 +59,7 @@ func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	working := state.Projects[0].Sessions[1]
+	working := state.Workspaces[0].Sessions[1]
 	if personal.ProfileID != "" || working.ProfileID != work.ID {
 		t.Fatalf("session profiles = %q, %q", personal.ProfileID, working.ProfileID)
 	}
@@ -87,7 +87,7 @@ func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 	}
 	defer shutdownAndWait(t, reopened)
 	restored := reopened.Snapshot()
-	if restored.Projects[0].ProfileID != work.ID || restored.Projects[0].Sessions[1].ProfileID != work.ID || len(restored.Profiles) != 1 {
+	if restored.Workspaces[0].ProfileID != work.ID || restored.Workspaces[0].Sessions[1].ProfileID != work.ID || len(restored.Profiles) != 1 {
 		t.Fatalf("profiles were not restored: %+v", restored)
 	}
 	if _, err = reopened.StartSession(working.ID, false, 80, 24); err != nil {
@@ -98,9 +98,9 @@ func TestProfilesChooseEachSessionsConfigFolders(t *testing.T) {
 		return strings.Contains(text, "--resume") && strings.Contains(text, "claude="+workClaude)
 	})
 
-	// Removing a profile keeps its folders, moves projects to Default and blocks resuming.
+	// Removing a profile keeps its folders, moves workspaces to Default and blocks resuming.
 	state, err = reopened.RemoveProfile(work.ID)
-	if err != nil || len(state.Profiles) != 0 || state.Projects[0].ProfileID != "" || state.Projects[0].Sessions[1].ProfileID != work.ID {
+	if err != nil || len(state.Profiles) != 0 || state.Workspaces[0].ProfileID != "" || state.Workspaces[0].Sessions[1].ProfileID != work.ID {
 		t.Fatalf("remove profile: %+v %v", state, err)
 	}
 	if _, err = os.Stat(workClaude); err != nil {
@@ -173,7 +173,7 @@ func TestSavedProfileFolders(t *testing.T) {
 func TestLogInRunsTheLoginCommandInATerminal(t *testing.T) {
 	fakeAgents(t)
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	work := profileFixture(t, s, "Work")
 	if _, err := s.LogIn(p.ID, work.ID, "pi"); err == nil {
 		t.Fatal("agent without a login command accepted")
@@ -182,7 +182,7 @@ func TestLogInRunsTheLoginCommandInATerminal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	login := state.Projects[0].Sessions[0]
+	login := state.Workspaces[0].Sessions[0]
 	if login.Agent != terminalAgent || login.ProfileID != work.ID || login.LoginAgent != "codex" || login.Name != "Log In · Codex · Work" {
 		t.Fatalf("login session = %+v", login)
 	}
@@ -196,7 +196,7 @@ func TestLogInRunsTheLoginCommandInATerminal(t *testing.T) {
 	waitUntil(t, func() bool {
 		return strings.Contains(terminalText(s, login.ID), "codex args=login claude="+filepath.Join(filepath.Dir(s.path), "profiles", "work", "claude"))
 	})
-	if sess := s.Snapshot().Projects[0].Sessions[0]; sess.LoginAgent != "" {
+	if sess := s.Snapshot().Workspaces[0].Sessions[0]; sess.LoginAgent != "" {
 		t.Fatal("the login command would run again")
 	}
 }
@@ -225,13 +225,13 @@ func TestProfileFoldersOutliveTheUsersRCFiles(t *testing.T) {
 	if err = os.WriteFile(filepath.Join(s.runtimeDir, "claude"), []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	work := profileFixture(t, s, "Work")
 	state, err := s.CreateSession(p.ID, "", "claude", "", "", false, nil, "", "", work.ID, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	sess := state.Projects[0].Sessions[0]
+	sess := state.Workspaces[0].Sessions[0]
 	if _, err = s.StartSession(sess.ID, false, 80, 24); err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestUsageNeedsAProfileFolder(t *testing.T) {
 
 func TestSavedProfilesAreValidated(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "state.json")
-	data := `{"version":1,"projects":[],"profiles":[{"id":"not-a-uuid","name":"Work"}]}`
+	data := `{"version":1,"workspaces":[],"profiles":[{"id":"not-a-uuid","name":"Work"}]}`
 	if err := os.WriteFile(path, []byte(data), 0600); err != nil {
 		t.Fatal(err)
 	}

@@ -1,11 +1,11 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import Icon from './Icon.vue'
-import { spaceSymbol } from '../shared/project'
+import { spaceSymbol } from '../shared/workspace'
 import { sidebarDragLayout } from '../shared/sidebarDrag'
 const props = defineProps({
-  projects: Array,
-  projectIcons: { type: Object, default: () => ({}) },
+  workspaces: Array,
+  workspaceIcons: { type: Object, default: () => ({}) },
   selectedId: String,
   settingsOpen: Boolean,
   reorder: Function,
@@ -14,7 +14,7 @@ const emit = defineEmits(['select', 'options', 'settings', 'create'])
 const spaces = ref(null),
   width = ref(0)
 const compact = computed(
-  () => props.projects.length > 8 || (width.value > 0 && props.projects.length * 36 - 6 > width.value),
+  () => props.workspaces.length > 8 || (width.value > 0 && props.workspaces.length * 36 - 6 > width.value),
 )
 function revealSelected() {
   spaces.value?.querySelector('.selected')?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
@@ -28,7 +28,7 @@ onBeforeUnmount(() => {
   cancel()
 })
 watch(
-  [() => props.selectedId, () => props.projects.map((p) => p.id).join(','), compact, width],
+  [() => props.selectedId, () => props.workspaces.map((p) => p.id).join(','), compact, width],
   async () => {
     await nextTick()
     revealSelected()
@@ -54,19 +54,19 @@ const drag = ref(null)
 let pending,
   ignoreClick = false,
   frame = 0
-function begin(event, project) {
+function begin(event, workspace) {
   if (!pending) ignoreClick = false
   if (event.button !== 0 || pending || !props.reorder) return
   const nav = spaces.value
   pending = {
-    id: project.id,
+    id: workspace.id,
     pointer: event.pointerId,
     element: event.currentTarget,
     startX: event.clientX,
     startY: event.clientY,
     x: event.clientX,
     scrollLeft: nav.scrollLeft,
-    from: props.projects.findIndex((p) => p.id === project.id),
+    from: props.workspaces.findIndex((p) => p.id === workspace.id),
     spans: [...nav.children].map((el) => {
       const rect = el.getBoundingClientRect()
       return { top: rect.left, bottom: rect.right }
@@ -141,7 +141,7 @@ function click(event) {
 function spaceStyle(index) {
   const d = drag.value
   if (!d?.offsets) return
-  const x = props.projects[index].id === d.id ? d.y : d.offsets[index]
+  const x = props.workspaces[index].id === d.id ? d.y : d.offsets[index]
   return { transform: `translateX(${x || 0}px)` }
 }
 </script>
@@ -160,13 +160,13 @@ function spaceStyle(index) {
       ref="spaces"
       class="arc-spaces"
       :class="{ compact, 'arc-spaces-sorting': drag }"
-      :style="{ '--visible-spaces': Math.min(projects.length, 8) || 1 }"
+      :style="{ '--visible-spaces': Math.min(workspaces.length, 8) || 1 }"
       aria-label="Workspace spaces"
       @keydown="focusSpace"
       @click.capture="click"
     >
       <button
-        v-for="(p, index) in projects"
+        v-for="(p, index) in workspaces"
         :key="p.id"
         class="arc-space"
         :class="{ selected: p.id === selectedId, emoji: !compact && p.emoji, 'arc-space-dragging': drag?.id === p.id }"
@@ -175,8 +175,8 @@ function spaceStyle(index) {
         :aria-pressed="p.id === selectedId"
         :title="p.description ? p.name + '\n' + p.description : p.name"
         @click="emit('select', p)"
-        @contextmenu.prevent="emit('options', { event: $event, project: p })"
-        @keydown.shift.f10.prevent="emit('options', { event: $event, project: p })"
+        @contextmenu.prevent="emit('options', { event: $event, workspace: p })"
+        @keydown.shift.f10.prevent="emit('options', { event: $event, workspace: p })"
         @pointerdown="begin($event, p)"
         @pointermove="move"
         @pointerup="finish"
@@ -184,7 +184,7 @@ function spaceStyle(index) {
         @lostpointercapture="lostCapture"
       >
         <span v-if="compact" class="arc-space-dot" aria-hidden="true"></span>
-        <img v-else-if="!p.emoji && projectIcons[p.id]" class="project-icon" :src="projectIcons[p.id]" alt="" />
+        <img v-else-if="!p.emoji && workspaceIcons[p.id]" class="workspace-icon" :src="workspaceIcons[p.id]" alt="" />
         <span v-else aria-hidden="true">{{ spaceSymbol(p) }}</span>
       </button>
     </nav>

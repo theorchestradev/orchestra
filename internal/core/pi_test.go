@@ -34,7 +34,7 @@ func TestPiAutomaticReplyReleasesWaitingSender(t *testing.T) {
 		t.Fatal("Node.js is required for the Pi extension integration check")
 	}
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sender := sessionFixture(t, s, p, "claude")
 	recipient := sessionFixture(t, s, p, "pi")
 	fixture := t.TempDir()
@@ -79,7 +79,7 @@ for await (const prompt of createInterface({input:process.stdin})) {
 	if _, err := s.StartSession(recipient.ID, false, 100, 32); err != nil {
 		t.Fatal(err)
 	}
-	waitUntil(t, func() bool { return s.Snapshot().Projects[0].Sessions[1].Activity == "waiting" })
+	waitUntil(t, func() bool { return s.Snapshot().Workspaces[0].Sessions[1].Activity == "waiting" })
 	state, err := s.SendRequest(sender.ID, recipient.ID, "Qual é a capital da França?")
 	if err != nil {
 		t.Fatal(err)

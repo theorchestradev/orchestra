@@ -18,7 +18,7 @@ func writeIconFile(t *testing.T, root, rel string) {
 	}
 }
 
-func TestFindProjectIcon(t *testing.T) {
+func TestFindWorkspaceIcon(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		files []string
@@ -37,7 +37,7 @@ func TestFindProjectIcon(t *testing.T) {
 			for _, f := range tc.files {
 				writeIconFile(t, root, f)
 			}
-			got := findProjectIcon(root)
+			got := findWorkspaceIcon(root)
 			if tc.want == "" && got != "" || tc.want != "" && got != filepath.Join(root, tc.want) {
 				t.Fatalf("got %q, want %q", got, tc.want)
 			}
@@ -45,36 +45,36 @@ func TestFindProjectIcon(t *testing.T) {
 	}
 }
 
-func TestFindProjectIconOutsideProjects(t *testing.T) {
-	// A folder without project markers is only searched at its top level.
+func TestFindWorkspaceIconOutsideWorkspaces(t *testing.T) {
+	// A folder without workspace markers is only searched at its top level.
 	root := t.TempDir()
 	writeIconFile(t, root, "site/public/favicon.ico")
-	if got := findProjectIcon(root); got != "" {
-		t.Fatalf("got %q in a folder that is not a project", got)
+	if got := findWorkspaceIcon(root); got != "" {
+		t.Fatalf("got %q in a folder that is not a workspace", got)
 	}
 	writeIconFile(t, root, "favicon.ico")
-	if got := findProjectIcon(root); got != filepath.Join(root, "favicon.ico") {
+	if got := findWorkspaceIcon(root); got != filepath.Join(root, "favicon.ico") {
 		t.Fatalf("got %q, want the top-level favicon", got)
 	}
 
-	// The home folder and its parents are never searched, even with project markers.
+	// The home folder and its parents are never searched, even with workspace markers.
 	home := filepath.Join(t.TempDir(), "home")
 	t.Setenv("HOME", home)
 	writeIconFile(t, home, ".git/HEAD")
 	writeIconFile(t, home, "favicon.ico")
 	for _, dir := range []string{home, filepath.Dir(home)} {
-		if got := findProjectIcon(dir); got != "" {
+		if got := findWorkspaceIcon(dir); got != "" {
 			t.Fatalf("got %q for %s", got, dir)
 		}
 	}
 }
 
-func TestProjectIconDataURL(t *testing.T) {
+func TestWorkspaceIconDataURL(t *testing.T) {
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "favicon.svg"), []byte("<svg/>"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if got := ProjectIcon(root); !strings.HasPrefix(got, "data:image/svg+xml;base64,") {
+	if got := WorkspaceIcon(root); !strings.HasPrefix(got, "data:image/svg+xml;base64,") {
 		t.Fatalf("got %q", got)
 	}
 }
