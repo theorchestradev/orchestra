@@ -290,23 +290,23 @@ hr {
   font-size: 12px;
   font-weight: 600;
 }
-.project-list {
+.workspace-list {
   flex: 1;
   overflow: auto;
   padding: 0 8px 12px;
   min-height: 0;
 }
-.project-group {
+.workspace-group {
   margin-bottom: 16px;
 }
-.project-heading {
+.workspace-heading {
   display: flex;
   align-items: center;
   gap: 4px;
   padding: 0 4px;
   min-height: 24px;
 }
-.project-title {
+.workspace-title {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -315,12 +315,12 @@ hr {
   font-weight: 700;
   font-size: 13px;
 }
-.project-title span {
+.workspace-title span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.project-title .project-emoji {
+.workspace-title .workspace-emoji {
   flex-shrink: 0;
   width: 16px;
   font-size: 12px;
@@ -328,15 +328,15 @@ hr {
   text-align: center;
   text-overflow: clip;
 }
-.project-title .project-icon,
-.arc-space .project-icon {
+.workspace-title .workspace-icon,
+.arc-space .workspace-icon {
   flex-shrink: 0;
   width: 16px;
   height: 16px;
   object-fit: contain;
   border-radius: 3px;
 }
-.arc-sidebar .project-title .project-emoji {
+.arc-sidebar .workspace-title .workspace-emoji {
   width: auto;
   font-size: 11px;
 }
@@ -346,11 +346,11 @@ hr {
   width: 20px;
   height: 24px;
 }
-.project-heading:hover .hover-control,
-.project-heading:focus-within .hover-control {
+.workspace-heading:hover .hover-control,
+.workspace-heading:focus-within .hover-control {
   opacity: 1;
 }
-.project-children {
+.workspace-children {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -988,7 +988,7 @@ input::placeholder {
   align-items: flex-start;
   padding-top: min(160px, calc((100vh - 52px) * 0.16));
 }
-.project-dialog,
+.workspace-dialog,
 .session-dialog,
 .rename-dialog,
 .close-dialog {
@@ -997,7 +997,7 @@ input::placeholder {
   flex-direction: column;
   gap: 20px;
 }
-.project-dialog {
+.workspace-dialog {
   width: 440px;
 }
 .session-dialog {
@@ -1007,12 +1007,12 @@ input::placeholder {
 .close-dialog {
   width: 440px;
 }
-.project-name-fields {
+.workspace-name-fields {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 8px 12px;
 }
-.project-name-fields .caption {
+.workspace-name-fields .caption {
   grid-column: 1 / -1;
 }
 .emoji-field {
@@ -1167,7 +1167,52 @@ input::placeholder {
 .folder-field button {
   align-self: flex-start;
 }
-.project-path {
+.repository-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.repository-settings header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.repository-settings h3 {
+  font-size: 13px;
+}
+.repository-settings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  max-height: 232px;
+  overflow-y: auto;
+}
+.repository-settings li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+}
+.repository-settings li + li {
+  border-top: 1px solid var(--rule);
+}
+.repository-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+.repository-fields input {
+  padding: 5px 7px;
+}
+.repository-settings li > button {
+  flex: none;
+}
+.workspace-path {
   margin-top: 6px;
   overflow-wrap: anywhere;
   max-height: 32px;
@@ -1591,35 +1636,6 @@ input::placeholder {
   align-items: center;
   gap: 16px;
 }
-.type-tabs {
-  display: flex;
-  gap: 6px;
-  white-space: nowrap;
-}
-.type-tabs button {
-  font-size: 12px;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 8px 11px;
-  position: relative;
-  color: var(--muted);
-  font-weight: 500;
-}
-.type-tabs button.active {
-  color: var(--text);
-  font-weight: 600;
-}
-.type-tabs button.active:after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--accent);
-}
 .search-field {
   display: flex;
   align-items: center;
@@ -1647,6 +1663,33 @@ input::placeholder {
 }
 .search-field > .symbol {
   color: var(--muted);
+}
+.work-item-filters {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.work-item-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+.work-item-sources .text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.item-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.source-warning {
+  padding: 8px 20px 0;
+}
+.source-error {
+  white-space: pre-line;
 }
 .status-filter {
   font-size: 12px;
@@ -2236,13 +2279,8 @@ input::placeholder {
     width: 100%;
     margin: 0;
   }
-  .status-filter {
+  .work-item-filters {
     margin-left: auto;
-  }
-  .type-tabs button {
-    font-size: 12px;
-    padding-left: 4px;
-    padding-right: 4px;
   }
 }
 @container (max-width:620px) {
@@ -2282,7 +2320,7 @@ input::placeholder {
   .mode-switch.appearance-mode {
     width: 216px;
   }
-  .project-title {
+  .workspace-title {
     max-width: calc(100% - 80px);
   }
 }
@@ -2434,10 +2472,10 @@ input::placeholder {
 .sidebar-row:not(.selected):hover {
   background: transparent;
 }
-.project-heading > .hover-control:nth-last-child(-n + 2) {
+.workspace-heading > .hover-control:nth-last-child(-n + 2) {
   width: 24px;
 }
-.project-title {
+.workspace-title {
   max-width: calc(100% - 100px);
 }
 .modal {
@@ -2505,7 +2543,7 @@ input::placeholder {
   align-items: flex-start;
   gap: 8px;
 }
-.session-dialog .project-path {
+.session-dialog .workspace-path {
   line-height: 13px;
 }
 .context-menu button:focus-visible {
@@ -2535,10 +2573,6 @@ input::placeholder {
 .status-filter select {
   line-height: 14px;
 }
-.type-tabs button {
-  line-height: 14px;
-  padding-bottom: 12px;
-}
 .label-chip {
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
@@ -2551,12 +2585,6 @@ input::placeholder {
   line-height: 13px;
   gap: 6px;
 }
-@container (max-width:759px) {
-  .type-tabs button {
-    padding-left: 8px;
-    padding-right: 8px;
-  }
-}
 
 /* macOS text styles: body 13, callout 12, subheadline 11, caption 10, title2 17. */
 h2 {
@@ -2567,7 +2595,7 @@ h2 {
 }
 .caption,
 .session-name small,
-.project-path {
+.workspace-path {
   font-size: 10px;
 }
 .github-heading .text-link {
@@ -2657,7 +2685,7 @@ h2 {
 .sidebar {
   border-right: 0;
 }
-.project-title {
+.workspace-title {
   max-width: calc(100% - 84px);
 }
 .github-heading > div {
@@ -2675,9 +2703,6 @@ h2 {
 .github-table-head {
   line-height: 13px;
   min-height: 38px;
-}
-.type-tabs button {
-  padding-bottom: 11px;
 }
 @container (max-width:819px) {
   .github-table-head {
@@ -3323,7 +3348,7 @@ h2 {
   font-size: 11px;
   line-height: 1.45;
 }
-.session-dialog .project-path,
+.session-dialog .workspace-path,
 .session-dialog .error {
   overflow-wrap: anywhere;
 }
@@ -3421,7 +3446,7 @@ h2 {
   font-size: 10px;
   line-height: 1;
 }
-.status-project-icon {
+.status-workspace-icon {
   flex-shrink: 0;
   width: 12px;
   height: 12px;
@@ -3503,44 +3528,44 @@ h2 {
   }
 }
 
-.project-sort-list {
+.workspace-sort-list {
   gap: 16px;
 }
-.project-sort-list > .sidebar-sort-item > .project-group {
+.workspace-sort-list > .sidebar-sort-item > .workspace-group {
   margin-bottom: 0;
 }
-.project-sort-list > .sidebar-sort-dragging {
+.workspace-sort-list > .sidebar-sort-dragging {
   background: var(--sidebar);
 }
 
-/* Arc spaces reuse the selected theme and the existing project/session rows. */
-.sidebar-projects {
+/* Arc spaces reuse the selected theme and the existing workspace/session rows. */
+.sidebar-workspaces {
   flex: 1;
   min-height: 0;
   min-width: 0;
 }
-.arc-sidebar .sidebar-projects {
+.arc-sidebar .sidebar-workspaces {
   display: flex;
   overflow: hidden;
 }
-.arc-project-pager {
+.arc-workspace-pager {
   display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;
 }
-.arc-project-track {
+.arc-workspace-track {
   display: flex;
   flex: 1;
   min-width: 0;
   min-height: 0;
   transition: transform 0.28s ease;
 }
-.arc-project-track.arc-project-panning {
+.arc-workspace-track.arc-workspace-panning {
   transition: none;
 }
-.arc-sidebar .arc-project-page {
+.arc-sidebar .arc-workspace-page {
   flex: 0 0 100%;
   height: 100%;
   min-width: 0;
@@ -3548,7 +3573,7 @@ h2 {
   overflow-y: auto;
   overscroll-behavior-y: contain;
 }
-.arc-sidebar .arc-project-edge {
+.arc-sidebar .arc-workspace-edge {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3558,7 +3583,7 @@ h2 {
   color: var(--muted);
   font-size: 12px;
 }
-.arc-project-edge-ring {
+.arc-workspace-edge-ring {
   display: grid;
   place-items: center;
   width: 44px;
@@ -3568,7 +3593,7 @@ h2 {
   color: var(--text);
   transform: scale(calc(0.7 + var(--arc-edge-progress) * 0.3));
 }
-.arc-project-edge-ring::before {
+.arc-workspace-edge-ring::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -3577,29 +3602,29 @@ h2 {
   -webkit-mask: radial-gradient(circle, transparent 19px, #000 20px);
   mask: radial-gradient(circle, transparent 19px, #000 20px);
 }
-.arc-project-page > .project-group {
+.arc-workspace-page > .workspace-group {
   margin-bottom: 0;
 }
-.arc-sidebar .project-list {
+.arc-sidebar .workspace-list {
   padding: 8px 10px 16px;
 }
-.arc-sidebar .project-heading {
+.arc-sidebar .workspace-heading {
   padding: 0 6px 10px;
   gap: 6px;
 }
-.arc-sidebar .project-title {
+.arc-sidebar .workspace-title {
   max-width: calc(100% - 64px);
   color: var(--muted);
   font-size: 12px;
   font-weight: 500;
 }
-.arc-sidebar .project-title > .symbol {
+.arc-sidebar .workspace-title > .symbol {
   display: none;
 }
 .arc-sidebar .hover-control {
   opacity: 1;
 }
-.arc-sidebar .project-children {
+.arc-sidebar .workspace-children {
   margin-top: 0;
 }
 .arc-sidebar .sidebar-row:not(.selected):hover {

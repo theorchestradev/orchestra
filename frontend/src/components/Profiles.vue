@@ -2,14 +2,14 @@
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { agents, agentIcon } from '../shared/appearance'
 import { profileAgents, profileSymbol } from '../shared/profiles'
-import { projectTitle } from '../shared/project'
+import { workspaceTitle } from '../shared/workspace'
 import { call } from '../shared/api'
 import Icon from './Icon.vue'
 import Modal from './Modal.vue'
 import EmojiPicker from './EmojiPicker.vue'
 // Settings → Profiles. Orchestra gives each profile its own CLI config folders, so the user only
 // names it and signs in; signing in always happens in a terminal session the user drives.
-const props = defineProps({ profiles: Array, project: Object, appearance: String })
+const props = defineProps({ profiles: Array, workspace: Object, appearance: String })
 const emit = defineEmits(['state', 'login'])
 const agentName = (id) => agents.find((a) => a.id === id)?.name || id
 const otherAgents = agents
@@ -61,7 +61,7 @@ async function installSkill(p) {
 async function logIn(p, agent) {
   errors[p.id] = ''
   try {
-    emit('login', await call('LogIn', props.project.id, p.id, agent))
+    emit('login', await call('LogIn', props.workspace.id, p.id, agent))
     delete logins[p.id]
   } catch (e) {
     errors[p.id] = String(e)
@@ -112,7 +112,7 @@ async function remove() {
 <template>
   <div class="profile-settings">
     <p class="muted caption profile-intro">
-      A profile is a set of agent accounts. Each project chooses the profile its new sessions use, and the New Session
+      A profile is a set of agent accounts. Each workspace chooses the profile its new sessions use, and the New Session
       dialog can choose another. A session keeps its profile for its whole life.
     </p>
     <div class="settings-card general-settings profile-list">
@@ -163,8 +163,8 @@ async function remove() {
               ><button
                 type="button"
                 :class="loggedIn(p, agent) ? 'text-link profile-relogin' : 'standard-button'"
-                :disabled="!project"
-                :title="project ? 'Opens a terminal in ' + projectTitle(project) : 'Add a project first'"
+                :disabled="!workspace"
+                :title="workspace ? 'Opens a terminal in ' + workspaceTitle(workspace) : 'Add a workspace first'"
                 :aria-label="
                   (loggedIn(p, agent) ? 'Log In Again to ' : 'Log In to ') + agentName(agent) + ' in ' + p.name
                 "
@@ -204,8 +204,8 @@ async function remove() {
       </div>
     </div>
     <p class="muted caption profile-notes">
-      Log In opens a terminal in {{ project ? projectTitle(project) : 'the selected project' }} where you complete the
-      CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default.
+      Log In opens a terminal in {{ workspace ? workspaceTitle(workspace) : 'the selected workspace' }} where you
+      complete the CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default.
       {{ otherAgents }} cannot choose an account yet, so they always use Default’s. In a Terminal session, a shell
       startup file that sets CLAUDE_CONFIG_DIR or CODEX_HOME can still switch account.
     </p>
@@ -213,7 +213,7 @@ async function remove() {
       <Modal v-if="editing" :label="editing.id ? 'Edit Profile' : 'New Profile'" @close="!busy && (editing = null)"
         ><form class="rename-dialog profile-dialog" @submit.prevent="saveEditor">
           <h2>{{ editing.id ? 'Edit Profile' : 'New Profile' }}</h2>
-          <div class="project-name-fields">
+          <div class="workspace-name-fields">
             <div class="emoji-field">
               <label for="profile-emoji">Emoji</label
               ><span class="emoji-input"
@@ -256,7 +256,7 @@ async function remove() {
         ><div class="close-dialog profile-remove-dialog">
           <h2>Remove {{ removal.name }}?</h2>
           <p>
-            Projects that use it move to Default. Sessions that used it can no longer be resumed, so they never switch
+            Workspaces that use it move to Default. Sessions that used it can no longer be resumed, so they never switch
             account. Its sign-ins and conversations are kept on disk.
           </p>
           <p v-if="removeError" class="error" role="alert">{{ removeError }}</p>

@@ -2,20 +2,27 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { sessionPath, worktreeName, lastApp, appGroups } from '../src/shared/openIn.js'
 
-test('worktree labels use their branch or folder name, and project folders have no label', () => {
+test('worktree labels use their branch or folder name, and repository folders have no label', () => {
   assert.equal(worktreeName({ worktreeDirectory: '/trees/abc', worktreeBranch: 'feature/files' }), 'feature/files')
   assert.equal(worktreeName({ worktreeDirectory: '/trees/abc/' }), 'abc')
   assert.equal(worktreeName({ worktreeBranch: 'main' }), '')
   assert.equal(worktreeName(), '')
 })
 
-test('sessions open their worktree, or the project folder without one', () => {
-  const project = { directory: '/code/orchestra' }
+test('sessions open their worktree, or their repository folder without one', () => {
+  const workspace = {
+    repositories: [
+      { id: 'app', directory: '/code/orchestra' },
+      { id: 'site', directory: '/code/site' },
+    ],
+  }
   assert.equal(
-    sessionPath(project, { worktreeDirectory: '/home/me/.orchestra/worktrees/orchestra/1' }),
-    '/home/me/.orchestra/worktrees/orchestra/1',
+    sessionPath(workspace, { repositoryID: 'site', worktreeDirectory: '/home/me/.orchestra/worktrees/site/1' }),
+    '/home/me/.orchestra/worktrees/site/1',
   )
-  assert.equal(sessionPath(project, {}), '/code/orchestra')
+  assert.equal(sessionPath(workspace, { repositoryID: 'app' }), '/code/orchestra')
+  assert.equal(sessionPath(workspace, { repositoryID: 'site' }), '/code/site')
+  assert.equal(sessionPath(workspace, { repositoryID: 'removed' }), '')
 })
 
 test('the last app is the default only while it is installed', () => {

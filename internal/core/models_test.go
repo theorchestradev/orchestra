@@ -54,12 +54,12 @@ func TestLaunchRejectsUnsupportedModelOrEffort(t *testing.T) {
 		t.Fatal("rejected defaults")
 	}
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
-	if _, err := s.CreateSession(p.ID, "vibe", "", "", false, nil, "model", "", "", "", ""); err == nil {
+	p := workspaceFixture(t, s)
+	if _, err := s.CreateSession(p.ID, "", "vibe", "", "", false, nil, "model", "", "", "", ""); err == nil {
 		t.Fatal("created a Vibe session with a model")
 	}
-	state, err := s.CreateSession(p.ID, "claude", "", "", false, &GitHubItem{Number: 21}, "sonnet", "max", "", "", "")
-	if err != nil || state.Projects[0].Sessions[0].Model != "sonnet" || state.Projects[0].Sessions[0].Effort != "max" {
+	state, err := s.CreateSession(p.ID, "", "claude", "", "", false, &GitHubItem{Number: 21}, "sonnet", "max", "", "", "")
+	if err != nil || state.Workspaces[0].Sessions[0].Model != "sonnet" || state.Workspaces[0].Sessions[0].Effort != "max" {
 		t.Fatalf("model and effort not stored: %v", err)
 	}
 }

@@ -82,7 +82,7 @@ async function toggle() {
   if (open.value) return close()
   if (!agents.some((a) => a.id === agent.value))
     agent.value = agents.some((a) => a.id === props.defaultAgent) ? props.defaultAgent : agents[0].id
-  // Each opening starts from the project's profile, or Default when it was removed.
+  // Each opening starts from the workspace's profile, or Default when it was removed.
   profile.value = findProfile(props.profiles, props.profileId) ? props.profileId : ''
   open.value = true
   listen(true)

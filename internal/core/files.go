@@ -24,17 +24,17 @@ type SessionFiles struct {
 	Message   string             `json:"message"`
 }
 
-// SessionFiles reads only inside the session's project or worktree, without starting a process.
+// SessionFiles reads only inside the session's repository or worktree, without starting a process.
 func (s *Store) SessionFiles(id, relative string) (SessionFiles, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return SessionFiles{}, err
 	}
-	project, worktree := p.Directory, sess.WorktreeDirectory
+	repository, worktree := repo.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
-	root, err := sessionFolder(project, worktree)
+	root, err := sessionFolder(repository, worktree)
 	if err != nil {
 		return SessionFiles{}, err
 	}

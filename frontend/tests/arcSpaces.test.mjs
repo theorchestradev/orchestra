@@ -5,18 +5,18 @@ import { ref, computed, reactive, watch, nextTick, markRaw } from 'vue'
 import * as Vue from 'vue'
 import { compile } from '@vue/compiler-dom'
 import { renderToString } from '@vue/server-renderer'
-import { spaceSymbol } from '../src/shared/project.js'
+import { spaceSymbol } from '../src/shared/workspace.js'
 import { sidebarDragLayout } from '../src/shared/sidebarDrag.js'
 
-test('Arc spaces prefer emoji, then the project favicon, then the initial, and keep compact dots', async () => {
+test('Arc spaces prefer emoji, then the workspace favicon, then the initial, and keep compact dots', async () => {
   const template = readFileSync(new URL('../src/components/ArcSpaces.vue', import.meta.url), 'utf8').match(
     /<template>([\s\S]*?)<\/template>/,
   )[1]
   const render = new Function('Vue', compile(template, { prefixIdentifiers: true }).code)(Vue)
   const state = {
-    projects: [{ id: 'project', name: 'Orchestra', emoji: '🎵' }],
-    projectIcons: { project: 'data:image/png;base64,icon' },
-    selectedId: 'project',
+    workspaces: [{ id: 'workspace', name: 'Orchestra', emoji: '🎵' }],
+    workspaceIcons: { workspace: 'data:image/png;base64,icon' },
+    selectedId: 'workspace',
     settingsOpen: false,
     compact: false,
     spaceSymbol,
@@ -34,28 +34,28 @@ test('Arc spaces prefer emoji, then the project favicon, then the initial, and k
     renderToString(Vue.createSSRApp({ render, setup: () => state, components: { Icon: { render: () => null } } }))
   assert.match(await html(), /🎵/)
   assert.doesNotMatch(await html(), /<img/)
-  state.projects[0].emoji = ''
-  assert.match(await html(), /<img class="project-icon" src="data:image\/png;base64,icon" alt(?:="")?>/)
-  state.projectIcons = {}
+  state.workspaces[0].emoji = ''
+  assert.match(await html(), /<img class="workspace-icon" src="data:image\/png;base64,icon" alt(?:="")?>/)
+  state.workspaceIcons = {}
   assert.match(await html(), /aria-hidden="true">O<\/span>/)
-  state.projectIcons = { project: 'data:image/png;base64,icon' }
+  state.workspaceIcons = { workspace: 'data:image/png;base64,icon' }
   state.compact = true
   assert.match(await html(), /arc-space-dot/)
   assert.doesNotMatch(await html(), /<img/)
 })
 
-test('project spaces compact when crowded, reveal selection and preserve keyboard navigation', async () => {
+test('workspace spaces compact when crowded, reveal selection and preserve keyboard navigation', async () => {
   const source = readFileSync(new URL('../src/components/ArcSpaces.vue', import.meta.url), 'utf8')
     .match(/<script setup>([\s\S]*?)<\/script>/)[1]
     .replace(/^import .*$/gm, '')
-  const props = reactive({ projects: Array.from({ length: 4 }, (_, i) => ({ id: String(i) })), selectedId: '0' })
+  const props = reactive({ workspaces: Array.from({ length: 4 }, (_, i) => ({ id: String(i) })), selectedId: '0' })
   let resize,
     mounted,
     cleanup,
     disconnected = false,
     reveals = 0,
     focused
-  const buttons = props.projects.map((p) => ({
+  const buttons = props.workspaces.map((p) => ({
     focus: () => {
       focused = p.id
     },
@@ -116,9 +116,9 @@ test('project spaces compact when crowded, reveal selection and preserve keyboar
   await nextTick()
   assert.equal(spaces.compact.value, true)
   resize([{ contentRect: { width: 300 } }])
-  props.projects = Array.from({ length: 8 }, (_, i) => ({ id: String(i) }))
+  props.workspaces = Array.from({ length: 8 }, (_, i) => ({ id: String(i) }))
   assert.equal(spaces.compact.value, false)
-  props.projects.push({ id: '8' })
+  props.workspaces.push({ id: '8' })
   assert.equal(spaces.compact.value, true)
   await nextTick()
   const previousReveals = reveals
@@ -147,12 +147,12 @@ test('project spaces compact when crowded, reveal selection and preserve keyboar
   assert.equal(disconnected, true)
 })
 
-test('dragging a space past its neighbour reorders projects and swallows the click', async () => {
+test('dragging a space past its neighbour reorders workspaces and swallows the click', async () => {
   const source = readFileSync(new URL('../src/components/ArcSpaces.vue', import.meta.url), 'utf8')
     .match(/<script setup>([\s\S]*?)<\/script>/)[1]
     .replace(/^import .*$/gm, '')
   const props = reactive({
-    projects: ['a', 'b', 'c'].map((id) => ({ id })),
+    workspaces: ['a', 'b', 'c'].map((id) => ({ id })),
     selectedId: 'a',
     reorder: async (id, index) => moves.push([id, index]),
   })
@@ -202,7 +202,7 @@ test('dragging a space past its neighbour reorders projects and swallows the cli
   )
   spaces.spaces.value = markRaw(nav)
   const pointer = { pointerId: 1, button: 0, clientY: 10, currentTarget: button, preventDefault() {} }
-  spaces.begin({ ...pointer, clientX: 10 }, props.projects[0])
+  spaces.begin({ ...pointer, clientX: 10 }, props.workspaces[0])
   spaces.move({ ...pointer, clientX: 60 })
   assert.equal(spaces.drag.value.index, 1)
   assert.deepEqual(spaces.drag.value.offsets, [0, -36, 0])

@@ -89,22 +89,22 @@ var actionsJobRE = regexp.MustCompile(`/actions/runs/(\d+)/job/(\d+)`)
 // the pull request whose head is the branch checked out in the session folder.
 func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repository, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return PullRequestStatus{}, err
 	}
-	repo, projectDirectory, worktreeDirectory, number := p.Repository, p.Directory, sess.WorktreeDirectory, 0
+	repo, repositoryDirectory, worktreeDirectory, number := repository.GitHub, repository.Directory, sess.WorktreeDirectory, 0
 	if sess.GitHubItem != nil && sess.GitHubItem.PullRequest {
 		number = sess.GitHubItem.Number
 	}
 	s.mu.Unlock()
 	result := PullRequestStatus{Checks: []PullRequestCheck{}, Repository: repo}
 	if !repoRE.MatchString(repo) {
-		result.Message = "This project has no GitHub remote."
+		result.Message = repository.Name + " has no GitHub remote."
 		return result, nil
 	}
-	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	directory, err := sessionFolder(repositoryDirectory, worktreeDirectory)
 	if err != nil {
 		return PullRequestStatus{}, err
 	}
@@ -148,10 +148,10 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 	return result, nil
 }
 
-// GitHubPullRequest reads a project's pull request and its checks for the GitHub view. It
-// only reads GitHub, from the project folder.
-func (s *Store) GitHubPullRequest(projectID string, number int) (PullRequestStatus, error) {
-	repo, directory, err := s.repository(projectID)
+// GitHubPullRequest reads a repository's pull request and its checks for Work Items. It
+// only reads GitHub, from the repository folder.
+func (s *Store) GitHubPullRequest(workspaceID, repositoryID string, number int) (PullRequestStatus, error) {
+	repo, directory, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return PullRequestStatus{}, err
 	}
@@ -374,26 +374,26 @@ var logTimestampRE = regexp.MustCompile(`^\d{4}-\d\d-\d\dT[\d:.]+Z ?`)
 // an agent: its output, annotations and the end of its log.
 func (s *Store) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repository, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return "", err
 	}
-	repo, projectDirectory, worktreeDirectory := p.Repository, p.Directory, sess.WorktreeDirectory
+	repo, repositoryDirectory, worktreeDirectory := repository.GitHub, repository.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
 	if !repoRE.MatchString(repo) {
-		return "", errors.New("This project has no GitHub remote.")
+		return "", errors.New(repository.Name + " has no GitHub remote.")
 	}
-	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	directory, err := sessionFolder(repositoryDirectory, worktreeDirectory)
 	if err != nil {
 		return "", err
 	}
 	return checkFailure(directory, repo, jobID)
 }
 
-// GitHubCheckFailure is PullRequestCheckFailure for a pull request in the GitHub view.
-func (s *Store) GitHubCheckFailure(projectID string, jobID int64) (string, error) {
-	repo, directory, err := s.repository(projectID)
+// GitHubCheckFailure is PullRequestCheckFailure for a pull request in Work Items.
+func (s *Store) GitHubCheckFailure(workspaceID, repositoryID string, jobID int64) (string, error) {
+	repo, directory, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return "", err
 	}

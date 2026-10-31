@@ -55,7 +55,7 @@ func fakeAgent(t *testing.T, script string) {
 	t.Setenv("PATH", fixture+":"+os.Getenv("PATH"))
 }
 func sessionState(s *Store, id string) *Session {
-	for _, p := range s.Snapshot().Projects {
+	for _, p := range s.Snapshot().Workspaces {
 		for _, sess := range p.Sessions {
 			if sess.ID == id {
 				return sess
@@ -68,7 +68,7 @@ func sessionState(s *Store, id string) *Session {
 func TestBackgroundSessionSurvivesQuitAndReconnects(t *testing.T) {
 	fakeAgent(t, "printf waiting > \"$ORCHESTRA_STATUS_FILE\"\nprintf fixture-conversation > \"$ORCHESTRA_AGENT_ID_FILE\"\nstty -echo\nprintf 'fixture ready\\r\\n'\nwhile IFS= read -r line; do printf 'received: %s\\r\\n' \"$line\"; done\n")
 	s, path := backgroundStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	if _, err := s.StartSession(agent.ID, false, 80, 24); err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestBackgroundSessionSurvivesQuitAndReconnects(t *testing.T) {
 func TestBackgroundSessionThatEndsWhileClosed(t *testing.T) {
 	fakeAgent(t, "printf 'Session ID: 0f8fad5b-d9cb-469f-a165-70867728950e\\r\\n'\nsleep 0.5\nexit 3\n")
 	s, path := backgroundStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "codex")
 	// The fake codex is the same script as claude.
 	_ = os.Symlink(filepath.Join(filepath.SplitList(os.Getenv("PATH"))[0], "claude"), filepath.Join(filepath.SplitList(os.Getenv("PATH"))[0], "codex"))
@@ -150,7 +150,7 @@ func TestBackgroundSessionThatEndsWhileClosed(t *testing.T) {
 func TestStopSessionsOnQuitAndPreferenceOff(t *testing.T) {
 	fakeAgent(t, "printf 'up\\r\\n'\nexec sleep 30\n")
 	s, path := backgroundStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	if _, err := s.StartSession(agent.ID, false, 80, 24); err != nil {
 		t.Fatal(err)
@@ -188,7 +188,7 @@ func TestStopSessionsOnQuitAndPreferenceOff(t *testing.T) {
 func TestLostHostConnectionNeverStartsSecondAgent(t *testing.T) {
 	fakeAgent(t, "printf fixture-conversation > \"$ORCHESTRA_AGENT_ID_FILE\"\nprintf 'fixture ready\\r\\n'\nexec sleep 30\n")
 	s, path := backgroundStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	agent := sessionFixture(t, s, p, "claude")
 	if _, err := s.StartSession(agent.ID, false, 80, 24); err != nil {
 		t.Fatal(err)

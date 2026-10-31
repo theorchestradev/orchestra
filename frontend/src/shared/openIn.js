@@ -1,9 +1,12 @@
+import { sessionRepository } from './workspace.js'
+
 // The Open in button, the session menu and the command bar share these helpers. Go lists the
 // installed apps and resolves the folder from the session; the file manager comes last.
 export const fileManager = 'files'
 
 // The folder a session runs in, for Copy Path.
-export const sessionPath = (project, session) => session?.worktreeDirectory || project?.directory || ''
+export const sessionPath = (workspace, session) =>
+  session?.worktreeDirectory || sessionRepository(workspace, session)?.directory || ''
 
 export const worktreeName = (session) =>
   session?.worktreeDirectory

@@ -7,10 +7,14 @@ import {
   effortLabel,
   gitHubItem,
   isPermissionError,
+  itemKey,
   itemSessions,
+  matchesWorkItem,
   modelEfforts,
   pullConflict,
   sessionsLabel,
+  workItemAssignees,
+  workItems,
 } from '../src/shared/github.js'
 
 test('links sessions to their issue or pull request', () => {
@@ -18,7 +22,7 @@ test('links sessions to their issue or pull request', () => {
     pull = { number: 23, pull_request: {} }
   assert.deepEqual(gitHubItem(issue), { number: 22, pullRequest: false })
   assert.deepEqual(gitHubItem(pull), { number: 23, pullRequest: true })
-  const project = {
+  const workspace = {
     sessions: [
       { id: 'a', name: '#22 Fix', gitHubItem: { number: 22 } },
       { id: 'b', name: 'Plain' },
@@ -27,17 +31,59 @@ test('links sessions to their issue or pull request', () => {
     ],
   }
   assert.deepEqual(
-    itemSessions(project, issue).map((s) => s.id),
+    itemSessions(workspace, issue).map((s) => s.id),
     ['a', 'd'],
   )
   assert.deepEqual(
-    itemSessions(project, pull).map((s) => s.id),
+    itemSessions(workspace, pull).map((s) => s.id),
     ['c'],
   )
-  assert.deepEqual(itemSessions(project, { number: 23 }), [])
+  assert.deepEqual(itemSessions(workspace, { number: 23 }), [])
   assert.deepEqual(itemSessions(undefined, issue), [])
-  assert.equal(sessionsLabel(itemSessions(project, pull)), '1 session: #23 Review')
-  assert.equal(sessionsLabel(itemSessions(project, issue)), '2 sessions')
+  assert.equal(sessionsLabel(itemSessions(workspace, pull)), '1 session: #23 Review')
+  assert.equal(sessionsLabel(itemSessions(workspace, issue)), '2 sessions')
+})
+
+test('Work Items keeps items of different repositories apart', () => {
+  const app = { id: 'app', name: 'app', gitHub: 'o/app' },
+    site = { id: 'site', name: 'site', gitHub: 'o/site' }
+  const items = workItems([
+    { repository: app, items: [{ number: 1, title: 'Old', updated_at: '2026-01-01T00:00:00Z', assignees: [] }] },
+    {
+      repository: site,
+      items: [
+        { number: 1, title: 'New', updated_at: '2026-02-01T00:00:00Z', assignees: [{ login: 'zoe' }] },
+        {
+          number: 2,
+          title: 'Pull',
+          pull_request: {},
+          updated_at: '2026-01-15T00:00:00Z',
+          assignees: [{ login: 'al' }],
+        },
+      ],
+    },
+  ])
+  assert.deepEqual(items.map(itemKey), ['site#1', 'site#2', 'app#1'])
+  assert.equal(items[0].repositoryGitHub, 'o/site')
+  assert.deepEqual(workItemAssignees(items), ['al', 'zoe'])
+  const shown = (filters) => items.filter((i) => matchesWorkItem(i, filters)).map(itemKey)
+  assert.deepEqual(shown({}), ['site#1', 'site#2', 'app#1'])
+  assert.deepEqual(shown({ source: 'app' }), ['app#1'])
+  assert.deepEqual(shown({ assignee: 'zoe' }), ['site#1'])
+  assert.deepEqual(shown({ assignee: 'al' }), ['site#2'])
+  assert.deepEqual(shown({ assignee: '-' }), ['app#1'])
+  assert.deepEqual(shown({ search: 'old' }), ['app#1'])
+  // The same number in another repository belongs to other sessions.
+  const workspace = {
+    sessions: [
+      { id: 'a', repositoryID: 'app', gitHubItem: { number: 1 } },
+      { id: 'b', repositoryID: 'site', gitHubItem: { number: 1 } },
+    ],
+  }
+  assert.deepEqual(
+    itemSessions(workspace, items[0]).map((s) => s.id),
+    ['b'],
+  )
 })
 
 test('offers Work on and Review only for open items', () => {

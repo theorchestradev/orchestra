@@ -6,8 +6,8 @@ import { shortcutLabel } from '../shared/platform'
 import Icon from './Icon.vue'
 const props = defineProps({
   preferences: Object,
-  projects: Array,
-  project: Object,
+  workspaces: Array,
+  workspace: Object,
   session: Object,
   apps: Array,
   sidebarHidden: Boolean,

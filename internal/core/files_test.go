@@ -9,11 +9,11 @@ import (
 
 func TestSessionFiles(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "terminal")
-	writeFixture(t, filepath.Join(p.Directory, "src", "main.go"), "package main\n")
-	writeFixture(t, filepath.Join(p.Directory, "README.md"), "hello\n")
-	writeFixture(t, filepath.Join(p.Directory, ".git", "config"), "private")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "src", "main.go"), "package main\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, "README.md"), "hello\n")
+	writeFixture(t, filepath.Join(p.Repositories[0].Directory, ".git", "config"), "private")
 	files, err := s.SessionFiles(sess.ID, "")
 	if err != nil || !files.Directory || len(files.Entries) != 2 || files.Entries[0].Name != "src" {
 		t.Fatalf("listing: %+v %v", files, err)
@@ -24,7 +24,7 @@ func TestSessionFiles(t *testing.T) {
 	}
 	outside := t.TempDir()
 	writeFixture(t, filepath.Join(outside, "secret"), "secret")
-	if err := os.Symlink(outside, filepath.Join(p.Directory, "escape")); err != nil {
+	if err := os.Symlink(outside, filepath.Join(p.Repositories[0].Directory, "escape")); err != nil {
 		t.Fatal(err)
 	}
 	for _, path := range []string{"../secret", outside, "escape/secret", ".git/config"} {
@@ -33,7 +33,7 @@ func TestSessionFiles(t *testing.T) {
 		}
 	}
 	for name, content := range map[string]string{"binary": "a\x00b", "large": strings.Repeat("a", 256*1024+1)} {
-		writeFixture(t, filepath.Join(p.Directory, name), content)
+		writeFixture(t, filepath.Join(p.Repositories[0].Directory, name), content)
 		files, err = s.SessionFiles(sess.ID, name)
 		if err != nil || files.Content != "" || files.Message == "" {
 			t.Fatalf("unsupported preview: %+v %v", files, err)

@@ -92,7 +92,7 @@ function searchKeys(event) {
     event.preventDefault()
     focusActive()
   } else if (event.key === 'Enter') {
-    // Enter picks the first match instead of submitting Edit Project.
+    // Enter picks the first match instead of submitting Edit Workspace.
     event.preventDefault()
     if (query.value.trim() && results.value.length) pick(results.value[0].emoji)
   }

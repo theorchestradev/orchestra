@@ -54,7 +54,7 @@ func main() {
 	appMenu := menu.NewMenu()
 	appMenu.Append(menu.AppMenu())
 	file := appMenu.AddSubmenu("File")
-	file.AddText("New Project…", keys.Combo("n", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "project") })
+	file.AddText("New Workspace…", keys.Combo("n", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "workspace") })
 	file.AddText("New Session", keys.CmdOrCtrl("n"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "session") })
 	// domReady moves these registered items into the native Orchestra menu.
 	file.AddText("Settings…", keys.CmdOrCtrl(","), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "settings") })
@@ -70,8 +70,8 @@ func main() {
 	nav.AddText("Previous Item", keys.Combo("[", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previous") })
 	nav.AddText("Next Item", keys.Combo("]", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "next") })
 	// ⇧⌘← and ⇧⌘→ select text in fields, so the page handles them instead of the menu.
-	nav.AddText("Previous Project", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previousProject") })
-	nav.AddText("Next Project", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "nextProject") })
+	nav.AddText("Previous Workspace", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "previousWorkspace") })
+	nav.AddText("Next Workspace", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "nextWorkspace") })
 	appMenu.Append(menu.WindowMenu())
 	if goruntime.GOOS != "darwin" {
 		// GTK menu accelerators run before the webview, so Ctrl+B, Ctrl+K and Ctrl+N would

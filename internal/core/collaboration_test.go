@@ -13,7 +13,7 @@ import (
 
 func TestHistoryPersistsAsJSON(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a := sessionFixture(t, s, p, "claude")
 	b := sessionFixture(t, s, p, "codex")
 	if _, err := s.SendRequest(a.ID, b.ID, "first"); err != nil {
@@ -63,6 +63,11 @@ func TestHistoryRecoversFromMissingOrCorruptFile(t *testing.T) {
 			t.Fatal("unreadable history left in place")
 		}
 	}
+	// Earlier histories named the workspace projectID.
+	_ = os.WriteFile(path, []byte(`{"version":1,"runs":[{"id":"r","projectID":"w","toSessionID":"s","status":"queued"}]}`), 0600)
+	if runs, warning, err = loadRuns(path); err != nil || warning != "" || len(runs) != 1 || runs[0].WorkspaceID != "w" || runs[0].LegacyWorkspaceID != "" {
+		t.Fatalf("projectID not read as workspaceID: %+v %q %v", runs, warning, err)
+	}
 	state := filepath.Join(dir, "state.json")
 	_ = os.WriteFile(path, []byte("garbage"), 0600)
 	exe, _ := os.Executable()
@@ -100,9 +105,9 @@ func TestHistoryPruningKeepsActiveRuns(t *testing.T) {
 
 func TestScratchpadBroker(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a := sessionFixture(t, s, p, "claude")
-	other := projectFixture(t, s)
+	other := workspaceFixture(t, s)
 	b := sessionFixture(t, s, other, "codex")
 	s.mu.Lock()
 	envA, err := s.collaboration.environmentLocked(a.ID)
@@ -112,7 +117,7 @@ func TestScratchpadBroker(t *testing.T) {
 	envB, err := s.collaboration.environmentLocked(b.ID)
 	emitted := 0
 	s.emit = func(name string, _ any) {
-		if name == "workspace" {
+		if name == "state" {
 			emitted++
 		}
 	}
@@ -132,7 +137,7 @@ func TestScratchpadBroker(t *testing.T) {
 	if _, err = call(envA, "scratchpad.read", "", nil); err == nil || !strings.Contains(err.Error(), "no Scratchpad") {
 		t.Fatal("read without a Scratchpad", err)
 	}
-	if _, err = call(envA, "scratchpad.append", "note", nil); err == nil || s.Snapshot().Projects[0].HasScratchpad {
+	if _, err = call(envA, "scratchpad.append", "note", nil); err == nil || s.Snapshot().Workspaces[0].HasScratchpad {
 		t.Fatal("append created a Scratchpad", err)
 	}
 	for _, id := range []string{p.ID, other.ID} {
@@ -147,15 +152,15 @@ func TestScratchpadBroker(t *testing.T) {
 	if _, err = s.SaveScratchpad(p.ID, "Stale editor", 0); err != errScratchpadChanged {
 		t.Fatal("stale editor save accepted", err)
 	}
-	if _, err = s.SaveScratchpad(other.ID, "Other project", 0); err != nil {
+	if _, err = s.SaveScratchpad(other.ID, "Other workspace", 0); err != nil {
 		t.Fatal(err)
 	}
 	read, err := call(envA, "scratchpad.read", "", nil)
 	if err != nil || read["text"] != "User notes" || read["revision"] != 1.0 || read["name"] != "Scratchpad" {
 		t.Fatalf("unexpected read: %v %v", read, err)
 	}
-	if read, err = call(envB, "scratchpad.read", "", nil); err != nil || read["text"] != "Other project" {
-		t.Fatal("project scoping failed", read, err)
+	if read, err = call(envB, "scratchpad.read", "", nil); err != nil || read["text"] != "Other workspace" {
+		t.Fatal("workspace scoping failed", read, err)
 	}
 	emitted = 0
 	if _, err = call(envA, "scratchpad.append", "Agent note", nil); err != nil || emitted != 1 {
@@ -193,17 +198,17 @@ func TestScratchpadBroker(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer reopened.Shutdown()
-	if saved := reopened.Snapshot().Projects[0]; saved.ScratchpadText != "Line one\nLine two\n" || saved.ScratchpadRevision != 6 {
+	if saved := reopened.Snapshot().Workspaces[0]; saved.ScratchpadText != "Line one\nLine two\n" || saved.ScratchpadRevision != 6 {
 		t.Fatalf("CLI writes not persisted: %q %d", saved.ScratchpadText, saved.ScratchpadRevision)
 	}
-	if read, err = call(envB, "scratchpad.read", "", nil); err != nil || read["text"] != "Other project" {
-		t.Fatal("write reached another project", read, err)
+	if read, err = call(envB, "scratchpad.read", "", nil); err != nil || read["text"] != "Other workspace" {
+		t.Fatal("write reached another workspace", read, err)
 	}
 }
 
 func TestScratchpadCLI(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	a := sessionFixture(t, s, p, "claude")
 	if _, err := s.Select(p.ID, "scratchpad"); err != nil {
 		t.Fatal(err)

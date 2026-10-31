@@ -109,65 +109,83 @@ func runCommandContext(ctx context.Context, directory, command string, input []b
 	}
 	return data, nil
 }
-func (s *Store) DetectRepository(projectID string) (State, error) {
+
+// DetectRepository finds the GitHub remote of each of the workspace's repositories.
+func (s *Store) DetectRepository(workspaceID string) (State, error) {
 	s.mu.Lock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		s.mu.Unlock()
 		return State{}, err
 	}
-	directory := p.Directory
+	directories := map[string]string{}
+	for _, repo := range p.Repositories {
+		directories[repo.ID] = repo.Directory
+	}
 	s.mu.Unlock()
-	data, err := runCommand(directory, "/usr/bin/git", "-C", directory, "remote")
-	repo := ""
-	if err == nil {
-		remotes := strings.Fields(string(data))
-		rank := func(name string) int {
-			if name == "origin" {
-				return 0
-			}
-			if name == "upstream" {
-				return 1
-			}
-			return 2
-		}
-		sort.Slice(remotes, func(i, j int) bool {
-			if rank(remotes[i]) != rank(remotes[j]) {
-				return rank(remotes[i]) < rank(remotes[j])
-			}
-			return remotes[i] < remotes[j]
-		})
-		for _, remote := range remotes {
-			value, e := runCommand(directory, "/usr/bin/git", "-C", directory, "remote", "get-url", remote)
-			if e == nil {
-				repo = ParseRepository(string(value))
-				if repo != "" {
-					break
-				}
-			}
-		}
+	detected := map[string]string{}
+	for id, directory := range directories {
+		detected[id] = gitHubRemote(directory)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err = s.projectLocked(projectID)
+	p, err = s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
-	p.Repository = repo
+	for _, repo := range p.Repositories {
+		if remote, ok := detected[repo.ID]; ok && repo.Directory == directories[repo.ID] {
+			repo.GitHub = remote
+		}
+	}
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) repository(projectID string) (string, string, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+
+// gitHubRemote is the owner/name of a folder's GitHub remote, preferring origin, then
+// upstream, then the others by name. It is empty without one.
+func gitHubRemote(directory string) string {
+	data, err := runCommand(directory, "/usr/bin/git", "-C", directory, "remote")
+	if err != nil {
+		return ""
+	}
+	remotes := strings.Fields(string(data))
+	rank := func(name string) int {
+		if name == "origin" {
+			return 0
+		}
+		if name == "upstream" {
+			return 1
+		}
+		return 2
+	}
+	sort.Slice(remotes, func(i, j int) bool {
+		if rank(remotes[i]) != rank(remotes[j]) {
+			return rank(remotes[i]) < rank(remotes[j])
+		}
+		return remotes[i] < remotes[j]
+	})
+	for _, remote := range remotes {
+		value, e := runCommand(directory, "/usr/bin/git", "-C", directory, "remote", "get-url", remote)
+		if e == nil {
+			if repo := ParseRepository(string(value)); repo != "" {
+				return repo
+			}
+		}
+	}
+	return ""
+}
+
+// repository returns the GitHub owner/name and folder of a workspace repository.
+func (s *Store) repository(workspaceID, repositoryID string) (string, string, error) {
+	repo, err := s.workspaceRepository(workspaceID, repositoryID)
 	if err != nil {
 		return "", "", err
 	}
-	if !repoRE.MatchString(p.Repository) {
-		return "", "", errors.New("This project has no GitHub remote.")
+	if !repoRE.MatchString(repo.GitHub) {
+		return "", "", errors.New(repo.Name + " has no GitHub remote.")
 	}
-	return p.Repository, p.Directory, nil
+	return repo.GitHub, repo.Directory, nil
 }
 func ghAPI(directory, endpoint string, paginate, html bool) (json.RawMessage, error) {
 	args := []string{"api", "--hostname", "github.com"}
@@ -188,8 +206,8 @@ func ghAPI(directory, endpoint string, paginate, html bool) (json.RawMessage, er
 	}
 	return data, nil
 }
-func (s *Store) GitHubItems(projectID, state string) ([]json.RawMessage, error) {
-	repo, dir, err := s.repository(projectID)
+func (s *Store) GitHubItems(workspaceID, repositoryID, state string) ([]json.RawMessage, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -216,8 +234,8 @@ type GitHubContent struct {
 	Comments []json.RawMessage `json:"comments"`
 }
 
-func (s *Store) GitHubDetail(projectID string, number int, pull bool) (GitHubContent, error) {
-	repo, dir, err := s.repository(projectID)
+func (s *Store) GitHubDetail(workspaceID, repositoryID string, number int, pull bool) (GitHubContent, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return GitHubContent{}, err
 	}
@@ -248,8 +266,8 @@ func (s *Store) GitHubDetail(projectID string, number int, pull bool) (GitHubCon
 }
 
 // Repository choices are paginated; existing selections are retained by the editor.
-func (s *Store) GitHubMetadataOptions(projectID, field string) ([]json.RawMessage, error) {
-	repo, dir, err := s.repository(projectID)
+func (s *Store) GitHubMetadataOptions(workspaceID, repositoryID, field string) ([]json.RawMessage, error) {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return nil, err
 	}
@@ -274,8 +292,8 @@ func (s *Store) GitHubMetadataOptions(projectID, field string) ([]json.RawMessag
 var githubLoginRE = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9-]{0,38}(\[bot\])?$`)
 
 // Patch only the selected field, preserving unrelated metadata and content.
-func (s *Store) UpdateGitHubMetadata(projectID string, number int, pull bool, field string, values []string) error {
-	repo, dir, err := s.repository(projectID)
+func (s *Store) UpdateGitHubMetadata(workspaceID, repositoryID string, number int, pull bool, field string, values []string) error {
+	repo, dir, err := s.repository(workspaceID, repositoryID)
 	if err != nil {
 		return err
 	}

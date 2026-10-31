@@ -49,13 +49,13 @@ type SessionDiff struct {
 	Truncated bool       `json:"truncated,omitempty"`
 }
 
-// sessionFolder is where a session runs: its worktree, or the project folder without one.
-func sessionFolder(projectDirectory, worktreeDirectory string) (string, error) {
+// sessionFolder is where a session runs: its worktree, or its repository folder without one.
+func sessionFolder(repositoryDirectory, worktreeDirectory string) (string, error) {
 	if worktreeDirectory == "" {
-		if info, err := os.Stat(projectDirectory); err != nil || !info.IsDir() {
-			return "", errors.New("The project folder is no longer available.")
+		if info, err := os.Stat(repositoryDirectory); err != nil || !info.IsDir() {
+			return "", errors.New("The repository folder " + repositoryDirectory + " is no longer available.")
 		}
-		return projectDirectory, nil
+		return repositoryDirectory, nil
 	}
 	if info, err := os.Stat(worktreeDirectory); err != nil || !info.IsDir() {
 		return "", errWorktreeMissing
@@ -66,36 +66,36 @@ func sessionFolder(projectDirectory, worktreeDirectory string) (string, error) {
 // SessionFolder returns the existing folder a session runs in, for opening it in other apps.
 func (s *Store) SessionFolder(id string) (string, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return "", err
 	}
-	projectDirectory, worktreeDirectory := p.Directory, sess.WorktreeDirectory
+	repositoryDirectory, worktreeDirectory := repo.Directory, sess.WorktreeDirectory
 	s.mu.Unlock()
-	return sessionFolder(projectDirectory, worktreeDirectory)
+	return sessionFolder(repositoryDirectory, worktreeDirectory)
 }
 
 // SessionDiff only reads Git. It never starts, stops or writes to a session's process.
 func (s *Store) SessionDiff(id string) (SessionDiff, error) {
 	s.mu.Lock()
-	p, sess, err := s.sessionLocked(id)
+	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return SessionDiff{}, err
 	}
-	agent, projectDirectory, worktreeDirectory, base := sess.Agent, p.Directory, sess.WorktreeDirectory, sess.WorktreeBase
+	agent, repositoryDirectory, worktreeDirectory, base := sess.Agent, repo.Directory, sess.WorktreeDirectory, sess.WorktreeBase
 	s.mu.Unlock()
-	return readSessionDiff(agent, projectDirectory, worktreeDirectory, base)
+	return readSessionDiff(agent, repositoryDirectory, worktreeDirectory, base)
 }
 
-func readSessionDiff(agent, projectDirectory, worktreeDirectory, savedBase string) (SessionDiff, error) {
+func readSessionDiff(agent, repositoryDirectory, worktreeDirectory, savedBase string) (SessionDiff, error) {
 	result := SessionDiff{Files: []DiffFile{}}
 	if agent == terminalAgent {
 		result.Message = "Terminal sessions don’t track changes. Agent sessions show what they changed here."
 		return result, nil
 	}
-	directory, err := sessionFolder(projectDirectory, worktreeDirectory)
+	directory, err := sessionFolder(repositoryDirectory, worktreeDirectory)
 	if err != nil {
 		return SessionDiff{}, err
 	}
@@ -110,7 +110,7 @@ func readSessionDiff(agent, projectDirectory, worktreeDirectory, savedBase strin
 		result.Message = "This folder isn’t a Git repository, so there are no changes to show."
 		return result, nil
 	}
-	base, err := diffBase(directory, projectDirectory, savedBase, scope)
+	base, err := diffBase(directory, repositoryDirectory, savedBase, scope)
 	if err != nil {
 		return SessionDiff{}, err
 	}
@@ -152,8 +152,8 @@ func readSessionDiff(agent, projectDirectory, worktreeDirectory, savedBase strin
 	return result, nil
 }
 
-// diffBase is the worktree's start commit, or HEAD for a session in the project folder.
-func diffBase(directory, projectDirectory, saved, scope string) (string, error) {
+// diffBase is the worktree's start commit, or HEAD for a session in the repository folder.
+func diffBase(directory, repositoryDirectory, saved, scope string) (string, error) {
 	if scope == "folder" {
 		if _, err := runCommand(directory, "git", "rev-parse", "--verify", "--quiet", "HEAD^{commit}"); err == nil {
 			return "HEAD", nil
@@ -168,7 +168,7 @@ func diffBase(directory, projectDirectory, saved, scope string) (string, error) 
 		}
 	}
 	// Older sessions have no saved start commit.
-	head, err := runCommand(projectDirectory, "git", "rev-parse", "--verify", "HEAD^{commit}")
+	head, err := runCommand(repositoryDirectory, "git", "rev-parse", "--verify", "HEAD^{commit}")
 	if err == nil {
 		head, err = runCommand(directory, "git", "merge-base", "HEAD", strings.TrimSpace(string(head)))
 	}

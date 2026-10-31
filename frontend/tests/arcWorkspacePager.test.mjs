@@ -5,7 +5,7 @@ import { ref, computed, reactive } from 'vue'
 import { arcScrollDelta } from '../src/shared/appearance.js'
 
 test('Arc scroll follows the gesture to one neighbor and settles through Store selection', async () => {
-  const source = readFileSync(new URL('../src/components/ArcProjectPager.vue', import.meta.url), 'utf8')
+  const source = readFileSync(new URL('../src/components/ArcWorkspacePager.vue', import.meta.url), 'utf8')
     .match(/<script setup>([\s\S]*?)<\/script>/)[1]
     .replace(/^import .*$/gm, '')
   const requests = [],
@@ -20,7 +20,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   const props = reactive({
     items: [{ id: 'a' }, { id: 'b' }, { id: 'c' }, { id: 'd' }],
     selectedId: 'a',
-    selectProject: (p) => {
+    selectWorkspace: (p) => {
       requests.push(p.id)
       return new Promise((resolve) => {
         resolveSelection = resolve
@@ -181,9 +181,9 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
       },
     })
   }
-  // With New Project enabled, panning past the last space fills the ring and creates only when full.
+  // With New Workspace enabled, panning past the last space fills the ring and creates only when full.
   let created = 0
-  props.createProject = () => created++
+  props.createWorkspace = () => created++
   props.selectedId = 'a'
   watchers[0]()
   assert.equal(pager.activeIndex.value, 3)
@@ -198,7 +198,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   assert.equal(created, 1)
   assert.equal(pager.gesture.value, null)
   assert.equal(pager.createProgress.value, 0)
-  // The rest of the same gesture cannot open another New Project.
+  // The rest of the same gesture cannot open another New Workspace.
   wheel(400)
   wheel(400)
   assert.equal(created, 1)
@@ -208,7 +208,7 @@ test('Arc scroll follows the gesture to one neighbor and settles through Store s
   idle()
   assert.deepEqual(requests.slice(-1), ['b'])
   await acknowledge()
-  props.createProject = undefined
+  props.createWorkspace = undefined
   // Panning before the first space fills the Settings ring and opens Settings only when full.
   let settings = 0
   props.openSettings = () => settings++

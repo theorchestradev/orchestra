@@ -1,9 +1,33 @@
-// Links between Work on / Review sessions and the GitHub items they came from.
+// Links between Work on / Review sessions and the GitHub items they came from. An item's number is
+// only unique within its repository, which Work Items records on each item as repositoryID.
 export const gitHubItem = (item) => ({ number: item.number, pullRequest: Boolean(item.pull_request) })
-export const itemSessions = (project, item) =>
-  project?.sessions?.filter(
-    (s) => s.gitHubItem?.number === item.number && Boolean(s.gitHubItem.pullRequest) === Boolean(item.pull_request),
+export const itemSessions = (workspace, item) =>
+  workspace?.sessions?.filter(
+    (s) =>
+      s.repositoryID === item.repositoryID &&
+      s.gitHubItem?.number === item.number &&
+      Boolean(s.gitHubItem.pullRequest) === Boolean(item.pull_request),
   ) || []
+export const itemKey = (item) => `${item.repositoryID}#${item.number}`
+// Work Items shows the items of every GitHub repository in the workspace, newest activity first.
+export const workItems = (sources) =>
+  sources
+    .flatMap(({ repository, items }) =>
+      items.map((item) => ({
+        ...item,
+        repositoryID: repository.id,
+        repositoryName: repository.name,
+        repositoryGitHub: repository.gitHub,
+      })),
+    )
+    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+// Filters for Work Items: '' matches every source or assignee, and '-' items without assignees.
+export const matchesWorkItem = (item, { source = '', assignee = '', search = '' }) =>
+  (!source || item.repositoryID === source) &&
+  (!assignee || (assignee === '-' ? !item.assignees?.length : item.assignees?.some((a) => a.login === assignee))) &&
+  (!search || item.title.toLowerCase().includes(search.toLowerCase()) || ('#' + item.number).includes(search))
+export const workItemAssignees = (items) =>
+  [...new Set(items.flatMap((item) => item.assignees?.map((a) => a.login) || []))].sort((a, b) => a.localeCompare(b))
 export const sessionsLabel = (sessions) =>
   sessions.length === 1 ? `1 session: ${sessions[0].name}` : `${sessions.length} sessions`
 // Work on / Review only makes sense while the item is open; merged PRs are closed.

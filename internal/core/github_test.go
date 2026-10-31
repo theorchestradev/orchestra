@@ -10,14 +10,14 @@ import (
 
 func TestGitHubMetadataEditing(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	s.mu.Lock()
-	stored, err := s.projectLocked(p.ID)
+	stored, err := s.workspaceLocked(p.ID)
 	if err != nil {
 		s.mu.Unlock()
 		t.Fatal(err)
 	}
-	stored.Repository = "fixture/repository"
+	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	dir := t.TempDir()
 	t.Setenv("PATH", dir+":/usr/bin:/bin")
@@ -50,12 +50,12 @@ cat "$base/response"
 		t.Fatal(err)
 	}
 	response(`[[{"login":"first"}],[{"login":"second"}]]`)
-	options, err := s.GitHubMetadataOptions(p.ID, "assignees")
+	options, err := s.GitHubMetadataOptions(p.ID, "", "assignees")
 	if err != nil || len(options) != 2 || !strings.Contains(read("args"), "--paginate\n--slurp") {
 		t.Fatalf("pagination: %s, %v", options, err)
 	}
 	response(`[[{"name":"a label"}]]`)
-	if _, err = s.GitHubMetadataOptions(p.ID, "labels"); err != nil {
+	if _, err = s.GitHubMetadataOptions(p.ID, "", "labels"); err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
@@ -75,7 +75,7 @@ cat "$base/response"
 		{"labels", []string{}, true, `{"labels":[]}`, "issues"},
 	} {
 		response(tc.reply)
-		if err = s.UpdateGitHubMetadata(p.ID, 42, tc.pull, tc.field, tc.values); err != nil {
+		if err = s.UpdateGitHubMetadata(p.ID, "", 42, tc.pull, tc.field, tc.values); err != nil {
 			t.Fatalf("%s: %v", tc.field, err)
 		}
 		args := read("args")
@@ -104,34 +104,34 @@ cat "$base/response"
 		}
 	}
 	response(`{"state":"closed","state_reason":"completed"}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "state", []string{"closed", "not_planned"}); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "state", []string{"closed", "not_planned"}); err == nil {
 		t.Fatal("ignored reason reported success")
 	}
-	if err = s.UpdateGitHubMetadata(p.ID, 42, true, "state", []string{"closed", "completed"}); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, true, "state", []string{"closed", "completed"}); err == nil {
 		t.Fatal("PR accepted an issue reason")
 	}
 	os.WriteFile(filepath.Join(dir, "canonical"), []byte(`{"id":984,"number":84,"pull_request":{}}`), 0600)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "state", []string{"closed", "duplicate", "84"}); err == nil || strings.Contains(read("args"), "PATCH") {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "state", []string{"closed", "duplicate", "84"}); err == nil || strings.Contains(read("args"), "PATCH") {
 		t.Fatal("PR accepted as duplicate issue")
 	}
 	response(`{"merged":true,"state":"closed"}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, true, "state", []string{"open"}); err == nil || !strings.Contains(err.Error(), "merged") || strings.Contains(read("args"), "PATCH") {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, true, "state", []string{"open"}); err == nil || !strings.Contains(err.Error(), "merged") || strings.Contains(read("args"), "PATCH") {
 		t.Fatalf("merged PR mutated: %v", err)
 	}
 	response(`{"assignees":[]}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "assignees", []string{"first"}); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "assignees", []string{"first"}); err == nil {
 		t.Fatal("silently ignored edit reported success")
 	}
 	response(`null`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "labels", nil); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "labels", nil); err == nil {
 		t.Fatal("null response accepted")
 	}
 	response(`not JSON`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "labels", nil); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "labels", nil); err == nil {
 		t.Fatal("invalid response accepted")
 	}
 	os.WriteFile(filepath.Join(dir, "fail"), nil, 0600)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "state", []string{"closed"}); err == nil || !strings.Contains(err.Error(), "403") {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "state", []string{"closed"}); err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("permission error lost: %v", err)
 	}
 	os.Remove(filepath.Join(dir, "fail"))
@@ -145,7 +145,7 @@ cat "$base/response"
 		{42, "labels", []string{"bad\nlabel"}}, {42, "assignees", []string{"--bad"}}, {42, "labels", []string{"duplicate", "duplicate"}},
 	} {
 		os.Remove(filepath.Join(dir, "args"))
-		if err = s.UpdateGitHubMetadata(p.ID, tc.number, false, tc.field, tc.values); err == nil {
+		if err = s.UpdateGitHubMetadata(p.ID, "", tc.number, false, tc.field, tc.values); err == nil {
 			t.Fatalf("invalid edit accepted: %+v", tc)
 		}
 		if _, err = os.Stat(filepath.Join(dir, "args")); !os.IsNotExist(err) {
@@ -156,14 +156,14 @@ cat "$base/response"
 
 func TestGitHubDescriptionEditing(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	s.mu.Lock()
-	stored, err := s.projectLocked(p.ID)
+	stored, err := s.workspaceLocked(p.ID)
 	if err != nil {
 		s.mu.Unlock()
 		t.Fatal(err)
 	}
-	stored.Repository = "fixture/repository"
+	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
 	dir := t.TempDir()
 	t.Setenv("PATH", dir+":/usr/bin:/bin")
@@ -196,7 +196,7 @@ cat "$base/response"
 	reply, _ := json.Marshal(map[string]string{"body": edited})
 	write("response", string(reply))
 	for _, pull := range []bool{false, true} {
-		if err = s.UpdateGitHubMetadata(p.ID, 42, pull, "body", []string{edited, original}); err != nil {
+		if err = s.UpdateGitHubMetadata(p.ID, "", 42, pull, "body", []string{edited, original}); err != nil {
 			t.Fatal(err)
 		}
 		if args := read("args"); !strings.Contains(args, "--method\nPATCH\nrepos/fixture/repository/issues/42") {
@@ -213,20 +213,20 @@ cat "$base/response"
 	// An empty description is allowed, and GitHub reports it as null.
 	write("current", `{"body":null}`)
 	write("response", `{"body":null}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", []string{"", ""}); err != nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", []string{"", ""}); err != nil {
 		t.Fatal(err)
 	}
 	if read("input") != `{"body":""}` {
 		t.Fatalf("empty description payload: %s", read("input"))
 	}
 	write("response", `{"body":"x"}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", []string{"x", ""}); err != nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", []string{"x", ""}); err != nil {
 		t.Fatal(err)
 	}
 	// A description changed on GitHub since editing started is never overwritten.
 	write("current", `{"body":"changed elsewhere"}`)
 	os.Remove(filepath.Join(dir, "args"))
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", []string{"x", ""}); err == nil || !strings.Contains(err.Error(), "changed on GitHub") {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", []string{"x", ""}); err == nil || !strings.Contains(err.Error(), "changed on GitHub") {
 		t.Fatalf("stale description overwritten: %v", err)
 	}
 	if read("args") != "" {
@@ -234,17 +234,17 @@ cat "$base/response"
 	}
 	write("current", `{"body":"same"}`)
 	write("response", `{"body":"same"}`)
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", []string{"new", "same"}); err == nil {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", []string{"new", "same"}); err == nil {
 		t.Fatal("ignored description reported success")
 	}
 	write("fail", "")
-	if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", []string{"new", "same"}); err == nil || !strings.Contains(err.Error(), "403") {
+	if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", []string{"new", "same"}); err == nil || !strings.Contains(err.Error(), "403") {
 		t.Fatalf("permission error lost: %v", err)
 	}
 	os.Remove(filepath.Join(dir, "fail"))
 	for _, values := range [][]string{nil, {"only new"}, {"a", "b", "c"}, {"nul\x00", "same"}, {strings.Repeat("x", 262145), "same"}} {
 		os.Remove(filepath.Join(dir, "fetch"))
-		if err = s.UpdateGitHubMetadata(p.ID, 42, false, "body", values); err == nil {
+		if err = s.UpdateGitHubMetadata(p.ID, "", 42, false, "body", values); err == nil {
 			t.Fatalf("invalid description accepted: %d values", len(values))
 		}
 		if read("fetch") != "" {

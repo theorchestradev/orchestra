@@ -6,7 +6,15 @@ import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
 import { conflictTask, gitHubItem } from './shared/github'
-import { projectTitle, needsGitRepository } from './shared/project'
+import {
+  workspaceTitle,
+  needsGitRepository,
+  repositories,
+  sessionRepository,
+  defaultRepository,
+  hasWorkItems,
+  repositoryLabel,
+} from './shared/workspace'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
   palette,
@@ -25,9 +33,9 @@ import {
   syntaxTokens,
   translucencyTokens,
   activityLabel,
-  visibleSidebarProjects,
+  visibleSidebarWorkspaces,
   isTerminal,
-  projectRows,
+  workspaceRows,
 } from './shared/appearance'
 import Icon from './components/Icon.vue'
 import Modal from './components/Modal.vue'
@@ -43,15 +51,21 @@ import Messages from './components/Messages.vue'
 import StatusBar from './components/StatusBar.vue'
 import SidebarList from './components/SidebarList.vue'
 import ArcSpaces from './components/ArcSpaces.vue'
-import ArcProjectPager from './components/ArcProjectPager.vue'
+import ArcWorkspacePager from './components/ArcWorkspacePager.vue'
 import SessionDiff from './components/SessionDiff.vue'
 import FileView from './components/FileView.vue'
 import OpenInButton from './components/OpenInButton.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
-const workspace = ref({
-  projects: [],
+// Work Items lists issues and Reviews lists pull requests, both from the workspace's GitHub repositories.
+const gitHubViews = ['github', 'reviews']
+const gitHubViewRows = [
+  { id: 'github', name: 'Work Items', icon: 'list.bullet.rectangle' },
+  { id: 'reviews', name: 'Reviews', icon: 'arrow.triangle.pull' },
+]
+const appState = ref({
+  workspaces: [],
   profiles: [],
   runs: [],
   preferences: {
@@ -84,7 +98,7 @@ const workspace = ref({
 // Update checks run in Go; the status bar offers a found release unless it was skipped.
 const updateStatus = ref(null)
 const update = computed(() => pendingUpdate(updateStatus.value, preferences.value))
-// Shown when a new session worktree finds local main behind origin: { projectID, branch, behind }.
+// Shown when a new session worktree finds local main behind origin: { workspaceID, branch, behind }.
 const localMainNotice = ref(null)
 // Where Settings opens, when something other than General is asked for.
 const settingsSection = ref(''),
@@ -96,20 +110,25 @@ const loading = ref(true),
   // Where the session menu's Open in submenu shows, while it is open.
   openInMenu = ref(null),
   busy = ref(false)
-const projectName = ref(''),
-  projectDescription = ref(''),
-  projectEmoji = ref(''),
+const workspaceName = ref(''),
+  workspaceDescription = ref(''),
+  workspaceEmoji = ref(''),
   directory = ref(''),
   renameID = ref(''),
   renameValue = ref(''),
   renameKind = ref(''),
   sessionID = ref(''),
-  sessionProjectID = ref(''),
-  // The profile a new session or an edited project uses; "" is Default.
+  sessionWorkspaceID = ref(''),
+  // The repository a new session works in.
+  sessionRepositoryID = ref(''),
+  // Edit Workspace's repository names, saved with the workspace.
+  repositoryNames = ref({}),
+  // The profile a new session or an edited workspace uses; "" is Default.
   sessionProfileID = ref(''),
-  projectProfileID = ref(''),
+  workspaceProfileID = ref(''),
   formError = ref('')
 const visitedTerminals = ref(new Set()),
+  // Work Items and Reviews panes mount on first visit, keyed "<workspace id>:<destination>".
   visitedGitHub = ref(new Set()),
   terminalVersions = ref({}),
   sidebarHidden = ref(false)
@@ -121,19 +140,19 @@ const scratchpadView = ref(null),
   newBranch = ref(''),
   newBase = ref(''),
   worktreeBranches = ref({ current: '', branches: [] }),
-  // False when the New Session project folder is not in a Git repository, so it cannot have worktrees.
+  // False when the New Session repository folder is not in a Git repository, so it cannot have worktrees.
   worktreeAvailable = ref(true),
   removeWorktree = ref(false),
   initializingGit = ref(false),
   gitInitialized = ref(false),
   offerGitInit = ref(false)
 const activeSessionCount = computed(
-  () => workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running).length,
+  () => appState.value.workspaces.flatMap((p) => p.sessions).filter((s) => s.running).length,
 )
 // Sessions in the session host keep running after quitting while the preference is on.
 const keptSessionCount = computed(() =>
   preferences.value.keepSessionsRunning
-    ? workspace.value.projects.flatMap((p) => p.sessions).filter((s) => s.running && s.background).length
+    ? appState.value.workspaces.flatMap((p) => p.sessions).filter((s) => s.running && s.background).length
     : 0,
 )
 const sessionAgents = computed(() =>
@@ -141,11 +160,11 @@ const sessionAgents = computed(() =>
     (a, b) => Number(b.id === preferences.value.defaultAgent) - Number(a.id === preferences.value.defaultAgent),
   ),
 )
-const scratchpadProjectID = ref('')
-const scratchpadProject = computed(() => workspace.value.projects.find((p) => p.id === scratchpadProjectID.value))
-const removalProjectID = ref('')
-const removalProject = computed(() => workspace.value.projects.find((p) => p.id === removalProjectID.value))
-const project = computed(() => workspace.value.projects.find((p) => p.id === workspace.value.selectedProjectID))
+const scratchpadWorkspaceID = ref('')
+const scratchpadWorkspace = computed(() => appState.value.workspaces.find((p) => p.id === scratchpadWorkspaceID.value))
+const removalWorkspaceID = ref('')
+const removalWorkspace = computed(() => appState.value.workspaces.find((p) => p.id === removalWorkspaceID.value))
+const workspace = computed(() => appState.value.workspaces.find((p) => p.id === appState.value.selectedWorkspaceID))
 // Open file views are temporary UI state, scoped to the session folder that owns them.
 const openedFiles = ref([]),
   activeFileID = ref(''),
@@ -154,41 +173,41 @@ const activeFile = computed(() =>
   openedFiles.value.find(
     (file) =>
       file.id === activeFileID.value &&
-      file.projectID === project.value?.id &&
-      project.value.sessions.some((s) => s.id === file.sessionID),
+      file.workspaceID === workspace.value?.id &&
+      workspace.value.sessions.some((s) => s.id === file.sessionID),
   ),
 )
-const currentDestination = computed(() => activeFile.value?.id || destination(project.value))
+const currentDestination = computed(() => activeFile.value?.id || destination(workspace.value))
 const session = computed(() =>
-  project.value?.sessions.find((s) => s.id === (activeFile.value?.sessionID || currentDestination.value)),
+  workspace.value?.sessions.find((s) => s.id === (activeFile.value?.sessionID || currentDestination.value)),
 )
 watch(
-  () => [workspace.value.selectedProjectID, destination(project.value)].join(':'),
+  () => [appState.value.selectedWorkspaceID, destination(workspace.value)].join(':'),
   () => {
     activeFileID.value = ''
   },
   { flush: 'sync' },
 )
 watch(
-  () => workspace.value.projects,
-  (projects) => {
+  () => appState.value.workspaces,
+  (workspaces) => {
     openedFiles.value = openedFiles.value.filter((file) =>
-      projects.some((p) => p.id === file.projectID && p.sessions.some((s) => s.id === file.sessionID)),
+      workspaces.some((p) => p.id === file.workspaceID && p.sessions.some((s) => s.id === file.sessionID)),
     )
   },
 )
 function openFile(path) {
-  if (!session.value || !project.value) return
+  if (!session.value || !workspace.value) return
   const id = 'file:' + JSON.stringify([session.value.id, path])
   if (!openedFiles.value.some((file) => file.id === id))
-    openedFiles.value.push({ id, projectID: project.value.id, sessionID: session.value.id, path })
+    openedFiles.value.push({ id, workspaceID: workspace.value.id, sessionID: session.value.id, path })
   activeFileID.value = id
 }
-function fileDetail(file, project) {
-  return [worktreeName(project.sessions.find((s) => s.id === file.sessionID)), file.path].filter(Boolean).join(' · ')
+function fileDetail(file, workspace) {
+  return [worktreeName(workspace.sessions.find((s) => s.id === file.sessionID)), file.path].filter(Boolean).join(' · ')
 }
 async function selectFile(file) {
-  if (await action('Select', file.projectID, file.sessionID)) activeFileID.value = file.id
+  if (await action('Select', file.workspaceID, file.sessionID)) activeFileID.value = file.id
 }
 function closeFile(file) {
   openedFiles.value = openedFiles.value.filter((item) => item.id !== file.id)
@@ -196,12 +215,15 @@ function closeFile(file) {
   nextTick(() => document.querySelector('.sidebar .session-row.selected')?.focus())
 }
 const modalSession = computed(() =>
-  workspace.value.projects.flatMap((p) => p.sessions).find((s) => s.id === sessionID.value),
+  appState.value.workspaces.flatMap((p) => p.sessions).find((s) => s.id === sessionID.value),
 )
-const modalProject = computed(
-  () => workspace.value.projects.find((p) => p.id === sessionProjectID.value) || project.value,
+const modalWorkspace = computed(
+  () => appState.value.workspaces.find((p) => p.id === sessionWorkspaceID.value) || workspace.value,
 )
-const preferences = computed(() => workspace.value.preferences)
+const modalRepository = computed(() =>
+  repositories(modalWorkspace.value).find((r) => r.id === sessionRepositoryID.value),
+)
+const preferences = computed(() => appState.value.preferences)
 // Views get the appearance shown, so System mode needs no handling outside Settings.
 const shownPreferences = computed(() => ({
   ...preferences.value,
@@ -283,8 +305,8 @@ const appearance = computed(() => {
     '--status-warning': dark ? '#fbbf24' : '#9a6700',
   }
 })
-const sidebarProjects = computed(() =>
-  visibleSidebarProjects(workspace.value.projects, workspace.value.selectedProjectID, preferences.value.arcMode),
+const sidebarWorkspaces = computed(() =>
+  visibleSidebarWorkspaces(appState.value.workspaces, appState.value.selectedWorkspaceID, preferences.value.arcMode),
 )
 const sidebarWidth = computed(() => preferences.value.sidebarWidth || 280)
 const showsDiff = computed(() => Boolean(preferences.value.diffPaneOpen && session.value))
@@ -297,12 +319,12 @@ function announce(previous, next) {
   if (sessionsNeedingYou(previous, next, (s) => watching(s) || Date.now() - (lastKey[s.id] || 0) < 2000).length) chime()
 }
 function apply(state) {
-  if (state?.projects) {
-    const localPrefs = workspace.value.preferences
-    announce(workspace.value.projects, state.projects)
-    workspace.value = { ...state, profiles: state.profiles || [], runs: state.runs || [] }
+  if (state?.workspaces) {
+    const localPrefs = appState.value.preferences
+    announce(appState.value.workspaces, state.workspaces)
+    appState.value = { ...state, profiles: state.profiles || [], runs: state.runs || [] }
     if (preferencePending)
-      workspace.value.preferences = {
+      appState.value.preferences = {
         ...localPrefs,
         telemetryEnabled: state.preferences.telemetryEnabled,
         telemetryChoiceMade: state.preferences.telemetryChoiceMade,
@@ -319,15 +341,15 @@ async function action(method, ...args) {
     return null
   }
 }
-function openModal(kind, p = project.value) {
+function openModal(kind, p = workspace.value) {
   if (kind === 'settings') settingsSection.value = 'General'
   if (kind === 'command' && modal.value !== kind) track('feature_used', { feature: 'command_bar' })
   menu.value = null
   formError.value = ''
   modal.value = kind
-  if (kind === 'project') {
-    projectName.value = ''
-    projectDescription.value = ''
+  if (kind === 'workspace') {
+    workspaceName.value = ''
+    workspaceDescription.value = ''
     directory.value = ''
   }
   if (kind === 'session') {
@@ -337,29 +359,41 @@ function openModal(kind, p = project.value) {
     worktreeBranches.value = { current: '', branches: [] }
     gitInitialized.value = offerGitInit.value = false
     worktreeAvailable.value = true
-    if (p) sessionProjectID.value = p.id
-    sessionProfileID.value = findProfile(workspace.value.profiles, p?.profileID) ? p.profileID : ''
-    checkWorktree(modalProject.value?.id)
+    if (p) sessionWorkspaceID.value = p.id
+    sessionRepositoryID.value = defaultRepository(modalWorkspace.value)?.id || ''
+    sessionProfileID.value = findProfile(appState.value.profiles, p?.profileID) ? p.profileID : ''
+    checkWorktree(modalWorkspace.value?.id, sessionRepositoryID.value)
   }
 }
+// Worktrees, branches and Git initialization belong to the chosen repository.
+function chooseSessionRepository() {
+  newBranch.value = newBase.value = ''
+  worktreeBranches.value = { current: '', branches: [] }
+  gitInitialized.value = offerGitInit.value = false
+  worktreeAvailable.value = newWorktree.value = true
+  formError.value = ''
+  checkWorktree(modalWorkspace.value?.id, sessionRepositoryID.value)
+}
+const choosingRepository = (id, repositoryID) =>
+  modal.value === 'session' && modalWorkspace.value?.id === id && sessionRepositoryID.value === repositoryID
 // The status bar's usage popover opens Settings at Usage or Profiles; other entry points start at General.
 function openSettings(section) {
   openModal('settings')
   settingsSection.value = section
 }
-async function checkWorktree(id) {
-  if (!id) return
-  const available = await call('CanCreateWorktree', id).catch(() => true)
-  if (modal.value !== 'session' || modalProject.value?.id !== id) return
+async function checkWorktree(id, repositoryID) {
+  if (!id || !repositoryID) return
+  const available = await call('CanCreateWorktree', id, repositoryID).catch(() => true)
+  if (!choosingRepository(id, repositoryID)) return
   worktreeAvailable.value = available
   // Initialize Git Repository stays reachable now that the worktree error no longer appears.
   offerGitInit.value = !available
   if (!available) newWorktree.value = false
-  else loadWorktreeBranches(id)
+  else loadWorktreeBranches(id, repositoryID)
 }
-async function loadWorktreeBranches(id) {
-  const branches = await call('WorktreeBranches', id).catch(() => null)
-  if (branches && modal.value === 'session' && modalProject.value?.id === id) worktreeBranches.value = branches
+async function loadWorktreeBranches(id, repositoryID) {
+  const branches = await call('WorktreeBranches', id, repositoryID).catch(() => null)
+  if (branches && choosingRepository(id, repositoryID)) worktreeBranches.value = branches
 }
 // The status bar toggle and the command switch to the opposite of what is shown, leaving System.
 function toggleAppearance() {
@@ -373,8 +407,8 @@ function command(kind) {
     navigate(kind === 'next' ? 1 : -1)
     return
   }
-  if (kind === 'previousProject' || kind === 'nextProject') {
-    switchProject(kind === 'nextProject' ? 1 : -1)
+  if (kind === 'previousWorkspace' || kind === 'nextWorkspace') {
+    switchWorkspace(kind === 'nextWorkspace' ? 1 : -1)
     return
   }
   if (kind === 'command' && modal.value === 'command') {
@@ -401,22 +435,22 @@ function command(kind) {
     checkForUpdates()
     return
   }
-  if (kind === 'session' && !project.value) return
+  if (kind === 'session' && !workspace.value) return
   openModal(kind)
 }
 async function runCommand({ command: kind, item }) {
   closeModal()
-  if (kind === 'goto') return select(item.project, item.destination)
-  if (kind === 'github' || kind === 'scratchpad') return select(project.value, kind)
+  if (kind === 'goto') return select(item.workspace, item.destination)
+  if (kind === 'github' || kind === 'reviews' || kind === 'scratchpad') return select(workspace.value, kind)
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
   if (kind === 'appearance') return toggleAppearance()
-  if (kind === 'terminal') return newTerminal(project.value)
+  if (kind === 'terminal') return newTerminal(workspace.value)
   if (kind === 'openIn') return openIn(session.value, item.app)
   if (kind === 'renameSession') return edit(session.value.id, session.value.name, 'Session')
-  if (kind === 'copyPath') return copyPath(project.value, session.value)
-  if (kind === 'closeSession') return closeSession(project.value, session.value)
+  if (kind === 'copyPath') return copyPath(workspace.value, session.value)
+  if (kind === 'closeSession') return closeSession(workspace.value, session.value)
   if (kind === 'session' || kind === 'worktreeSession') {
-    sessionProjectID.value = project.value.id
+    sessionWorkspaceID.value = workspace.value.id
     await createSession(item.agent, '', kind === 'worktreeSession')
     if (formError.value) {
       error.value = formError.value
@@ -427,28 +461,30 @@ async function runCommand({ command: kind, item }) {
   await nextTick()
   command(kind)
 }
-// Projects follow the sidebar order and wrap around, opening where each was left.
-function switchProject(step) {
-  const projects = workspace.value.projects
-  if (modal.value || !projects.length) return
-  const index = projects.findIndex((p) => p.id === project.value?.id)
+// Workspaces follow the sidebar order and wrap around, opening where each was left.
+function switchWorkspace(step) {
+  const workspaces = appState.value.workspaces
+  if (modal.value || !workspaces.length) return
+  const index = workspaces.findIndex((p) => p.id === workspace.value?.id)
   const next =
-    projects[index < 0 ? (step > 0 ? 0 : projects.length - 1) : (index + step + projects.length) % projects.length]
-  if (next.id !== project.value?.id) select(next, 'project')
+    workspaces[
+      index < 0 ? (step > 0 ? 0 : workspaces.length - 1) : (index + step + workspaces.length) % workspaces.length
+    ]
+  if (next.id !== workspace.value?.id) select(next, 'workspace')
 }
 function navigate(step) {
   if (modal.value) return
   const item = adjacentItem(
-    sidebarProjects.value.map((p) => ({
+    sidebarWorkspaces.value.map((p) => ({
       ...p,
       isExpanded: preferences.value.arcMode || p.isExpanded,
-      sessions: [...p.sessions, ...openedFiles.value.filter((file) => file.projectID === p.id)],
+      sessions: [...p.sessions, ...openedFiles.value.filter((file) => file.workspaceID === p.id)],
     })),
-    project.value?.id,
+    workspace.value?.id,
     currentDestination.value,
     step,
   )
-  if (item) select(item.project, item.destination)
+  if (item) select(item.workspace, item.destination)
 }
 function toggleSidebar() {
   if (modal.value) return
@@ -468,7 +504,7 @@ function toggleFiles() {
   if (!showsDiff.value) toggleDiff()
 }
 function togglePullRequest() {
-  if (modal.value || !session.value || !project.value?.repository) return
+  if (modal.value || !sessionRepository(workspace.value, session.value)?.gitHub) return
   if (showsDiff.value && sidebarTab.value === 'PR') {
     toggleDiff()
     return
@@ -486,14 +522,14 @@ function toggleDiff() {
   if (closing && inPane) closeModal()
 }
 async function keepLocalMainUpToDate() {
-  const { projectID } = localMainNotice.value
+  const { workspaceID, repositoryID } = localMainNotice.value
   localMainNotice.value = null
-  await action('KeepLocalMainUpToDate', projectID)
+  await action('KeepLocalMainUpToDate', workspaceID, repositoryID)
 }
 function dismissLocalMainNotice() {
-  const { projectID } = localMainNotice.value
+  const { workspaceID } = localMainNotice.value
   localMainNotice.value = null
-  action('DismissLocalMainNotice', projectID)
+  action('DismissLocalMainNotice', workspaceID)
 }
 function openGitSettings() {
   localMainNotice.value = null
@@ -513,11 +549,11 @@ function closeModal() {
 }
 async function select(p, dest) {
   menu.value = null
-  const file = openedFiles.value.find((file) => file.id === dest && file.projectID === p.id)
+  const file = openedFiles.value.find((file) => file.id === dest && file.workspaceID === p.id)
   if (file) return selectFile(file)
   activeFileID.value = ''
   const state = await action('Select', p.id, dest)
-  if (dest === 'github') visitedGitHub.value.add(p.id)
+  if (gitHubViews.includes(dest)) visitedGitHub.value.add(p.id + ':' + dest)
   const sess = p.sessions.find((s) => s.id === dest)
   if (sess) {
     visitedTerminals.value.add(sess.id)
@@ -542,16 +578,16 @@ async function chooseFolder() {
     const result = await call('ChooseFolder')
     if (result) {
       directory.value = result
-      if (!projectName.value.trim()) projectName.value = result.split('/').filter(Boolean).at(-1)
+      if (!workspaceName.value.trim()) workspaceName.value = result.split('/').filter(Boolean).at(-1)
     }
   } catch (e) {
     formError.value = String(e)
   }
 }
-async function createProject() {
+async function createWorkspace() {
   busy.value = true
   try {
-    apply(await call('CreateProject', projectName.value, directory.value, projectDescription.value))
+    apply(await call('CreateWorkspace', workspaceName.value, directory.value, workspaceDescription.value))
     closeModal()
     await detectAll()
   } catch (e) {
@@ -568,16 +604,19 @@ async function createSession(
   source = null,
   model = '',
   effort = '',
-  profileID = (modalProject.value || project.value)?.profileID || '',
+  profileID = (modalWorkspace.value || workspace.value)?.profileID || '',
   branch = '',
   base = '',
+  // Empty starts in the repository New Session chose last.
+  repositoryID = '',
 ) {
   busy.value = true
   try {
     const state = apply(
       await call(
         'CreateSession',
-        modalProject.value?.id || project.value.id,
+        modalWorkspace.value?.id || workspace.value.id,
+        repositoryID,
         agent,
         name,
         prompt,
@@ -590,7 +629,7 @@ async function createSession(
         base,
       ),
     )
-    visitedTerminals.value.add(state.projects.find((p) => p.id === state.selectedProjectID).selectedSessionID)
+    visitedTerminals.value.add(state.workspaces.find((p) => p.id === state.selectedWorkspaceID).selectedSessionID)
     closeModal()
   } catch (e) {
     formError.value = String(e)
@@ -604,15 +643,15 @@ async function initializeGit() {
   if (busy.value) return
   busy.value = initializingGit.value = true
   try {
-    apply(await call('InitializeGitRepository', modalProject.value.id))
+    apply(await call('InitializeGitRepository', modalWorkspace.value.id, sessionRepositoryID.value))
     formError.value = ''
     offerGitInit.value = false
     gitInitialized.value = true
     // Initializing here means the user wants a worktree, so offer it again as the note describes.
     worktreeAvailable.value = newWorktree.value = true
-    loadWorktreeBranches(modalProject.value.id)
+    loadWorktreeBranches(modalWorkspace.value.id, sessionRepositoryID.value)
     // The button goes away, so keep keyboard focus inside the dialog.
-    nextTick(() => document.querySelector('#session-agent')?.focus())
+    nextTick(() => document.querySelector('#session-repository, #session-agent')?.focus())
   } catch (e) {
     formError.value = String(e)
   } finally {
@@ -621,7 +660,7 @@ async function initializeGit() {
 }
 async function newTerminal(p) {
   menu.value = null
-  sessionProjectID.value = p.id
+  sessionWorkspaceID.value = p.id
   await createSession('terminal')
   if (formError.value) {
     error.value = formError.value
@@ -643,11 +682,17 @@ function workOn(item, choice = {}) {
 // Like Review, this only starts a new session; it never types into an existing one.
 function resolveConflicts(conflict, choice = {}) {
   const task = conflictTask(conflict)
-  return startGitHubSession({ number: conflict.number, pull_request: {} }, task.prompt, task.name, choice)
+  return startGitHubSession(
+    { number: conflict.number, pull_request: {}, repositoryID: conflict.repositoryID },
+    task.prompt,
+    task.name,
+    choice,
+  )
 }
+// Items carry the repository Work Items read them from, so the session starts there.
 async function startGitHubSession(item, prompt, name, choice) {
   if (busy.value) return
-  sessionProjectID.value = project.value.id
+  sessionWorkspaceID.value = workspace.value.id
   await createSession(
     choice.agent || preferences.value.defaultAgent,
     prompt,
@@ -657,6 +702,9 @@ async function startGitHubSession(item, prompt, name, choice) {
     choice.model,
     choice.effort,
     choice.profileID,
+    '',
+    '',
+    item.repositoryID,
   )
   if (formError.value) {
     error.value = formError.value
@@ -664,24 +712,31 @@ async function startGitHubSession(item, prompt, name, choice) {
   }
 }
 function edit(id, name, kind, description = '', emoji = '', profileID = '') {
-  projectProfileID.value = profileID
+  workspaceProfileID.value = profileID
+  const edited = kind === 'Workspace' && appState.value.workspaces.find((p) => p.id === id)
+  repositoryNames.value = Object.fromEntries(repositories(edited).map((r) => [r.id, r.name]))
   renameID.value = id
   renameValue.value = name
   renameKind.value = kind
-  projectDescription.value = description
-  projectEmoji.value = emoji
+  workspaceDescription.value = description
+  workspaceEmoji.value = emoji
   openModal('rename')
   nextTick(() => document.querySelector('.rename-dialog input[autofocus]')?.select())
 }
 async function rename() {
   busy.value = true
   try {
-    let state = await (renameKind.value === 'Project'
-      ? call('EditProject', renameID.value, renameValue.value, projectDescription.value, projectEmoji.value)
+    let state = await (renameKind.value === 'Workspace'
+      ? call('EditWorkspace', renameID.value, renameValue.value, workspaceDescription.value, workspaceEmoji.value)
       : call(renameKind.value === 'Scratchpad' ? 'RenameScratchpad' : 'Rename', renameID.value, renameValue.value))
-    const edited = state.projects?.find((p) => p.id === renameID.value)
-    if (renameKind.value === 'Project' && edited && (edited.profileID || '') !== projectProfileID.value)
-      state = await call('SetProjectProfile', renameID.value, projectProfileID.value)
+    const edited = state.workspaces?.find((p) => p.id === renameID.value)
+    if (renameKind.value === 'Workspace' && edited && (edited.profileID || '') !== workspaceProfileID.value)
+      state = await call('SetWorkspaceProfile', renameID.value, workspaceProfileID.value)
+    if (renameKind.value === 'Workspace')
+      for (const repo of repositories(edited)) {
+        const name = repositoryNames.value[repo.id]?.trim()
+        if (name && name !== repo.name) state = await call('RenameRepository', renameID.value, repo.id, name)
+      }
     apply(state)
     closeModal()
   } catch (e) {
@@ -695,26 +750,52 @@ function scratchpadMenu(event, p) {
   const rect = event.currentTarget.getBoundingClientRect()
   menu.value = {
     kind: 'scratchpad',
-    project: p,
+    workspace: p,
     x: Math.min(event.clientX ?? rect.left, innerWidth - 230),
     y: Math.min(event.clientY ?? rect.bottom, innerHeight - 200),
   }
 }
 function deleteScratchpad(p) {
-  scratchpadProjectID.value = p.id
+  scratchpadWorkspaceID.value = p.id
   openModal('deleteScratchpad')
 }
-function removeProject(p) {
-  removalProjectID.value = p.id
-  openModal('removeProject')
+// Add Repository adds a local folder; removing one keeps the folder and needs its sessions closed.
+async function addRepository(p) {
+  menu.value = null
+  const fail = (e) => (modal.value === 'rename' ? (formError.value = String(e)) : (error.value = String(e)))
+  try {
+    const folder = await call('ChooseFolder')
+    if (!folder) return
+    const state = apply(await call('AddRepository', p.id, folder))
+    const added = repositories(state.workspaces.find((x) => x.id === p.id)).at(-1)
+    if (added && !(added.id in repositoryNames.value)) repositoryNames.value[added.id] = added.name
+  } catch (e) {
+    fail(e)
+  }
 }
-async function confirmRemoveProject() {
-  const p = removalProject.value
+async function removeRepository(p, repo) {
+  try {
+    apply(await call('RemoveRepository', p.id, repo.id))
+    delete repositoryNames.value[repo.id]
+  } catch (e) {
+    formError.value = String(e)
+  }
+}
+const repositorySessionCount = (p, repo) => p.sessions.filter((s) => s.repositoryID === repo.id).length
+const editedWorkspace = computed(() =>
+  renameKind.value === 'Workspace' ? appState.value.workspaces.find((p) => p.id === renameID.value) : null,
+)
+function removeWorkspace(p) {
+  removalWorkspaceID.value = p.id
+  openModal('removeWorkspace')
+}
+async function confirmRemoveWorkspace() {
+  const p = removalWorkspace.value
   if (!p || busy.value) return
   busy.value = true
   try {
-    apply(await call('RemoveProject', p.id))
-    visitedGitHub.value.delete(p.id)
+    apply(await call('RemoveWorkspace', p.id))
+    for (const view of gitHubViews) visitedGitHub.value.delete(p.id + ':' + view)
     for (const sess of p.sessions) {
       visitedTerminals.value.delete(sess.id)
       delete terminalVersions.value[sess.id]
@@ -729,8 +810,8 @@ async function confirmRemoveProject() {
 async function confirmDeleteScratchpad() {
   busy.value = true
   try {
-    scratchpadDrafts.delete(scratchpadProjectID.value)
-    apply(await call('DeleteScratchpad', scratchpadProjectID.value))
+    scratchpadDrafts.delete(scratchpadWorkspaceID.value)
+    apply(await call('DeleteScratchpad', scratchpadWorkspaceID.value))
     closeModal()
   } catch (e) {
     formError.value = String(e)
@@ -743,23 +824,23 @@ function sessionMenu(event, p, sess) {
   const rect = event.currentTarget.getBoundingClientRect()
   menu.value = {
     kind: 'session',
-    project: p,
+    workspace: p,
     session: sess,
     x: Math.min(event.clientX ?? rect.left, innerWidth - 230),
     y: Math.min(event.clientY ?? rect.bottom, innerHeight - 330),
   }
 }
-function projectMenu(event, p, kind) {
+function workspaceMenu(event, p, kind) {
   const rect = event.currentTarget.getBoundingClientRect()
   menu.value = {
     kind,
-    project: p,
+    workspace: p,
     x: Math.min(rect.left, innerWidth - 230),
     y: Math.min(
       rect.bottom + 3,
       innerHeight -
-        (kind === 'project'
-          ? 200 + workspace.value.profiles.length * 30 + (workspace.value.profiles.length ? 70 : 0)
+        (kind === 'workspace'
+          ? 230 + appState.value.profiles.length * 30 + (appState.value.profiles.length ? 70 : 0)
           : 150),
     ),
   }
@@ -767,18 +848,18 @@ function projectMenu(event, p, kind) {
 // Signing in runs in a terminal session; Settings closes so the user can complete it there.
 function loggingIn(state) {
   apply(state)
-  visitedTerminals.value.add(state.projects.find((p) => p.id === state.selectedProjectID).selectedSessionID)
+  visitedTerminals.value.add(state.workspaces.find((p) => p.id === state.selectedWorkspaceID).selectedSessionID)
   closeModal()
 }
 function messages(p, sess) {
   sessionID.value = sess.id
-  sessionProjectID.value = p.id
+  sessionWorkspaceID.value = p.id
   openModal('messages')
 }
 function openInbox() {
   const pending = (sess) =>
-    workspace.value.runs.some((r) => r.toSessionID === sess.id && ['queued', 'needsAttention'].includes(r.status))
-  const sessions = workspace.value.projects.flatMap((p) => p.sessions.map((sess) => ({ p, sess })))
+    appState.value.runs.some((r) => r.toSessionID === sess.id && ['queued', 'needsAttention'].includes(r.status))
+  const sessions = appState.value.workspaces.flatMap((p) => p.sessions.map((sess) => ({ p, sess })))
   const target =
     sessions.find(({ sess }) => sess.id === session.value?.id && pending(sess)) ||
     sessions.find(({ sess }) => pending(sess))
@@ -787,7 +868,7 @@ function openInbox() {
 async function closeSession(p, sess) {
   menu.value = null
   sessionID.value = sess.id
-  sessionProjectID.value = p.id
+  sessionWorkspaceID.value = p.id
   removeWorktree.value = preferences.value.confirmSessionClose
   if (preferences.value.confirmSessionClose) openModal('close')
   else await confirmClose()
@@ -807,7 +888,7 @@ const scratchpadForwards = new Map()
 const scratchpadDrafts = new Map()
 async function saveScratchpad(id, text, base) {
   let revision = base.revision
-  const p = workspace.value.projects.find((p) => p.id === id)
+  const p = appState.value.workspaces.find((p) => p.id === id)
   if (!p?.hasScratchpad) return true
   p.scratchpadText = text
   scratchpadQueue = scratchpadQueue
@@ -817,24 +898,24 @@ async function saveScratchpad(id, text, base) {
     })
     .then((saved) => {
       if (saved !== revision) scratchpadForwards.set(id + ':' + revision, saved)
-      const current = workspace.value.projects.find((p) => p.id === id)
+      const current = appState.value.workspaces.find((p) => p.id === id)
       if (current && saved > (current.scratchpadRevision || 0)) current.scratchpadRevision = saved
       return true
     })
     .catch(async (e) => {
-      if (!workspace.value.projects.find((p) => p.id === id)?.hasScratchpad) return true
+      if (!appState.value.workspaces.find((p) => p.id === id)?.hasScratchpad) return true
       // An agent changed the Scratchpad first. The editor reconciles with the stored text.
       if (!String(e).includes('changed since it was read')) error.value = String(e)
       else {
-        if (scratchpadView.value?.projectID !== id) scratchpadDrafts.set(id, { text, base })
-        apply(await call('Workspace').catch(() => null))
+        if (scratchpadView.value?.workspaceID !== id) scratchpadDrafts.set(id, { text, base })
+        apply(await call('State').catch(() => null))
       }
       return false
     })
   return scratchpadQueue
 }
 function requestQuit(state) {
-  if (state?.projects) apply(state)
+  if (state?.workspaces) apply(state)
   if (quitting.value || modal.value === 'quit') return
   if (preferences.value.confirmQuit && activeSessionCount.value) {
     openModal('quit')
@@ -861,7 +942,7 @@ async function finishQuit(stopSessions = false) {
 
 let preferenceQueue = Promise.resolve()
 function changePreferences(value) {
-  workspace.value.preferences = { ...value }
+  appState.value.preferences = { ...value }
   preferencePending++
   preferenceQueue = preferenceQueue
     .then(() => call('SetPreferences', value))
@@ -930,22 +1011,22 @@ async function loadOpenInApps() {
     console.warn('Could not list apps: ' + e)
   }
 }
-// Favicons in project folders replace the folder symbol when a project has no emoji. They are read
-// when projects are added or moved to another folder, and on focus at most every 30 seconds.
-const projectIcons = ref({})
-let projectIconsRead = 0
-async function loadProjectIcons(force) {
-  if (force !== true && Date.now() - projectIconsRead < 30000) return
-  projectIconsRead = Date.now()
+// Favicons in a workspace's first repository replace the folder symbol when it has no emoji. They are
+// read when workspaces are added or their first repository changes, and on focus at most every 30 seconds.
+const workspaceIcons = ref({})
+let workspaceIconsRead = 0
+async function loadWorkspaceIcons(force) {
+  if (force !== true && Date.now() - workspaceIconsRead < 30000) return
+  workspaceIconsRead = Date.now()
   try {
-    projectIcons.value = (await call('ProjectIcons')) || {}
+    workspaceIcons.value = (await call('WorkspaceIcons')) || {}
   } catch (e) {
-    console.warn('Could not read project icons: ' + e)
+    console.warn('Could not read workspace icons: ' + e)
   }
 }
 watch(
-  () => workspace.value.projects?.map((p) => p.id + '\0' + p.directory).join('\n'),
-  () => loadProjectIcons(true),
+  () => appState.value.workspaces?.map((p) => p.id + '\0' + repositories(p)[0]?.directory).join('\n'),
+  () => loadWorkspaceIcons(true),
 )
 // Go resolves the folder from the session; the app used becomes the Open in button's default.
 async function openIn(sess, app) {
@@ -1005,12 +1086,12 @@ let unsubs = [],
   resizeCleanup
 // Store owns persisted sidebar order; pointer dragging only previews it.
 function orderOf(kind, group) {
-  const p = workspace.value.projects.find((p) => p.id === group)
-  return (kind === 'project' ? workspace.value.projects : p ? projectRows(p) : []).map((item) => item.id)
+  const p = appState.value.workspaces.find((p) => p.id === group)
+  return (kind === 'workspace' ? appState.value.workspaces : p ? workspaceRows(p) : []).map((item) => item.id)
 }
 function move(kind, id, index, group) {
-  return kind === 'project'
-    ? action('MoveProject', id, index)
+  return kind === 'workspace'
+    ? action('MoveWorkspace', id, index)
     : id === 'scratchpad'
       ? action('MoveScratchpad', group, index)
       : action('MoveSession', id, index)
@@ -1025,7 +1106,7 @@ function dragSidebar(event) {
   const start = event.clientX,
     width = sidebarWidth.value
   const move = (e) => {
-    workspace.value.preferences.sidebarWidth = Math.max(220, Math.min(400, width + e.clientX - start))
+    appState.value.preferences.sidebarWidth = Math.max(220, Math.min(400, width + e.clientX - start))
   }
   const stop = () => {
     removeEventListener('pointermove', move)
@@ -1056,19 +1137,19 @@ function keys(event) {
   }
 }
 async function detectAll() {
-  await Promise.allSettled(workspace.value.projects.map((p) => action('DetectRepository', p.id)))
+  await Promise.allSettled(appState.value.workspaces.map((p) => action('DetectRepository', p.id)))
 }
 watch(
   currentDestination,
   (value) => {
-    if (value === 'github' && project.value) visitedGitHub.value.add(project.value.id)
+    if (gitHubViews.includes(value) && workspace.value) visitedGitHub.value.add(workspace.value.id + ':' + value)
     if (session.value && !session.value.restored) visitedTerminals.value.add(session.value.id)
   },
   { immediate: true },
 )
 onMounted(async () => {
   unsubs = [
-    on('workspace', apply),
+    on('state', apply),
     on('command', command),
     on('quit-request', requestQuit),
     on('update', (status) => (updateStatus.value = status)),
@@ -1078,20 +1159,21 @@ onMounted(async () => {
   addEventListener('focus', loadCustomThemes)
   addEventListener('focus', applyTranslucency)
   addEventListener('focus', loadOpenInApps)
-  addEventListener('focus', loadProjectIcons)
+  addEventListener('focus', loadWorkspaceIcons)
   loadOpenInApps()
   try {
     setSystemPalettes(await call('SystemPalettes'))
     await loadCustomThemes()
-    apply(await call('Workspace'))
+    apply(await call('State'))
     call('UpdateStatus')
       .then((status) => (updateStatus.value = status))
       .catch(() => {})
     telemetryStatus.value = await call('TelemetryStatus')
     await detectAll()
-    const initialView = startupDestination(project.value, preferences.value)
-    if (initialView) await select(project.value, initialView)
-    if (currentDestination.value === 'github' && project.value) visitedGitHub.value.add(project.value.id)
+    const initialView = startupDestination(workspace.value, preferences.value)
+    if (initialView) await select(workspace.value, initialView)
+    if (gitHubViews.includes(currentDestination.value) && workspace.value)
+      visitedGitHub.value.add(workspace.value.id + ':' + currentDestination.value)
   } catch (e) {
     error.value = String(e)
   } finally {
@@ -1106,7 +1188,7 @@ onBeforeUnmount(() => {
   removeEventListener('focus', loadCustomThemes)
   removeEventListener('focus', applyTranslucency)
   removeEventListener('focus', loadOpenInApps)
-  removeEventListener('focus', loadProjectIcons)
+  removeEventListener('focus', loadWorkspaceIcons)
   resizeCleanup?.()
 })
 </script>
@@ -1137,69 +1219,84 @@ onBeforeUnmount(() => {
         </button>
       </div>
       <div v-if="!preferences.arcMode" class="sidebar-heading">
-        <strong>Projects</strong
-        ><button class="icon-button" aria-label="New Project" title="New Project" @click="openModal('project')">
+        <strong>Workspaces</strong
+        ><button class="icon-button" aria-label="New Workspace" title="New Workspace" @click="openModal('workspace')">
           <Icon name="plus" :size="16" />
         </button>
       </div>
-      <div class="sidebar-projects" :class="{ 'project-list': !preferences.arcMode }">
+      <div class="sidebar-workspaces" :class="{ 'workspace-list': !preferences.arcMode }">
         <component
-          :is="preferences.arcMode ? ArcProjectPager : SidebarList"
-          :items="preferences.arcMode ? workspace.projects : sidebarProjects"
-          :selected-id="sidebarProjects[0]?.id"
-          handle=".project-title"
-          kind="project-sort-list"
-          :reorder="(id, index) => move('project', id, index)"
-          :select-project="preferences.arcMode ? (p) => select(p, 'project') : undefined"
-          :create-project="preferences.arcMode ? () => openModal('project') : undefined"
+          :is="preferences.arcMode ? ArcWorkspacePager : SidebarList"
+          :items="preferences.arcMode ? appState.workspaces : sidebarWorkspaces"
+          :selected-id="sidebarWorkspaces[0]?.id"
+          handle=".workspace-title"
+          kind="workspace-sort-list"
+          :reorder="(id, index) => move('workspace', id, index)"
+          :select-workspace="preferences.arcMode ? (p) => select(p, 'workspace') : undefined"
+          :create-workspace="preferences.arcMode ? () => openModal('workspace') : undefined"
           :open-settings="preferences.arcMode ? () => openModal('settings') : undefined"
           ><template #default="{ item: p }"
-            ><section class="project-group">
-              <div class="project-heading">
+            ><section class="workspace-group">
+              <div class="workspace-heading">
                 <button
-                  class="project-title"
-                  :title="p.description ? p.description + '\n\n' + p.directory : p.directory"
-                  @click="select(p, 'project')"
+                  class="workspace-title"
+                  :title="
+                    [
+                      p.description,
+                      repositories(p)
+                        .map((r) => r.directory)
+                        .join('\n'),
+                    ]
+                      .filter(Boolean)
+                      .join('\n\n')
+                  "
+                  @click="select(p, 'workspace')"
                 >
-                  <span v-if="p.emoji" class="project-emoji" aria-hidden="true">{{ p.emoji }}</span
-                  ><img v-else-if="projectIcons[p.id]" class="project-icon" :src="projectIcons[p.id]" alt="" /><Icon
-                    v-else
-                    :name="p.isExpanded ? 'folder' : 'folder.fill'"
-                    :size="16"
-                  /><span>{{ p.name }}</span></button
+                  <span v-if="p.emoji" class="workspace-emoji" aria-hidden="true">{{ p.emoji }}</span
+                  ><img
+                    v-else-if="workspaceIcons[p.id]"
+                    class="workspace-icon"
+                    :src="workspaceIcons[p.id]"
+                    alt=""
+                  /><Icon v-else :name="p.isExpanded ? 'folder' : 'folder.fill'" :size="16" /><span>{{
+                    p.name
+                  }}</span></button
                 ><button
                   v-if="!preferences.arcMode"
                   class="icon-button hover-control"
                   :aria-label="(p.isExpanded ? 'Collapse ' : 'Expand ') + p.name"
-                  @click="action('ToggleProject', p.id)"
+                  @click="action('ToggleWorkspace', p.id)"
                 >
                   <Icon :name="p.isExpanded ? 'chevron.down' : 'chevron.right'" :size="9" /></button
                 ><span class="spacer" /><button
                   class="icon-button hover-control"
                   :aria-label="'Options for ' + p.name"
                   @pointerdown.stop
-                  @click.stop="projectMenu($event, p, 'project')"
+                  @click.stop="workspaceMenu($event, p, 'workspace')"
                 >
                   <Icon name="ellipsis" /></button
                 ><button
                   class="icon-button hover-control"
                   :aria-label="'Add to ' + p.name"
                   @pointerdown.stop
-                  @click.stop="projectMenu($event, p, 'add')"
+                  @click.stop="workspaceMenu($event, p, 'add')"
                 >
                   <Icon name="plus" :size="14" />
                 </button>
               </div>
-              <div v-if="preferences.arcMode || p.isExpanded" class="project-children">
-                <button
-                  v-if="p.repository"
-                  class="sidebar-row"
-                  :class="{ selected: project?.id === p.id && currentDestination === 'github' }"
-                  @click="select(p, 'github')"
-                >
-                  <Icon name="list.bullet.rectangle" :size="15" /><span>Issues &amp; PRs</span></button
+              <div v-if="preferences.arcMode || p.isExpanded" class="workspace-children">
+                <template v-if="hasWorkItems(p)"
+                  ><button
+                    v-for="view in gitHubViewRows"
+                    :key="view.id"
+                    class="sidebar-row"
+                    :class="{ selected: workspace?.id === p.id && currentDestination === view.id }"
+                    @click="select(p, view.id)"
+                  >
+                    <Icon :name="view.icon" :size="15" /><span>{{ view.name }}</span>
+                  </button></template
                 ><SidebarList
-                  :items="projectRows(p)"
+                  :items="workspaceRows(p)"
                   handle=".session-row,.scratchpad-row"
                   kind="session-sort-list"
                   :reorder="(id, index) => move('session', id, index, p.id)"
@@ -1207,7 +1304,7 @@ onBeforeUnmount(() => {
                     ><button
                       v-if="sess.scratchpad"
                       class="sidebar-row scratchpad-row"
-                      :class="{ selected: project?.id === p.id && currentDestination === 'scratchpad' }"
+                      :class="{ selected: workspace?.id === p.id && currentDestination === 'scratchpad' }"
                       @click="select(p, 'scratchpad')"
                       @contextmenu="scratchpadMenu($event, p)"
                       @keydown.shift.f10.prevent="scratchpadMenu($event, p)"
@@ -1218,12 +1315,13 @@ onBeforeUnmount(() => {
                     ><template v-else
                       ><button
                         class="sidebar-row session-row"
-                        :class="{ selected: project?.id === p.id && currentDestination === sess.id }"
+                        :class="{ selected: workspace?.id === p.id && currentDestination === sess.id }"
                         :title="
+                          (repositoryLabel(p, sess) ? repositoryLabel(p, sess) + ' — ' : '') +
                           (sess.worktreeBranch ? sess.worktreeBranch + ' · ' + sess.worktreeDirectory + ' — ' : '') +
                           sess.name +
                           ' — Profile: ' +
-                          profileName(workspace.profiles, sess.profileID) +
+                          profileName(appState.profiles, sess.profileID) +
                           ' — ' +
                           (isTerminal(sess)
                             ? sess.restored
@@ -1251,19 +1349,21 @@ onBeforeUnmount(() => {
                                 ? 'Ready to resume'
                                 : 'Resume unavailable'
                           }}</small
-                          ><small v-if="sess.worktreeBranch" class="truncate">{{ sess.worktreeBranch }}</small></span
+                          ><small v-if="repositoryLabel(p, sess) || sess.worktreeBranch" class="truncate">{{
+                            [repositoryLabel(p, sess), sess.worktreeBranch].filter(Boolean).join(' · ')
+                          }}</small></span
                         ><span
-                          v-if="sessionProfile(workspace.profiles, p, sess)"
+                          v-if="sessionProfile(appState.profiles, p, sess)"
                           class="profile-badge"
-                          :class="{ missing: sessionProfile(workspace.profiles, p, sess).missing }"
+                          :class="{ missing: sessionProfile(appState.profiles, p, sess).missing }"
                           role="img"
-                          :aria-label="'Profile: ' + sessionProfile(workspace.profiles, p, sess).name"
-                          >{{ sessionProfile(workspace.profiles, p, sess).symbol }}</span
+                          :aria-label="'Profile: ' + sessionProfile(appState.profiles, p, sess).name"
+                          >{{ sessionProfile(appState.profiles, p, sess).symbol }}</span
                         ><span
-                          v-if="workspace.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length"
+                          v-if="appState.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length"
                           class="count unread"
                           >{{
-                            workspace.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length
+                            appState.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length
                           }}</span
                         ><i v-if="!isTerminal(sess)" class="activity-dot" :class="sess.activity" /></button
                       ><!-- prettier-ignore-attribute @click --><button
@@ -1277,7 +1377,7 @@ onBeforeUnmount(() => {
                   ></SidebarList
                 >
                 <div
-                  v-for="file in openedFiles.filter((file) => file.projectID === p.id)"
+                  v-for="file in openedFiles.filter((file) => file.workspaceID === p.id)"
                   :key="file.id"
                   class="sidebar-file-row"
                   :class="{ selected: activeFile?.id === file.id }"
@@ -1305,15 +1405,15 @@ onBeforeUnmount(() => {
       </div>
       <ArcSpaces
         v-if="preferences.arcMode"
-        :projects="workspace.projects"
-        :project-icons="projectIcons"
-        :selected-id="sidebarProjects[0]?.id"
+        :workspaces="appState.workspaces"
+        :workspace-icons="workspaceIcons"
+        :selected-id="sidebarWorkspaces[0]?.id"
         :settings-open="modal === 'settings'"
-        :reorder="(id, index) => move('project', id, index)"
-        @select="select($event, 'project')"
-        @options="projectMenu($event.event, $event.project, 'project')"
+        :reorder="(id, index) => move('workspace', id, index)"
+        @select="select($event, 'workspace')"
+        @options="workspaceMenu($event.event, $event.workspace, 'workspace')"
         @settings="openModal('settings')"
-        @create="openModal('project')"
+        @create="openModal('workspace')"
       />
       <div v-else class="sidebar-footer">
         <button class="sidebar-row" :class="{ selected: modal === 'settings' }" @click="openModal('settings')">
@@ -1335,45 +1435,47 @@ onBeforeUnmount(() => {
       </button>
       <div class="content-body">
         <div v-if="loading" class="empty-state"><span class="spinner" /></div>
-        <div v-else-if="!project" class="empty-state">
+        <div v-else-if="!workspace" class="empty-state">
           <Icon name="folder" :size="48" />
-          <h2>No Project Selected</h2>
-          <p>Create or select a project to access its sessions.</p>
-          <button class="standard-button" @click="openModal('project')">New Project</button>
+          <h2>No Workspace Selected</h2>
+          <p>Create or select a workspace to access its sessions.</p>
+          <button class="standard-button" @click="openModal('workspace')">New Workspace</button>
         </div>
         <template v-else
           ><Scratchpad
             ref="scratchpadView"
             v-if="currentDestination === 'scratchpad'"
-            :key="project.id"
-            :project="project"
-            :draft="scratchpadDrafts.get(project.id)"
-            @vue:mounted="scratchpadDrafts.delete(project.id)"
+            :key="workspace.id"
+            :workspace="workspace"
+            :draft="scratchpadDrafts.get(workspace.id)"
+            @vue:mounted="scratchpadDrafts.delete(workspace.id)"
             @save="saveScratchpad"
             @mode="(id, mode) => action('SetScratchpadMode', id, mode)"
           />
-          <template v-for="p in workspace.projects" :key="p.id"
-            ><div
-              v-if="visitedGitHub.has(p.id) && p.repository"
-              v-show="project?.id === p.id && currentDestination === 'github'"
-              class="github-pane"
-            >
-              <GitHub
-                :project="p"
-                :refresh-interval="preferences.gitHubRefreshInterval"
-                :default-agent="preferences.defaultAgent"
-                :profiles="workspace.profiles"
-                :visible="project?.id === p.id && currentDestination === 'github' && !modal"
-                @work="workOn"
-                @resolve="resolveConflicts"
-                @session="(sess) => select(p, sess.id)"
-                @error="error = $event"
-              /></div
+          <template v-for="p in appState.workspaces" :key="p.id"
+            ><template v-for="view in gitHubViews" :key="view"
+              ><div
+                v-if="visitedGitHub.has(p.id + ':' + view) && hasWorkItems(p)"
+                v-show="workspace?.id === p.id && currentDestination === view"
+                class="github-pane"
+              >
+                <GitHub
+                  :workspace="p"
+                  :kind="view === 'reviews' ? 'reviews' : 'workItems'"
+                  :refresh-interval="preferences.gitHubRefreshInterval"
+                  :default-agent="preferences.defaultAgent"
+                  :profiles="appState.profiles"
+                  :visible="workspace?.id === p.id && currentDestination === view && !modal"
+                  @work="workOn"
+                  @resolve="resolveConflicts"
+                  @session="(sess) => select(p, sess.id)"
+                  @error="error = $event"
+                /></div></template
           ></template>
           <div v-if="currentDestination === 'empty'" class="empty-state">
             <Icon name="terminal" :size="48" />
             <h2>No Sessions</h2>
-            <p>Choose an agent to start a session in this project’s folder.</p>
+            <p>Choose a repository and an agent to start a session in this workspace.</p>
             <button class="standard-button" @click="openModal('session')">New Session</button>
           </div>
           <FileView v-if="activeFile" :file="activeFile" :session="session" @close="closeFile(activeFile)" />
@@ -1384,7 +1486,7 @@ onBeforeUnmount(() => {
               :last="preferences.openInApp"
               :visible="!modal"
               @open="openIn(session, $event)"
-              @copy="copyPath(project, session)"
+              @copy="copyPath(workspace, session)"
             />
             <Icon name="terminal" :size="48" />
             <h2>
@@ -1399,9 +1501,9 @@ onBeforeUnmount(() => {
             <p>
               {{
                 !session.hasLaunched
-                  ? `Start ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'this project’s folder'}.`
+                  ? `Start ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'the ' + (sessionRepository(workspace, session)?.name || 'repository') + ' folder'}.`
                   : session.agentSessionID
-                    ? `Resume ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'this project’s folder'}.`
+                    ? `Resume ${session.name} in ${session.worktreeBranch ? 'its worktree (' + session.worktreeBranch + ')' : 'the ' + (sessionRepository(workspace, session)?.name || 'repository') + ' folder'}.`
                     : 'Orchestra could not capture this agent’s conversation ID. Starting again creates a new conversation.'
               }}
             </p>
@@ -1420,11 +1522,11 @@ onBeforeUnmount(() => {
             </button>
           </div>
         </template>
-        <template v-for="p in workspace.projects" :key="'terminals-' + p.id"
+        <template v-for="p in appState.workspaces" :key="'terminals-' + p.id"
           ><template v-for="sess in p.sessions" :key="sess.id"
             ><section
               v-if="visitedTerminals.has(sess.id) && !sess.restored"
-              v-show="project?.id === p.id && currentDestination === sess.id"
+              v-show="workspace?.id === p.id && currentDestination === sess.id"
               class="terminal-pane"
             >
               <div v-if="sess.exitMessage" class="exit-banner">
@@ -1444,7 +1546,7 @@ onBeforeUnmount(() => {
                   v-if="!preferences.hideOpenInButton"
                   :apps="openInApps"
                   :last="preferences.openInApp"
-                  :visible="project?.id === p.id && currentDestination === sess.id && !modal"
+                  :visible="workspace?.id === p.id && currentDestination === sess.id && !modal"
                   @open="openIn(sess, $event)"
                   @copy="copyPath(p, sess)"
                 /><TerminalView
@@ -1452,7 +1554,7 @@ onBeforeUnmount(() => {
                   :session="sess"
                   :preferences="shownPreferences"
                   :translucent="translucent"
-                  :visible="project?.id === p.id && currentDestination === sess.id"
+                  :visible="workspace?.id === p.id && currentDestination === sess.id"
                   @error="error = $event"
                   @key="lastKey[sess.id] = Date.now()"
                 />
@@ -1465,17 +1567,17 @@ onBeforeUnmount(() => {
         :selected-path="activeFile?.path"
         :tab="sidebarTab"
         :tab-order="preferences.sidebarTabs"
-        :repository="project?.repository"
+        :repository="sessionRepository(workspace, session)?.gitHub"
         :default-agent="preferences.defaultAgent"
-        :profiles="workspace.profiles"
-        :profile-id="project?.profileID || ''"
+        :profiles="appState.profiles"
+        :profile-id="workspace?.profileID || ''"
         @tab="sidebarTab = $event"
         @reorder="changePreferences({ ...preferences, sidebarTabs: $event })"
-        @resolve="resolveConflicts"
+        @resolve="(conflict, choice) => resolveConflicts({ ...conflict, repositoryID: session.repositoryID }, choice)"
         @open-file="openFile"
         :width="preferences.diffPaneWidth || 440"
         @close="toggleDiff"
-        @resize="workspace.preferences.diffPaneWidth = $event"
+        @resize="appState.preferences.diffPaneWidth = $event"
         @resized="changePreferences({ ...preferences })"
       />
     </main>
@@ -1486,12 +1588,12 @@ onBeforeUnmount(() => {
       @choose="chooseTelemetry"
     />
     <StatusBar
-      :projects="workspace.projects"
-      :runs="workspace.runs"
-      :project="project"
-      :project-icon="projectIcons[project?.id]"
+      :workspaces="appState.workspaces"
+      :runs="appState.runs"
+      :workspace="workspace"
+      :workspace-icon="workspaceIcons[workspace?.id]"
       :session="session"
-      :profiles="workspace.profiles"
+      :profiles="appState.profiles"
       :destination="currentDestination"
       :preferences="shownPreferences"
       :diff-open="showsDiff"
@@ -1514,83 +1616,85 @@ onBeforeUnmount(() => {
       @pointerdown.stop
     >
       <template v-if="menu.kind === 'add'"
-        ><button role="menuitem" @click="openModal('session', menu.project)">
+        ><button role="menuitem" @click="openModal('session', menu.workspace)">
           <Icon name="terminal" :size="14" />Session</button
-        ><button role="menuitem" @click="newTerminal(menu.project)"><Icon name="terminal" :size="14" />Terminal</button
-        ><button role="menuitem" @click="select(menu.project, 'scratchpad')">
+        ><button role="menuitem" @click="newTerminal(menu.workspace)">
+          <Icon name="terminal" :size="14" />Terminal</button
+        ><button role="menuitem" @click="select(menu.workspace, 'scratchpad')">
           <Icon name="note.text" :size="14" />Scratchpad
         </button></template
-      ><template v-else-if="menu.kind === 'project'"
+      ><template v-else-if="menu.kind === 'workspace'"
         ><button
           role="menuitem"
           @click="
             edit(
-              menu.project.id,
-              menu.project.name,
-              'Project',
-              menu.project.description,
-              menu.project.emoji,
-              menu.project.profileID || '',
+              menu.workspace.id,
+              menu.workspace.name,
+              'Workspace',
+              menu.workspace.description,
+              menu.workspace.emoji,
+              menu.workspace.profileID || '',
             )
           "
         >
-          Edit Project…</button
+          Edit Workspace…</button
+        ><button role="menuitem" @click="addRepository(menu.workspace)">Add Repository…</button
         ><button
           role="menuitem"
-          :disabled="workspace.projects[0]?.id === menu.project.id"
-          @click="moveBy('project', '', menu.project.id, -1)"
+          :disabled="appState.workspaces[0]?.id === menu.workspace.id"
+          @click="moveBy('workspace', '', menu.workspace.id, -1)"
         >
           Move Up</button
         ><button
           role="menuitem"
-          :disabled="workspace.projects.at(-1)?.id === menu.project.id"
-          @click="moveBy('project', '', menu.project.id, 1)"
+          :disabled="appState.workspaces.at(-1)?.id === menu.workspace.id"
+          @click="moveBy('workspace', '', menu.workspace.id, 1)"
         >
           Move Down
         </button>
-        <template v-if="workspace.profiles.length"
+        <template v-if="appState.profiles.length"
           ><hr />
           <span class="menu-heading" aria-hidden="true">Profile for New Sessions</span
           ><button
-            v-for="profile in [{ id: '', name: 'Default' }, ...workspace.profiles]"
+            v-for="profile in [{ id: '', name: 'Default' }, ...appState.profiles]"
             :key="profile.id"
             role="menuitemradio"
-            :aria-checked="(menu.project.profileID || '') === profile.id"
+            :aria-checked="(menu.workspace.profileID || '') === profile.id"
             :aria-label="'Profile for new sessions: ' + profile.name"
-            @click="action('SetProjectProfile', menu.project.id, profile.id).then(() => (menu = null))"
+            @click="action('SetWorkspaceProfile', menu.workspace.id, profile.id).then(() => (menu = null))"
           >
-            <Icon v-if="(menu.project.profileID || '') === profile.id" name="checkmark" :size="12" /><i
+            <Icon v-if="(menu.workspace.profileID || '') === profile.id" name="checkmark" :size="12" /><i
               v-else
               class="menu-check-space"
             /><span class="truncate">{{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}</span>
           </button></template
         >
         <hr />
-        <button role="menuitem" class="destructive" @click="removeProject(menu.project)">
-          <Icon name="trash" :size="14" />Remove Project…
+        <button role="menuitem" class="destructive" @click="removeWorkspace(menu.workspace)">
+          <Icon name="trash" :size="14" />Remove Workspace…
         </button></template
       >
       <template v-else-if="menu.kind === 'scratchpad'"
         ><button
           role="menuitem"
-          @click="edit(menu.project.id, menu.project.scratchpadName || 'Scratchpad', 'Scratchpad')"
+          @click="edit(menu.workspace.id, menu.workspace.scratchpadName || 'Scratchpad', 'Scratchpad')"
         >
           Edit Scratchpad…</button
         ><button
           role="menuitem"
-          :disabled="orderOf('session', menu.project.id)[0] === 'scratchpad'"
-          @click="moveBy('session', menu.project.id, 'scratchpad', -1)"
+          :disabled="orderOf('session', menu.workspace.id)[0] === 'scratchpad'"
+          @click="moveBy('session', menu.workspace.id, 'scratchpad', -1)"
         >
           Move Up</button
         ><button
           role="menuitem"
-          :disabled="orderOf('session', menu.project.id).at(-1) === 'scratchpad'"
-          @click="moveBy('session', menu.project.id, 'scratchpad', 1)"
+          :disabled="orderOf('session', menu.workspace.id).at(-1) === 'scratchpad'"
+          @click="moveBy('session', menu.workspace.id, 'scratchpad', 1)"
         >
           Move Down
         </button>
         <hr />
-        <button role="menuitem" class="destructive" @click="deleteScratchpad(menu.project)">
+        <button role="menuitem" class="destructive" @click="deleteScratchpad(menu.workspace)">
           <Icon name="trash" :size="14" />Delete Scratchpad…
         </button></template
       >
@@ -1612,7 +1716,7 @@ onBeforeUnmount(() => {
             @click="start(menu.session,false);menu=null"
           >
             Resume Session</button
-          ><button role="menuitem" @click="messages(menu.project, menu.session)">Messages…</button></template
+          ><button role="menuitem" @click="messages(menu.workspace, menu.session)">Messages…</button></template
         ><!-- prettier-ignore-attribute @click --><button
           role="menuitem"
           @click="copy(menu.session.id).catch(e=>error=String(e));menu=null"
@@ -1620,7 +1724,7 @@ onBeforeUnmount(() => {
           Copy Session ID
         </button>
         <button role="menuitem" disabled>
-          <span class="truncate">Profile: {{ profileName(workspace.profiles, menu.session.profileID) }}</span>
+          <span class="truncate">Profile: {{ profileName(appState.profiles, menu.session.profileID) }}</span>
         </button>
         <hr />
         <button
@@ -1635,7 +1739,7 @@ onBeforeUnmount(() => {
           <Icon name="macwindow" :size="14" />Open in<Icon class="submenu-chevron" name="chevron.right" :size="10" />
         </button>
         <hr />
-        <button role="menuitem" class="destructive" @click="closeSession(menu.project, menu.session)">
+        <button role="menuitem" class="destructive" @click="closeSession(menu.workspace, menu.session)">
           <Icon name="trash" :size="14" />Close Session…
         </button></template
       >
@@ -1669,7 +1773,7 @@ onBeforeUnmount(() => {
         <img v-if="app.icon" :src="app.icon" alt="" /><Icon v-else name="folder" :size="14" /><span class="truncate">{{
           app.name
         }}</span></button
-      ><button role="menuitem" @click="copyPath(menu.project, menu.session)">
+      ><button role="menuitem" @click="copyPath(menu.workspace, menu.session)">
         <Icon name="doc.on.doc" :size="14" />Copy Path
       </button>
     </div>
@@ -1695,11 +1799,11 @@ onBeforeUnmount(() => {
         </footer>
       </div>
     </section>
-    <div v-if="error || workspace.error" class="error-toast" role="alert">
-      <span>{{ error || workspace.error }}</span><!-- prettier-ignore-attribute @click --><button
+    <div v-if="error || appState.error" class="error-toast" role="alert">
+      <span>{{ error || appState.error }}</span><!-- prettier-ignore-attribute @click --><button
         class="icon-button"
         aria-label="Dismiss error"
-        @click="error='';workspace.error=''"
+        @click="error='';appState.error=''"
       >
         <Icon name="xmark" :size="12" />
       </button>
@@ -1710,9 +1814,9 @@ onBeforeUnmount(() => {
         :theme-errors="themeErrors"
         :theme-directory="themeDirectory"
         :reduce-transparency="reduceTransparency"
-        :profiles="workspace.profiles"
-        :project="project"
-        :usage-profile-id="(session || project)?.profileID || ''"
+        :profiles="appState.profiles"
+        :workspace="workspace"
+        :usage-profile-id="(session || workspace)?.profileID || ''"
         :initial-section="settingsSection"
         :initial-focus="settingsFocus"
         @change="changePreferences"
@@ -1728,39 +1832,40 @@ onBeforeUnmount(() => {
     <Modal v-else-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
       ><CommandBar
         :preferences="shownPreferences"
-        :projects="workspace.projects"
-        :project="project"
+        :workspaces="appState.workspaces"
+        :workspace="workspace"
         :sidebar-hidden="sidebarHidden"
         :session="session"
         :apps="openInApps"
         @run="runCommand"
     /></Modal>
-    <Modal v-else-if="modal === 'project'" label="New Project" @close="closeModal"
-      ><form class="project-dialog" @submit.prevent="createProject">
-        <h2>New Project</h2>
+    <Modal v-else-if="modal === 'workspace'" label="New Workspace" @close="closeModal"
+      ><form class="workspace-dialog" @submit.prevent="createWorkspace">
+        <h2>New Workspace</h2>
         <label
-          >Project Name<input
+          >Workspace Name<input
             autocorrect="off"
             autocapitalize="off"
-            v-model="projectName"
+            v-model="workspaceName"
             autofocus
             placeholder="Name"
-            aria-label="Project Name" /></label
+            aria-label="Workspace Name" /></label
         ><label
           >Description (optional)<textarea
             autocorrect="off"
             autocapitalize="off"
-            v-model="projectDescription"
+            v-model="workspaceDescription"
             class="description-field"
             rows="3"
             maxlength="500"
-            placeholder="What this project is, or why it is here"
+            placeholder="What this workspace is, or why it is here"
             aria-label="Description (optional)"
           />
         </label>
         <div class="folder-field">
-          <h3>Project Folder</h3>
+          <h3>Repository</h3>
           <p v-if="directory" class="muted">{{ directory }}</p>
+          <p v-else class="muted caption">A local folder, usually a Git repository. Add more in Edit Workspace.</p>
           <button type="button" class="standard-button" @click="chooseFolder">
             {{ directory ? 'Change Folder…' : 'Choose Folder…' }}
           </button>
@@ -1768,8 +1873,12 @@ onBeforeUnmount(() => {
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button type="button" class="standard-button" @click="closeModal">Cancel</button
-          ><button type="submit" class="standard-button primary" :disabled="busy || !projectName.trim() || !directory">
-            Create Project
+          ><button
+            type="submit"
+            class="standard-button primary"
+            :disabled="busy || !workspaceName.trim() || !directory"
+          >
+            Create Workspace
           </button>
         </footer>
       </form></Modal
@@ -1778,19 +1887,52 @@ onBeforeUnmount(() => {
       ><form
         class="session-dialog"
         @submit.prevent="
-          createSession(sessionAgent, '', newWorktree, '', null, '', '', sessionProfileID, newBranch, newBase)
+          createSession(
+            sessionAgent,
+            '',
+            newWorktree,
+            '',
+            null,
+            '',
+            '',
+            sessionProfileID,
+            newBranch,
+            newBase,
+            sessionRepositoryID,
+          )
         "
       >
         <h2>New Session</h2>
         <div>
-          <p>Choose an agent for {{ projectTitle(modalProject) }}.</p>
-          <p class="muted caption project-path">{{ modalProject?.directory }}</p>
+          <p>Choose an agent for {{ workspaceTitle(modalWorkspace) }}.</p>
+          <p class="muted caption workspace-path">{{ modalRepository?.directory }}</p>
+        </div>
+        <div v-if="repositories(modalWorkspace).length > 1" class="setting-row session-profile">
+          <label for="session-repository">Repository</label>
+          <div class="theme-select general-select">
+            <select
+              id="session-repository"
+              v-model="sessionRepositoryID"
+              :disabled="busy"
+              autofocus
+              @change="chooseSessionRepository"
+            >
+              <option v-for="repo in repositories(modalWorkspace)" :key="repo.id" :value="repo.id">
+                {{ repo.name }}
+              </option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
         </div>
         <div class="setting-row session-profile">
           <label for="session-agent">Agent</label>
           <div class="theme-select session-agent">
             <img :src="agentIcon(sessionAgent, shownPreferences.appearance)" alt="" />
-            <select id="session-agent" v-model="sessionAgent" :disabled="busy" autofocus>
+            <select
+              id="session-agent"
+              v-model="sessionAgent"
+              :disabled="busy"
+              :autofocus="repositories(modalWorkspace).length < 2"
+            >
               <option v-for="agent in sessionAgents" :key="agent.id" :value="agent.id">
                 {{ agent.name }}{{ agent.id === preferences.defaultAgent ? ' (Default)' : '' }}
               </option></select
@@ -1844,12 +1986,12 @@ onBeforeUnmount(() => {
             </div>
           </div>
         </template>
-        <div v-if="workspace.profiles.length" class="setting-row session-profile">
+        <div v-if="appState.profiles.length" class="setting-row session-profile">
           <label for="session-profile">Profile</label>
           <div class="theme-select general-select">
             <select id="session-profile" v-model="sessionProfileID" :disabled="busy">
               <option value="">Default</option>
-              <option v-for="profile in workspace.profiles" :key="profile.id" :value="profile.id">
+              <option v-for="profile in appState.profiles" :key="profile.id" :value="profile.id">
                 {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
               </option></select
             ><Icon name="chevron.up.chevron.down" :size="10" />
@@ -1858,13 +2000,13 @@ onBeforeUnmount(() => {
         <p v-if="busy && newWorktree && !initializingGit" class="muted caption" role="status">Creating worktree…</p>
         <p v-if="initializingGit" class="muted caption" role="status">Initializing Git…</p>
         <p v-if="gitInitialized" class="muted caption" role="status">
-          Git is initialized. A worktree starts from a commit, so commit the project’s files first, then create the
+          Git is initialized. A worktree starts from a commit, so commit the repository’s files first, then create the
           session again.
         </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <div v-if="offerGitInit" class="git-init">
           <p class="muted caption" id="git-init-description">
-            Runs git init in this project folder. Files stay as they are, and nothing is staged or committed.
+            Runs git init in this repository folder. Files stay as they are, and nothing is staged or committed.
           </p>
           <button
             type="button"
@@ -1884,31 +2026,34 @@ onBeforeUnmount(() => {
         </footer>
       </form></Modal
     >
-    <Modal v-else-if="modal === 'rename'" :label="'Edit ' + renameKind" @close="closeModal"
+    <Modal
+      v-else-if="modal === 'rename'"
+      :label="'Edit ' + (renameKind === 'Workspace' ? 'Workspace' : renameKind)"
+      @close="closeModal"
       ><form class="rename-dialog" @submit.prevent="rename">
-        <h2>Edit {{ renameKind }}</h2>
-        <div v-if="renameKind === 'Project'" class="project-name-fields">
+        <h2>Edit {{ renameKind === 'Workspace' ? 'Workspace' : renameKind }}</h2>
+        <div v-if="renameKind === 'Workspace'" class="workspace-name-fields">
           <div class="emoji-field">
-            <label for="project-emoji">Emoji</label
+            <label for="workspace-emoji">Emoji</label
             ><span class="emoji-input"
-              ><EmojiPicker id="project-emoji" :value="projectEmoji" @pick="projectEmoji = $event" /><button
-                v-if="projectEmoji"
+              ><EmojiPicker id="workspace-emoji" :value="workspaceEmoji" @pick="workspaceEmoji = $event" /><button
+                v-if="workspaceEmoji"
                 type="button"
                 class="icon-button"
                 aria-label="Clear Emoji"
                 title="Clear Emoji"
-                @click="projectEmoji = ''"
+                @click="workspaceEmoji = ''"
               >
                 <Icon name="xmark" :size="10" /></button
             ></span>
           </div>
           <label class="name-field"
-            >Project Name<input
+            >Workspace Name<input
               autocorrect="off"
               autocapitalize="off"
               v-model="renameValue"
               autofocus
-              aria-label="Project Name"
+              aria-label="Workspace Name"
           /></label>
         </div>
         <label v-else
@@ -1919,27 +2064,79 @@ onBeforeUnmount(() => {
             v-model="renameValue"
             autofocus
             :aria-label="renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'" /></label
-        ><label v-if="renameKind === 'Project'"
+        ><label v-if="renameKind === 'Workspace'"
           >Description (optional)<textarea
             autocorrect="off"
             autocapitalize="off"
-            v-model="projectDescription"
+            v-model="workspaceDescription"
             class="description-field"
             rows="3"
             maxlength="500"
-            placeholder="What this project is, or why it is here"
+            placeholder="What this workspace is, or why it is here"
             aria-label="Description (optional)"
           />
         </label>
-        <div v-if="renameKind === 'Project' && workspace.profiles.length" class="setting-row session-profile">
+        <section v-if="editedWorkspace" class="repository-settings" aria-labelledby="repositories-heading">
+          <header>
+            <h3 id="repositories-heading">Repositories</h3>
+            <button type="button" class="standard-button" :disabled="busy" @click="addRepository(editedWorkspace)">
+              <Icon name="plus" :size="12" />Add Repository…
+            </button>
+          </header>
+          <ul>
+            <li v-for="repo in repositories(editedWorkspace)" :key="repo.id">
+              <span class="repository-fields"
+                ><input
+                  autocorrect="off"
+                  autocapitalize="off"
+                  v-model="repositoryNames[repo.id]"
+                  :aria-label="'Name of the repository at ' + repo.directory"
+                  spellcheck="false"
+                /><small class="muted caption truncate" :title="repo.directory"
+                  >{{ repo.directory }}{{ repo.gitHub ? ' · ' + repo.gitHub : '' }}</small
+                ><small
+                  v-if="repositories(editedWorkspace).length > 1 && repositorySessionCount(editedWorkspace, repo)"
+                  :id="'repository-sessions-' + repo.id"
+                  class="muted caption"
+                  >Close its {{ repositorySessionCount(editedWorkspace, repo) }}
+                  {{ repositorySessionCount(editedWorkspace, repo) === 1 ? 'session' : 'sessions' }} to remove
+                  it.</small
+                ></span
+              ><button
+                type="button"
+                class="standard-button"
+                :disabled="
+                  busy || repositories(editedWorkspace).length < 2 || repositorySessionCount(editedWorkspace, repo) > 0
+                "
+                :aria-label="'Remove ' + repo.name + ' from the workspace'"
+                :aria-describedby="
+                  repositorySessionCount(editedWorkspace, repo) ? 'repository-sessions-' + repo.id : undefined
+                "
+                :title="
+                  repositories(editedWorkspace).length < 2
+                    ? 'A workspace needs at least one repository.'
+                    : 'Removes it from the workspace. The folder stays on disk.'
+                "
+                @click="removeRepository(editedWorkspace, repo)"
+              >
+                Remove
+              </button>
+            </li>
+          </ul>
+        </section>
+        <div v-if="renameKind === 'Workspace' && appState.profiles.length" class="setting-row session-profile">
           <span>
-            <label for="project-profile">Profile</label>
-            <small id="project-profile-description" class="muted caption">New sessions use these accounts.</small>
+            <label for="workspace-profile">Profile</label>
+            <small id="workspace-profile-description" class="muted caption">New sessions use these accounts.</small>
           </span>
           <div class="theme-select general-select">
-            <select id="project-profile" v-model="projectProfileID" aria-describedby="project-profile-description">
+            <select
+              id="workspace-profile"
+              v-model="workspaceProfileID"
+              aria-describedby="workspace-profile-description"
+            >
               <option value="">Default</option>
-              <option v-for="profile in workspace.profiles" :key="profile.id" :value="profile.id">
+              <option v-for="profile in appState.profiles" :key="profile.id" :value="profile.id">
                 {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
               </option></select
             ><Icon name="chevron.up.chevron.down" :size="10" />
@@ -1952,15 +2149,15 @@ onBeforeUnmount(() => {
         </footer>
       </form></Modal
     >
-    <Modal v-else-if="modal === 'removeProject'" label="Remove Project" @close="!busy && closeModal()"
+    <Modal v-else-if="modal === 'removeWorkspace'" label="Remove Workspace" @close="!busy && closeModal()"
       ><div class="close-dialog">
-        <h2>Remove {{ projectTitle(removalProject) || 'Project' }}?</h2>
+        <h2>Remove {{ workspaceTitle(removalWorkspace) || 'Workspace' }}?</h2>
         <p>
-          This removes the project, its sessions and scratchpad from Orchestra. The project folder and its files will
-          stay on disk.
+          This removes the workspace, its sessions and scratchpad from Orchestra. Its repository folders and their files
+          will stay on disk.
         </p>
-        <p v-if="removalProject?.sessions.some((s) => s.running)" class="muted">
-          Running sessions in this project will be stopped.
+        <p v-if="removalWorkspace?.sessions.some((s) => s.running)" class="muted">
+          Running sessions in this workspace will be stopped.
         </p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
@@ -1968,18 +2165,18 @@ onBeforeUnmount(() => {
           ><button
             class="standard-button destructive"
             data-default-action
-            :disabled="busy || !removalProject"
-            @click="confirmRemoveProject"
+            :disabled="busy || !removalWorkspace"
+            @click="confirmRemoveWorkspace"
           >
-            {{ busy ? 'Removing…' : 'Remove Project' }}
+            {{ busy ? 'Removing…' : 'Remove Workspace' }}
           </button>
         </footer>
       </div></Modal
     >
     <Modal v-else-if="modal === 'deleteScratchpad'" label="Delete Scratchpad" @close="closeModal"
       ><div class="close-dialog">
-        <h2>Delete {{ scratchpadProject?.scratchpadName || 'Scratchpad' }}?</h2>
-        <p>This will delete the scratchpad and its notes from this project. This action cannot be undone.</p>
+        <h2>Delete {{ scratchpadWorkspace?.scratchpadName || 'Scratchpad' }}?</h2>
+        <p>This will delete the scratchpad and its notes from this workspace. This action cannot be undone.</p>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button class="standard-button" :disabled="busy" @click="closeModal">Cancel</button
@@ -1998,7 +2195,7 @@ onBeforeUnmount(() => {
       ><div class="close-dialog">
         <h2>Close {{ modalSession?.name || 'Session' }}?</h2>
         <p>
-          This will stop the terminal process and remove the session from this project. This action cannot be undone.
+          This will stop the terminal process and remove the session from this workspace. This action cannot be undone.
         </p>
         <label v-if="modalSession?.worktreeDirectory" class="worktree-option" for="close-worktree"
           ><input
@@ -2035,7 +2232,7 @@ onBeforeUnmount(() => {
         </p>
         <p v-else>
           {{ activeSessionCount }} running {{ activeSessionCount === 1 ? 'session will' : 'sessions will' }} be stopped.
-          Saved projects and notes will be available when you reopen Orchestra.
+          Saved workspaces and notes will be available when you reopen Orchestra.
         </p>
         <footer>
           <button class="standard-button" :disabled="quitting" @click="closeModal">Cancel</button
@@ -2080,17 +2277,17 @@ onBeforeUnmount(() => {
       </div></Modal
     >
     <Modal
-      v-else-if="modal === 'messages' && modalSession && modalProject"
+      v-else-if="modal === 'messages' && modalSession && modalWorkspace"
       label="Session Messages"
       kind="messages"
       @close="closeModal"
       ><!-- prettier-ignore-attribute @execute --><Messages
         :session="modalSession"
-        :project="modalProject"
-        :runs="workspace.runs"
+        :workspace="modalWorkspace"
+        :runs="appState.runs"
         :preferences="shownPreferences"
         @state="apply"
-        @execute="visitedTerminals.add($event.projects.find(p=>p.id===$event.selectedProjectID).selectedSessionID);closeModal()"
+        @execute="visitedTerminals.add($event.workspaces.find(p=>p.id===$event.selectedWorkspaceID).selectedSessionID);closeModal()"
         @close="closeModal"
     /></Modal>
   </div>

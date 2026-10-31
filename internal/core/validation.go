@@ -9,9 +9,9 @@ import (
 	"unicode"
 )
 
-// validProjectEmoji accepts no emoji or a single grapheme cluster, so flags, skin tones and
+// validWorkspaceEmoji accepts no emoji or a single grapheme cluster, so flags, skin tones and
 // ZWJ sequences count as one.
-func validProjectEmoji(emoji string) bool {
+func validWorkspaceEmoji(emoji string) bool {
 	if emoji == "" {
 		return true
 	}
@@ -27,8 +27,8 @@ func validProjectEmoji(emoji string) bool {
 }
 
 func validateState(state State) error {
-	if state.Version != 1 {
-		return errors.New("Unsupported saved workspace version.")
+	if state.Version != stateVersion {
+		return errors.New("Unsupported saved state version.")
 	}
 	profiles := map[string]bool{}
 	for _, p := range state.Profiles {
@@ -40,18 +40,29 @@ func validateState(state State) error {
 		}
 		profiles[p.ID] = true
 	}
-	projects := map[string]bool{}
+	workspaces := map[string]bool{}
 	sessions := map[string]bool{}
-	for _, p := range state.Projects {
+	repositories := map[string]bool{}
+	for _, p := range state.Workspaces {
 		if p == nil {
-			return errors.New("Invalid saved project.")
+			return errors.New("Invalid saved workspace.")
 		}
-		if _, err := uuid.Parse(p.ID); err != nil || projects[p.ID] {
-			return errors.New("Invalid or duplicate saved project ID.")
+		if _, err := uuid.Parse(p.ID); err != nil || workspaces[p.ID] {
+			return errors.New("Invalid or duplicate saved workspace ID.")
 		}
-		projects[p.ID] = true
-		if strings.TrimSpace(p.Name) == "" || !filepath.IsAbs(p.Directory) {
-			return errors.New("Invalid project name or folder.")
+		workspaces[p.ID] = true
+		if strings.TrimSpace(p.Name) == "" || p.Directory != "" || len(p.Repositories) == 0 {
+			return errors.New("Invalid workspace name or repositories.")
+		}
+		repos, folders := map[string]bool{}, map[string]bool{}
+		for _, repo := range p.Repositories {
+			if repo == nil || strings.TrimSpace(repo.Name) == "" || !filepath.IsAbs(repo.Directory) || folders[repo.Directory] {
+				return errors.New("Invalid saved repository name or folder.")
+			}
+			if _, err := uuid.Parse(repo.ID); err != nil || repositories[repo.ID] {
+				return errors.New("Invalid or duplicate saved repository ID.")
+			}
+			repositories[repo.ID], repos[repo.ID], folders[repo.Directory] = true, true, true
 		}
 		local := map[string]bool{}
 		for _, sess := range p.Sessions {
@@ -78,6 +89,9 @@ func validateState(state State) error {
 			if sess.GitHubItem != nil && sess.GitHubItem.Number <= 0 {
 				return errors.New("Invalid saved session GitHub item.")
 			}
+			if !repos[sess.RepositoryID] {
+				return errors.New("Saved session repository is unavailable.")
+			}
 			if sess.LoginAgent != "" && (sess.Agent != terminalAgent || loginCommands[sess.LoginAgent] == "") {
 				return errors.New("Invalid saved login session.")
 			}
@@ -86,8 +100,8 @@ func validateState(state State) error {
 			return errors.New("Selected session is unavailable.")
 		}
 	}
-	if state.SelectedProjectID != "" && !projects[state.SelectedProjectID] {
-		return errors.New("Selected project is unavailable.")
+	if state.SelectedWorkspaceID != "" && !workspaces[state.SelectedWorkspaceID] {
+		return errors.New("Selected workspace is unavailable.")
 	}
 	return nil
 }

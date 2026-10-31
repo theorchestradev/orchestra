@@ -12,7 +12,7 @@ function begin(event, item) {
   if (!pending) ignoreClick = false
   if (event.button !== 0 || !event.target.closest(props.handle) || pending) return
   const element = event.target.closest(props.handle),
-    scroller = element.closest('.project-list')
+    scroller = element.closest('.workspace-list')
   pending = {
     id: item.id,
     pointer: event.pointerId,

@@ -1,12 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { needsGitRepository, projectTitle, spaceSymbol } from '../src/shared/project.js'
+import {
+  defaultRepository,
+  hasWorkItems,
+  needsGitRepository,
+  workspaceTitle,
+  repositoryLabel,
+  sessionRepository,
+  spaceSymbol,
+} from '../src/shared/workspace.js'
 import { emojiGroupIndex, emojiGroups, searchEmoji } from '../src/shared/emoji.js'
 
-test('project titles show the emoji before the name', () => {
-  assert.equal(projectTitle({ name: 'Orchestra', emoji: '🎻' }), '🎻 Orchestra')
-  assert.equal(projectTitle({ name: 'Orchestra' }), 'Orchestra')
-  assert.equal(projectTitle(null), '')
+test('workspace titles show the emoji before the name', () => {
+  assert.equal(workspaceTitle({ name: 'Orchestra', emoji: '🎻' }), '🎻 Orchestra')
+  assert.equal(workspaceTitle({ name: 'Orchestra' }), 'Orchestra')
+  assert.equal(workspaceTitle(null), '')
 })
 
 test('Arc Mode spaces prefer the emoji over the initial', () => {
@@ -39,6 +47,21 @@ test('only the non-repository worktree error offers Git initialization', () => {
   assert.ok(needsGitRepository('A worktree requires a Git repository: git: fatal: not a git repository'))
   assert.ok(needsGitRepository(new Error('A worktree requires a Git repository: git: fatal')))
   assert.ok(!needsGitRepository('Commit the repository before creating a worktree: git: fatal'))
-  assert.ok(!needsGitRepository("Could not read the project's Git repository: git: Permission denied"))
+  assert.ok(!needsGitRepository("Could not read the workspace's Git repository: git: Permission denied"))
   assert.ok(!needsGitRepository(null))
+})
+
+test('sessions belong to one of the workspace repositories', () => {
+  const app = { id: 'app', name: 'app', directory: '/code/app', gitHub: 'o/app' },
+    site = { id: 'site', name: 'site', directory: '/code/site' }
+  const p = { repositories: [app, site], lastRepositoryID: 'site' }
+  assert.equal(sessionRepository(p, { repositoryID: 'app' }), app)
+  assert.equal(sessionRepository(p, { repositoryID: 'gone' }), null)
+  assert.equal(defaultRepository(p), site)
+  assert.equal(defaultRepository({ ...p, lastRepositoryID: 'gone' }), app)
+  assert.equal(defaultRepository({}), null)
+  assert.equal(repositoryLabel(p, { repositoryID: 'site' }), 'site')
+  assert.equal(repositoryLabel({ repositories: [app] }, { repositoryID: 'app' }), '')
+  assert.ok(hasWorkItems(p))
+  assert.ok(!hasWorkItems({ repositories: [site] }))
 })

@@ -10,8 +10,8 @@ import (
 	"time"
 )
 
-// Project icons are favicons and app icons found in a project's folder, shown in place of the
-// folder symbol. They are read from disk and never stored in the workspace state.
+// Workspace icons are favicons and app icons found in a workspace's first repository folder,
+// shown in place of the folder symbol. They are read from disk and never stored in the state.
 const (
 	iconMaxBytes   = 2 << 20
 	iconMaxDepth   = 3
@@ -31,11 +31,11 @@ var iconNames = []string{"favicon.svg", "favicon.png", "favicon.ico", "icon.svg"
 // iconFolders ranks the folders web frameworks and app builders keep icons in, best first.
 var iconFolders = []string{"", "public", "static", "app", "assets", "images", "img", "icons", "build", "src-tauri/icons", "resources"}
 
-// skippedFolders are dependencies and generated output, which hold other projects' icons.
+// skippedFolders are dependencies and generated output, which hold other workspaces' icons.
 var skippedFolders = map[string]bool{"node_modules": true, "vendor": true, "dist": true, "out": true, "target": true, "coverage": true, "tmp": true, "Pods": true, "DerivedData": true, "Library": true}
 
-// projectMarkers show a folder is a project, so its subfolders are worth searching for an icon.
-var projectMarkers = []string{".git", "package.json", "go.mod", "Cargo.toml", "pyproject.toml", "composer.json", "Gemfile", "wails.json", "pubspec.yaml"}
+// workspaceMarkers show a folder is a workspace, so its subfolders are worth searching for an icon.
+var workspaceMarkers = []string{".git", "package.json", "go.mod", "Cargo.toml", "pyworkspace.toml", "composer.json", "Gemfile", "wails.json", "pubspec.yaml"}
 
 type cachedIcon struct {
 	data string
@@ -43,38 +43,38 @@ type cachedIcon struct {
 }
 
 var (
-	projectIconsMu sync.Mutex
-	projectIcons   = map[string]cachedIcon{}
+	workspaceIconsMu sync.Mutex
+	workspaceIcons   = map[string]cachedIcon{}
 )
 
-// ProjectIcon returns a data URL for the icon in directory, or "" when it has none. Results are
-// cached briefly, so adding an icon to a project shows up without restarting.
-func ProjectIcon(directory string) string {
-	projectIconsMu.Lock()
-	cached, ok := projectIcons[directory]
-	projectIconsMu.Unlock()
+// WorkspaceIcon returns a data URL for the icon in directory, or "" when it has none. Results are
+// cached briefly, so adding an icon to a workspace shows up without restarting.
+func WorkspaceIcon(directory string) string {
+	workspaceIconsMu.Lock()
+	cached, ok := workspaceIcons[directory]
+	workspaceIconsMu.Unlock()
 	if ok && time.Since(cached.read) < iconCacheTTL {
 		return cached.data
 	}
 	data := ""
-	if path := findProjectIcon(directory); path != "" {
+	if path := findWorkspaceIcon(directory); path != "" {
 		data = iconDataURL(path)
 	}
-	projectIconsMu.Lock()
-	projectIcons[directory] = cachedIcon{data, time.Now()}
-	projectIconsMu.Unlock()
+	workspaceIconsMu.Lock()
+	workspaceIcons[directory] = cachedIcon{data, time.Now()}
+	workspaceIconsMu.Unlock()
 	return data
 }
 
-// findProjectIcon looks a few levels into directory, so monorepos such as apps/web/public are found,
-// and picks the best named icon, then the best folder, then the shallowest. Only project folders are
+// findWorkspaceIcon looks a few levels into directory, so monorepos such as apps/web/public are found,
+// and picks the best named icon, then the best folder, then the shallowest. Only repository folders are
 // searched below their top level, and the home folder and its parents are never searched.
-func findProjectIcon(directory string) string {
+func findWorkspaceIcon(directory string) string {
 	if isHomeOrAbove(directory) {
 		return ""
 	}
 	maxDepth := 0
-	if isProject(directory) {
+	if isWorkspace(directory) {
 		maxDepth = iconMaxDepth
 	}
 	type candidate struct {
@@ -134,8 +134,8 @@ func findProjectIcon(directory string) string {
 	return ""
 }
 
-func isProject(directory string) bool {
-	for _, marker := range projectMarkers {
+func isWorkspace(directory string) bool {
+	for _, marker := range workspaceMarkers {
 		if _, err := os.Lstat(filepath.Join(directory, marker)); err == nil {
 			return true
 		}
@@ -144,7 +144,7 @@ func isProject(directory string) bool {
 }
 
 // isHomeOrAbove reports whether directory is the home folder or one of its parents, which hold
-// unrelated projects and folders macOS asks permission to read.
+// unrelated workspaces and folders macOS asks permission to read.
 func isHomeOrAbove(directory string) bool {
 	home, err := os.UserHomeDir()
 	if err != nil {

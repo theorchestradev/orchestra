@@ -7,8 +7,8 @@ defineOptions({ inheritAttrs: false })
 const props = defineProps({
   items: Array,
   selectedId: String,
-  selectProject: Function,
-  createProject: Function,
+  selectWorkspace: Function,
+  createWorkspace: Function,
   openSettings: Function,
 })
 const viewport = ref(null),
@@ -30,7 +30,7 @@ const createProgress = computed(() => {
   return g && g.index === props.items.length - 1 ? Math.max(0, g.progress) : 0
 })
 const edgeAction = (index) =>
-  index === -1 ? props.openSettings : index === props.items.length ? props.createProject : null
+  index === -1 ? props.openSettings : index === props.items.length ? props.createWorkspace : null
 let wheelTimer,
   wheelLocked = false,
   wheelActive = false,
@@ -47,8 +47,8 @@ async function finishGesture() {
     action()
     return
   }
-  const project = props.items[g.index + Math.sign(g.progress)]
-  if (Math.abs(g.progress) * viewport.value.clientWidth < 40 || !project) {
+  const workspace = props.items[g.index + Math.sign(g.progress)]
+  if (Math.abs(g.progress) * viewport.value.clientWidth < 40 || !workspace) {
     gesture.value = null
     return
   }
@@ -56,7 +56,7 @@ async function finishGesture() {
   g.saving = true
   wheelLocked = true
   try {
-    await props.selectProject(project)
+    await props.selectWorkspace(workspace)
   } finally {
     if (gesture.value === g) gesture.value = null
   }
@@ -70,7 +70,7 @@ function wheel(event) {
   const el = viewport.value,
     delta = arcScrollDelta(event, el.clientWidth),
     magnitude = Math.abs(delta)
-  if (!delta || props.items.length < (props.createProject || props.openSettings ? 1 : 2) || !el.clientWidth) return
+  if (!delta || props.items.length < (props.createWorkspace || props.openSettings ? 1 : 2) || !el.clientWidth) return
   event.preventDefault()
   // A new stroke can overlap the previous momentum in the same direction. Rearm on
   // renewed force after decay as well as a pause/reversal; tiny tail jitter stays locked.
@@ -93,7 +93,7 @@ function wheel(event) {
   }
   const g = gesture.value,
     min = g.index > 0 || props.openSettings ? -1 : 0,
-    max = g.index < props.items.length - 1 || props.createProject ? 1 : 0
+    max = g.index < props.items.length - 1 || props.createWorkspace ? 1 : 0
   g.progress = Math.max(min, Math.min(max, g.progress + delta / el.clientWidth))
   if (Math.abs(g.progress) === 1) finishGesture()
 }
@@ -121,14 +121,14 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <div ref="viewport" class="arc-project-pager">
+  <div ref="viewport" class="arc-workspace-pager">
     <div
-      class="arc-project-track"
-      :class="{ 'arc-project-panning': gesture && !gesture.saving }"
+      class="arc-workspace-track"
+      :class="{ 'arc-workspace-panning': gesture && !gesture.saving }"
       :style="{ transform: `translateX(-${(visualIndex + (openSettings ? 1 : 0)) * 100}%)` }"
     >
-      <div v-if="openSettings" class="arc-project-page arc-project-edge" aria-hidden="true" inert>
-        <span class="arc-project-edge-ring" :style="{ '--arc-edge-progress': settingsProgress }">
+      <div v-if="openSettings" class="arc-workspace-page arc-workspace-edge" aria-hidden="true" inert>
+        <span class="arc-workspace-edge-ring" :style="{ '--arc-edge-progress': settingsProgress }">
           <Icon name="gearshape" :size="16" />
         </span>
         <span>Settings</span>
@@ -136,17 +136,17 @@ onBeforeUnmount(() => {
       <div
         v-for="p in items"
         :key="p.id"
-        class="arc-project-page project-list"
+        class="arc-workspace-page workspace-list"
         :aria-hidden="p.id !== selectedId"
         :inert="p.id !== selectedId"
       >
         <slot :item="p" />
       </div>
-      <div v-if="createProject" class="arc-project-page arc-project-edge" aria-hidden="true" inert>
-        <span class="arc-project-edge-ring" :style="{ '--arc-edge-progress': createProgress }">
+      <div v-if="createWorkspace" class="arc-workspace-page arc-workspace-edge" aria-hidden="true" inert>
+        <span class="arc-workspace-edge-ring" :style="{ '--arc-edge-progress': createProgress }">
           <Icon name="plus" :size="16" />
         </span>
-        <span>New Project</span>
+        <span>New Workspace</span>
       </div>
     </div>
   </div>

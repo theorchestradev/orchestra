@@ -54,7 +54,7 @@ async function install() {
     <div>
       <h3 id="agent-skill-heading">Orchestra Skill</h3>
       <p class="muted caption">
-        Lets agents in different sessions talk to each other: they send requests and share the project Scratchpad
+        Lets agents in different sessions talk to each other: they send requests and share the workspace Scratchpad
         through the <code>orchestra</code> CLI. The skill tells them to run <code>orchestra guide</code>, which always
         matches this version of Orchestra. It is installed with the <code>skills</code> CLI, only when you click Install
         or Update, and also for each profile.

@@ -20,15 +20,17 @@ import (
 )
 
 type Run struct {
-	ID            string  `json:"id"`
-	ProjectID     string  `json:"projectID"`
-	FromSessionID string  `json:"fromSessionID,omitempty"`
-	ToSessionID   string  `json:"toSessionID"`
-	Prompt        string  `json:"prompt"`
-	Status        string  `json:"status"`
-	Response      string  `json:"response"`
-	Detail        string  `json:"detail,omitempty"`
-	CreatedAt     float64 `json:"createdAt"` // Seconds since 2001-01-01 UTC.
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspaceID"`
+	// LegacyWorkspaceID is the projectID key of earlier histories, read only to migrate it.
+	LegacyWorkspaceID string  `json:"projectID,omitempty"`
+	FromSessionID     string  `json:"fromSessionID,omitempty"`
+	ToSessionID       string  `json:"toSessionID"`
+	Prompt            string  `json:"prompt"`
+	Status            string  `json:"status"`
+	Response          string  `json:"response"`
+	Detail            string  `json:"detail,omitempty"`
+	CreatedAt         float64 `json:"createdAt"` // Seconds since 2001-01-01 UTC.
 }
 
 func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "running" }
@@ -81,6 +83,12 @@ func loadRuns(path string) (runs []*Run, warning string, err error) {
 	}
 	var h history
 	if json.Unmarshal(data, &h) == nil && h.Version == 1 && !slices.Contains(h.Runs, nil) {
+		for _, r := range h.Runs {
+			if r.WorkspaceID == "" {
+				r.WorkspaceID = r.LegacyWorkspaceID
+			}
+			r.LegacyWorkspaceID = ""
+		}
 		return pruneRuns(h.Runs, time.Now()), "", nil
 	}
 	if err = os.Rename(path, path+".corrupt"); err != nil {
@@ -304,7 +312,7 @@ func (c *Collaboration) requestLocked(from, to, text, id string) (*Run, error) {
 	}
 	q, target, err := c.store.sessionLocked(to)
 	if err != nil || p != q {
-		return nil, errors.New("Sessions must belong to the same project.")
+		return nil, errors.New("Sessions must belong to the same workspace.")
 	}
 	if target.Agent == terminalAgent {
 		return nil, errors.New("Terminals cannot receive requests.")
@@ -329,7 +337,7 @@ func (c *Collaboration) requestLocked(from, to, text, id string) (*Run, error) {
 		}
 		return previous, nil
 	}
-	run := &Run{ID: id, ProjectID: p.ID, FromSessionID: from, ToSessionID: to, Prompt: text, Status: "queued", CreatedAt: float64(time.Now().UnixMilli())/1000 - 978307200}
+	run := &Run{ID: id, WorkspaceID: p.ID, FromSessionID: from, ToSessionID: to, Prompt: text, Status: "queued", CreatedAt: float64(time.Now().UnixMilli())/1000 - 978307200}
 	if err = c.saveLocked(run); err != nil {
 		return nil, err
 	}
@@ -491,7 +499,13 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 			if sess.Agent == terminalAgent {
 				continue
 			}
-			sessions = append(sessions, map[string]string{"id": sess.ID, "projectID": p.ID, "name": sess.Name, "agent": sess.Agent})
+			repository := ""
+			for _, repo := range p.Repositories {
+				if repo.ID == sess.RepositoryID {
+					repository = repo.Name
+				}
+			}
+			sessions = append(sessions, map[string]string{"id": sess.ID, "workspaceID": p.ID, "name": sess.Name, "agent": sess.Agent, "repository": repository})
 		}
 		return sessions, nil
 	case "session.request":
@@ -501,7 +515,7 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	case "session.read":
 		q, _, err := c.store.sessionLocked(req.Target)
 		if err != nil || p != q {
-			return nil, errors.New("Session unavailable in this project.")
+			return nil, errors.New("Session unavailable in this workspace.")
 		}
 		history := []*Run{}
 		cursorFound := req.Before == ""
@@ -537,8 +551,8 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 		return c.replyLocked(req.Target, req.Source, req.Text)
 	case "run.read", "run.wait", "run.cancel":
 		r, err := c.runLocked(req.Target)
-		if err != nil || r.ProjectID != p.ID {
-			return nil, errors.New("Run unavailable in this project.")
+		if err != nil || r.WorkspaceID != p.ID {
+			return nil, errors.New("Run unavailable in this workspace.")
 		}
 		if req.Method == "run.wait" {
 			if err = c.waitLocked(req.Source, r); err != nil {
@@ -560,11 +574,11 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	return nil, errors.New("Unknown collaboration method.")
 }
 
-// scratchpadLocked reads or changes the Scratchpad of the calling session's project.
+// scratchpadLocked reads or changes the Scratchpad of the calling session's workspace.
 // It never creates one; the user does that in the app.
-func (c *Collaboration) scratchpadLocked(p *Project, req WireRequest) (any, error) {
+func (c *Collaboration) scratchpadLocked(p *Workspace, req WireRequest) (any, error) {
 	if !p.HasScratchpad {
-		return nil, errors.New("This project has no Scratchpad. Create one in Orchestra first.")
+		return nil, errors.New("This workspace has no Scratchpad. Create one in Orchestra first.")
 	}
 	if req.Method == "scratchpad.read" {
 		c.store.trackLocked("feature_used", map[string]any{"feature": "scratchpad_cli"})
@@ -628,8 +642,9 @@ func (s *Store) ExecuteRequest(id string) (State, error) {
 	s.trackLocked("feature_used", map[string]any{"feature": "inbox_execute"})
 	p.SelectedSessionID = sess.ID
 	p.ShowsGitHub = false
+	p.ShowsReviews = false
 	p.ShowsScratchpad = false
-	s.state.SelectedProjectID = p.ID
+	s.state.SelectedWorkspaceID = p.ID
 	err = s.saveLocked()
 	s.changedLocked()
 	return s.snapshotLocked(), err

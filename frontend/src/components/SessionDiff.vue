@@ -28,7 +28,7 @@ const props = defineProps({
   tab: { type: String, default: 'Changes' },
   // The saved tab order from preferences.
   tabOrder: Array,
-  // The project's GitHub repository; the PR tab is only offered with one.
+  // The workspace's GitHub repository; the PR tab is only offered with one.
   repository: String,
   // Session choices for Resolve conflicts in the PR tab.
   defaultAgent: String,
@@ -134,7 +134,7 @@ const files = computed(() =>
 const scopeLabel = computed(() =>
   diff.value?.scope === 'worktree'
     ? 'Since the worktree started' + (props.session.worktreeBranch ? ' · ' + props.session.worktreeBranch : '')
-    : 'Uncommitted changes in the project folder',
+    : 'Uncommitted changes in the repository folder',
 )
 const scopeDetail = computed(() =>
   diff.value?.scope === 'worktree'
@@ -386,7 +386,7 @@ onBeforeUnmount(() => {
           {{
             diff.scope === 'worktree'
               ? 'No changes since the worktree started.'
-              : 'No uncommitted changes in the project folder.'
+              : 'No uncommitted changes in the repository folder.'
           }}
         </p>
       </div>

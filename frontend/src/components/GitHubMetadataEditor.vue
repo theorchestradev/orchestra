@@ -4,7 +4,15 @@ import { call } from '../shared/api'
 import Modal from './Modal.vue'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
-const props = defineProps({ project: Object, item: Object, pull: Boolean, field: String, anchor: Object })
+// repository is the workspace repository the item belongs to.
+const props = defineProps({
+  workspace: Object,
+  repository: Object,
+  item: Object,
+  pull: Boolean,
+  field: String,
+  anchor: Object,
+})
 const emit = defineEmits(['close', 'saved', 'busy'])
 const inline = props.field !== 'labels',
   popup = ref(null),
@@ -88,7 +96,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const available = await call('GitHubMetadataOptions', props.project.id, props.field)
+    const available = await call('GitHubMetadataOptions', props.workspace.id, props.repository.id, props.field)
     if (!active) return
     const all = new Map([...available, ...(props.item[props.field] || [])].map((o) => [o[key], o]))
     options.value = [...all.values()].sort((a, b) => a[key].localeCompare(b[key]))
@@ -129,7 +137,15 @@ async function save() {
   emit('busy', true)
   error.value = ''
   try {
-    await call('UpdateGitHubMetadata', props.project.id, props.item.number, props.pull, props.field, [...values.value])
+    await call(
+      'UpdateGitHubMetadata',
+      props.workspace.id,
+      props.repository.id,
+      props.item.number,
+      props.pull,
+      props.field,
+      [...values.value],
+    )
     if (active) emit('saved', patch())
   } catch (e) {
     if (active) {
@@ -172,7 +188,7 @@ async function showDuplicates() {
   error.value = ''
   loading.value = true
   try {
-    const items = await call('GitHubItems', props.project.id, 'all')
+    const items = await call('GitHubItems', props.workspace.id, props.repository.id, 'all')
     if (active) duplicateItems.value = items
   } catch (e) {
     if (active) error.value = String(e)
@@ -218,7 +234,7 @@ function close() {
       ><form class="metadata-editor" @submit.prevent="save" @keydown.stop="menuKeys">
         <header v-if="!inline">
           <h2>Edit {{ title }}</h2>
-          <p class="muted caption">{{ project.repository }} #{{ item.number }}</p>
+          <p class="muted caption">{{ repository.gitHub }} #{{ item.number }}</p>
         </header>
         <template v-if="field === 'state'">
           <template v-if="!duplicates"

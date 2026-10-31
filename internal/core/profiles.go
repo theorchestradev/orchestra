@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Profile is a named set of agent logins. Sessions and projects refer to it by ID; an
+// Profile is a named set of agent logins. Sessions and workspaces refer to it by ID; an
 // empty ID is the Default profile, which uses each CLI's own config folder.
 type Profile struct {
 	ID    string `json:"id"`
@@ -50,7 +50,7 @@ func validProfile(p *Profile) error {
 	if strings.TrimSpace(p.Name) == "" || len(p.Name) > 200 {
 		return errors.New("Enter a profile name.")
 	}
-	if !validProjectEmoji(p.Emoji) {
+	if !validWorkspaceEmoji(p.Emoji) {
 		return errors.New("Choose a single emoji.")
 	}
 	for agent, folder := range p.Folders {
@@ -220,7 +220,7 @@ func (s *Store) EditProfile(id, name, emoji string) (State, error) {
 	return s.snapshotLocked(), nil
 }
 
-// RemoveProfile forgets a profile and moves its projects back to Default. Its folders stay on
+// RemoveProfile forgets a profile and moves its workspaces back to Default. Its folders stay on
 // disk, and sessions that used it keep its ID so they fail to resume instead of switching account.
 func (s *Store) RemoveProfile(id string) (State, error) {
 	s.mu.Lock()
@@ -229,14 +229,14 @@ func (s *Store) RemoveProfile(id string) (State, error) {
 		return State{}, errors.New("Profile unavailable.")
 	}
 	previous := s.state.Profiles
-	moved := []*Project{}
+	moved := []*Workspace{}
 	s.state.Profiles = []*Profile{}
 	for _, p := range previous {
 		if p.ID != id {
 			s.state.Profiles = append(s.state.Profiles, p)
 		}
 	}
-	for _, p := range s.state.Projects {
+	for _, p := range s.state.Workspaces {
 		if p.ProfileID == id {
 			p.ProfileID = ""
 			moved = append(moved, p)
@@ -253,11 +253,11 @@ func (s *Store) RemoveProfile(id string) (State, error) {
 	return s.snapshotLocked(), nil
 }
 
-// SetProjectProfile chooses the profile new sessions in the project use.
-func (s *Store) SetProjectProfile(projectID, profileID string) (State, error) {
+// SetWorkspaceProfile chooses the profile new sessions in the workspace use.
+func (s *Store) SetWorkspaceProfile(workspaceID, profileID string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	p, err := s.projectLocked(projectID)
+	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
 	}
@@ -276,7 +276,7 @@ func (s *Store) SetProjectProfile(projectID, profileID string) (State, error) {
 
 // LogIn adds a terminal session in the profile that runs the agent's login command, so the
 // user signs in themselves. Orchestra never handles the credentials.
-func (s *Store) LogIn(projectID, profileID, agent string) (State, error) {
+func (s *Store) LogIn(workspaceID, profileID, agent string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if loginCommands[agent] == "" {
@@ -291,7 +291,7 @@ func (s *Store) LogIn(projectID, profileID, agent string) (State, error) {
 	if profile != nil {
 		name = profile.Name
 	}
-	return s.createSessionLocked(projectID, terminalAgent, "Log In · "+agentSpecs[agent].Name+" · "+name, "", false, nil, "", "", profileID, agent, "", "")
+	return s.createSessionLocked(workspaceID, "", terminalAgent, "Log In · "+agentSpecs[agent].Name+" · "+name, "", false, nil, "", "", profileID, agent, "", "")
 }
 
 // ProfileLogin reports whether an agent's CLI is signed in with a profile's config folder.

@@ -9,7 +9,7 @@ import (
 
 func TestTelemetrySessionSignalsFollowProcessLifecycle(t *testing.T) {
 	s := fixtureStore(t)
-	p := projectFixture(t, s)
+	p := workspaceFixture(t, s)
 	sess := sessionFixture(t, s, p, "terminal")
 	shell := filepath.Join(t.TempDir(), "fake-shell")
 	if err := os.WriteFile(shell, []byte("#!/bin/sh\nexit 7\n"), 0700); err != nil {

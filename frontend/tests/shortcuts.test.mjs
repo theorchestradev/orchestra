@@ -65,17 +65,17 @@ test('the macOS menu uses the listed shortcuts', () => {
     assert.match(main, new RegExp(`nil, func.*"command", "${entry.id}"`), entry.id + ' has a menu item')
 })
 
-test('project shortcuts leave text fields alone', () => {
+test('workspace shortcuts leave text fields alone', () => {
   const field = (inTerminal) => ({ closest: (selector) => (selector === '.xterm' ? inTerminal : true) })
   const event = (target) => ({ ...press('⇧⌘→', true), target })
   assert.equal(appCommand(event(field(false))), null)
-  assert.equal(appCommand(event(field(true))), 'nextProject')
-  assert.equal(appCommand(event({ closest: () => null })), 'nextProject')
+  assert.equal(appCommand(event(field(true))), 'nextWorkspace')
+  assert.equal(appCommand(event({ closest: () => null })), 'nextWorkspace')
 })
 
 test('the command bar shows the listed shortcuts', () => {
-  const project = { id: 'p', name: 'P', sessions: [] }
-  for (const item of commandItems({ projects: [project], project, preferences: {} }))
+  const workspace = { id: 'p', name: 'P', sessions: [] }
+  for (const item of commandItems({ workspaces: [workspace], workspace, preferences: {} }))
     if (item.shortcut) assert.equal(item.shortcut, shortcuts.find((s) => s.id === item.id)?.keys, item.id)
 })
 
@@ -88,11 +88,11 @@ test('shortcut keys follow the platform', () => {
     ['Ctrl+Shift+K', 'Control Shift K', 'In a terminal'],
   ])
   assert.deepEqual(labels('session', false), [['Ctrl+N', 'Control N', 'Outside terminals']])
-  assert.deepEqual(labels('project', false), [['Ctrl+Shift+N', 'Control Shift N', '']])
+  assert.deepEqual(labels('workspace', false), [['Ctrl+Shift+N', 'Control Shift N', '']])
   assert.deepEqual(labels('copy', false), [['Ctrl+Shift+C', 'Control Shift C', '']])
   assert.deepEqual(labels('previous', true), [['⇧⌘[', 'Shift Command Left Bracket', '']])
-  assert.deepEqual(labels('nextProject', true), [['⇧⌘→', 'Shift Command Right Arrow', '']])
-  assert.deepEqual(labels('previousProject', false), [['Ctrl+Shift+←', 'Control Shift Left Arrow', '']])
+  assert.deepEqual(labels('nextWorkspace', true), [['⇧⌘→', 'Shift Command Right Arrow', '']])
+  assert.deepEqual(labels('previousWorkspace', false), [['Ctrl+Shift+←', 'Control Shift Left Arrow', '']])
   assert.deepEqual(labels('saveDescription', true), [['⌘↩', 'Command Return', '']])
   assert.deepEqual(labels('saveDescription', false), [['Ctrl+Enter', 'Control Enter', '']])
   assert.deepEqual(labels('contextMenu', false), [['Shift+F10', 'Shift F10', '']])

@@ -3,13 +3,14 @@ import { computed } from 'vue'
 import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTerminal } from '../shared/appearance'
 import { shortcutLabel } from '../shared/platform'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
+import { repositories, sessionRepository } from '../shared/workspace'
 import Icon from './Icon.vue'
 import UsageStatus from './UsageStatus.vue'
 const props = defineProps({
-  projects: Array,
+  workspaces: Array,
   runs: Array,
-  project: Object,
-  projectIcon: String,
+  workspace: Object,
+  workspaceIcon: String,
   session: Object,
   profiles: Array,
   destination: String,
@@ -19,7 +20,7 @@ const props = defineProps({
   updateReady: Boolean,
 })
 const emit = defineEmits(['inbox', 'appearance', 'diff', 'update', 'settings', 'change'])
-const summary = computed(() => statusSummary(props.projects, props.runs))
+const summary = computed(() => statusSummary(props.workspaces, props.runs))
 const agentName = computed(() =>
   isTerminal(props.session) ? 'Terminal' : agents.find((a) => a.id === props.session?.agent)?.name || 'Agent',
 )
@@ -41,11 +42,19 @@ const profile = computed(() =>
       }
     : null,
 )
-// Usage follows the account Settings → Usage shows first: the session's profile, or else the project's.
+// Usage follows the account Settings → Usage shows first: the session's profile, or else the workspace's.
 const usageProfileID = computed(() => {
-  const id = (props.session || props.project)?.profileID || ''
+  const id = (props.session || props.workspace)?.profileID || ''
   return findProfile(props.profiles, id) ? id : ''
 })
+// The session's repository, fixed for its life; without a session, the workspace's only one.
+const repository = computed(() =>
+  props.session
+    ? sessionRepository(props.workspace, props.session)
+    : repositories(props.workspace).length === 1
+      ? repositories(props.workspace)[0]
+      : null,
+)
 const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
 const inbox = computed(() =>
   [
@@ -59,19 +68,26 @@ const inbox = computed(() =>
 <template>
   <footer class="status-bar" aria-label="Status bar">
     <div class="status-context">
-      <template v-if="project"
-        ><span class="status-item truncate" :title="project.directory"
-          ><span v-if="project.emoji" class="status-emoji" aria-hidden="true">{{ project.emoji }}</span
-          ><img v-else-if="projectIcon" class="status-project-icon" :src="projectIcon" alt="" /><Icon
+      <template v-if="workspace"
+        ><span
+          class="status-item truncate"
+          :title="
+            repositories(workspace)
+              .map((r) => r.directory)
+              .join('\n')
+          "
+          ><span v-if="workspace.emoji" class="status-emoji" aria-hidden="true">{{ workspace.emoji }}</span
+          ><img v-else-if="workspaceIcon" class="status-workspace-icon" :src="workspaceIcon" alt="" /><Icon
             v-else
             name="folder"
             :size="12"
-          /><span class="truncate">{{ project.name }}</span></span
+          /><span class="truncate">{{ workspace.name }}</span></span
         ><span
-          v-if="project.repository"
+          v-if="repository"
           class="status-item status-optional truncate"
-          :title="'GitHub repository ' + project.repository"
-          >{{ project.repository }}</span
+          :title="repository.directory + (repository.gitHub ? ' · GitHub repository ' + repository.gitHub : '')"
+          ><Icon name="folder" :size="12" /><span class="visually-hidden">Repository: </span
+          ><span class="truncate">{{ repository.gitHub || repository.name }}</span></span
         ></template
       >
       <template v-if="session"
@@ -93,26 +109,28 @@ const inbox = computed(() =>
           :title="
             session.worktreeBranch
               ? session.worktreeBranch + ' · ' + session.worktreeDirectory
-              : 'Runs in the project folder'
+              : 'Runs in the ' + (repository?.name || 'repository') + ' folder'
           "
           ><Icon name="arrow.triangle.branch" :size="12" /><span class="truncate">{{
-            session.worktreeBranch || 'Project folder'
+            session.worktreeBranch || 'Repository folder'
           }}</span></span
         ><span v-if="session.exitMessage" class="status-item status-optional truncate" :title="session.exitMessage">{{
           session.exitMessage
         }}</span></template
       >
-      <span v-else-if="destination === 'github' || destination === 'scratchpad'" class="status-item"
-        ><Icon :name="destination === 'github' ? 'list.bullet.rectangle' : 'note.text'" :size="12" />{{
-          destination === 'github' ? 'GitHub' : project.scratchpadName || 'Scratchpad'
-        }}</span
+      <span v-else-if="destination === 'github'" class="status-item"
+        ><Icon name="list.bullet.rectangle" :size="12" />Work Items</span
+      ><span v-else-if="destination === 'reviews'" class="status-item"
+        ><Icon name="arrow.triangle.pull" :size="12" />Reviews</span
+      ><span v-else-if="destination === 'scratchpad'" class="status-item"
+        ><Icon name="note.text" :size="12" />{{ workspace.scratchpadName || 'Scratchpad' }}</span
       >
     </div>
     <div class="status-summary">
       <span
         class="status-item"
         :title="
-          summary.running + ' running ' + (summary.running === 1 ? 'session' : 'sessions') + ' across all projects'
+          summary.running + ' running ' + (summary.running === 1 ? 'session' : 'sessions') + ' across all workspaces'
         "
         ><template v-if="summary.running"
           ><span v-if="summary.working" class="status-item"

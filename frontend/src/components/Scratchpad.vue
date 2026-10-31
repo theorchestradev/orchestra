@@ -6,18 +6,18 @@ import { mac, shortcutLabel } from '../shared/platform'
 import { reconcileScratchpad } from '../shared/scratchpad.js'
 import Icon from './Icon.vue'
 // draft holds edits that were rejected after a previous editor closed.
-const props = defineProps({ project: Object, draft: Object })
+const props = defineProps({ workspace: Object, draft: Object })
 const emit = defineEmits(['save', 'mode'])
-const text = ref(props.draft?.text ?? (props.project.scratchpadText || '')),
+const text = ref(props.draft?.text ?? (props.workspace.scratchpadText || '')),
   saving = ref(false),
   conflict = ref(false),
-  mode = ref(props.project.scratchpadMode === 'read' ? 'read' : 'edit'),
+  mode = ref(props.workspace.scratchpadMode === 'read' ? 'read' : 'edit'),
   editor = ref(null),
   reader = ref(null)
 // Read mode shows the editor's text, so CLI writes appear as soon as the editor takes them.
 const rendered = computed(() => (mode.value === 'read' ? renderMarkdown(text.value) : ''))
 // base is the stored text and revision the editor last matched; saves are based on it.
-let base = props.draft?.base ?? { text: text.value, revision: props.project.scratchpadRevision || 0 },
+let base = props.draft?.base ?? { text: text.value, revision: props.workspace.scratchpadRevision || 0 },
   submitted = [],
   timer
 function save() {
@@ -25,7 +25,7 @@ function save() {
   saving.value = false
   if (text.value === base.text) return
   submitted = [...submitted.slice(-9), text.value]
-  emit('save', props.project.id, text.value, base)
+  emit('save', props.workspace.id, text.value, base)
 }
 function schedule() {
   clearTimeout(timer)
@@ -34,17 +34,17 @@ function schedule() {
   timer = setTimeout(save, 300)
 }
 defineExpose({
-  projectID: props.project.id,
+  workspaceID: props.workspace.id,
   takeDraft: () => {
     clearTimeout(timer)
     saving.value = false
-    return { id: props.project.id, text: text.value, base }
+    return { id: props.workspace.id, text: text.value, base }
   },
 })
 watch(text, schedule)
 // Writes from orchestra scratchpad arrive with a new revision. Unsaved edits are kept.
 watch(
-  () => [props.project.scratchpadText || '', props.project.scratchpadRevision || 0],
+  () => [props.workspace.scratchpadText || '', props.workspace.scratchpadRevision || 0],
   ([incomingText, revision]) => {
     const result = reconcileScratchpad(text.value, base, { text: incomingText, revision }, submitted)
     if (!result) return
@@ -59,14 +59,14 @@ watch(
 )
 if (props.draft) schedule()
 watch(
-  () => props.project.scratchpadMode,
+  () => props.workspace.scratchpadMode,
   (value) => (mode.value = value === 'read' ? 'read' : 'edit'),
 )
 function setMode(value) {
   if (value === mode.value) return
   if (value === 'read' && saving.value) save()
   mode.value = value
-  emit('mode', props.project.id, value)
+  emit('mode', props.workspace.id, value)
 }
 async function toggleMode() {
   setMode(mode.value === 'read' ? 'edit' : 'read')
@@ -129,7 +129,7 @@ onBeforeUnmount(() => {
       ref="reader"
       class="scratchpad-read"
       tabindex="0"
-      aria-label="Project scratchpad, rendered"
+      aria-label="Workspace scratchpad, rendered"
       @click="linkClick"
       @auxclick.prevent
     >
@@ -142,8 +142,8 @@ onBeforeUnmount(() => {
       v-else
       ref="editor"
       v-model="text"
-      aria-label="Project scratchpad"
-      placeholder="Write notes for this project…"
+      aria-label="Workspace scratchpad"
+      placeholder="Write notes for this workspace…"
       spellcheck="false"
     />
   </section>
