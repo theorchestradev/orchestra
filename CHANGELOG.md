@@ -4,6 +4,45 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.15.0 — 2026-10-31
+
+### New
+
+- **Workspaces with several repositories.** Projects are now workspaces, and a
+  workspace can hold more than one local repository. Add, rename and remove them
+  in Edit Workspace → Repositories, or with Add Repository… in the workspace's
+  menu. Removing a repository keeps its folder on disk.
+- **Pick the repository for a new session.** When a workspace has several
+  repositories, New Session asks which one to use and remembers your last
+  choice. A session keeps its repository: its folder, worktree, Files, Changes
+  and PR tab all follow it, and the sidebar and status bar show its name.
+- **Reviews.** Pull requests now have their own view beside Work Items, in the
+  sidebar, the command bar and the Startup View setting. Review and Resolve
+  conflicts start there.
+
+### Changed
+
+- **Work Items lists issues from every repository.** Issues & PRs is now Work
+  Items, showing the issues of each GitHub repository in the workspace. Filter
+  by source, status and assignee; when one repository fails to load, the others
+  still show.
+- **`orchestra session list` reports `workspaceID`** instead of `projectID`, and
+  includes each session's repository.
+- **Text fields no longer autocorrect or capitalize** names, branches and
+  searches.
+
+### Fixed
+
+- **Editing a name selects it,** and closing a dialog no longer takes focus
+  from the next one.
+
+### Upgrading
+
+- Orchestra turns each project into a workspace with one repository the first
+  time it opens, keeping sessions, worktrees, Scratchpad, profiles and settings.
+  The previous state file is kept as `~/.orchestra/state.bkp.json`, because
+  earlier versions cannot read the new format.
+
 ## 0.14.0 — 2026-10-25
 
 ### Changed
