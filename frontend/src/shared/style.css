@@ -3430,6 +3430,10 @@ h2 {
   gap: 5px;
   min-width: 0;
 }
+/* Only items that truncate give up space; the others would overflow into their neighbors. */
+.status-context > .status-item:not(.truncate) {
+  flex-shrink: 0;
+}
 .status-summary > .status-item {
   gap: 10px;
 }
