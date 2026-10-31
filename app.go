@@ -295,19 +295,13 @@ func (a *App) CreateWorkspace(name, directory, description string) (core.State, 
 	return state, err
 }
 
-// AddRepository, RenameRepository and RemoveRepository manage a workspace's repositories.
+// AddRepository and RemoveRepository manage a workspace's repositories.
 // Removing one never touches its folder.
 func (a *App) AddRepository(workspace, directory string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 	return a.store.AddRepository(workspace, directory)
-}
-func (a *App) RenameRepository(workspace, repository, name string) (core.State, error) {
-	if err := a.ready(); err != nil {
-		return core.State{}, err
-	}
-	return a.store.RenameRepository(workspace, repository, name)
 }
 func (a *App) RemoveRepository(workspace, repository string) (core.State, error) {
 	if err := a.ready(); err != nil {

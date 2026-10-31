@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/google/uuid"
 )
@@ -145,32 +144,6 @@ func (s *Store) AddRepository(workspaceID, directory string) (State, error) {
 	s.changedLocked()
 	s.mu.Unlock()
 	return s.DetectRepository(workspaceID)
-}
-
-// RenameRepository changes the name the workspace shows for a repository; the folder stays.
-func (s *Store) RenameRepository(workspaceID, repositoryID, name string) (State, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	name = strings.TrimSpace(name)
-	if name == "" {
-		return State{}, errors.New("Enter a repository name.")
-	}
-	p, err := s.workspaceLocked(workspaceID)
-	if err != nil {
-		return State{}, err
-	}
-	repo, err := s.repositoryLocked(p, repositoryID)
-	if err != nil {
-		return State{}, err
-	}
-	previous := repo.Name
-	repo.Name = name
-	if err = s.saveLocked(); err != nil {
-		repo.Name = previous
-		return State{}, err
-	}
-	s.changedLocked()
-	return s.snapshotLocked(), nil
 }
 
 // RemoveRepository removes a repository from the workspace and keeps its folder on disk.

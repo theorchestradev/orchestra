@@ -1206,9 +1206,6 @@ input::placeholder {
   flex: 1;
   min-width: 0;
 }
-.repository-fields input {
-  padding: 5px 7px;
-}
 .repository-settings li > button {
   flex: none;
 }

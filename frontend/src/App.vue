@@ -121,8 +121,6 @@ const workspaceName = ref(''),
   sessionWorkspaceID = ref(''),
   // The repository a new session works in.
   sessionRepositoryID = ref(''),
-  // Edit Workspace's repository names, saved with the workspace.
-  repositoryNames = ref({}),
   // The profile a new session or an edited workspace uses; "" is Default.
   sessionProfileID = ref(''),
   workspaceProfileID = ref(''),
@@ -713,8 +711,6 @@ async function startGitHubSession(item, prompt, name, choice) {
 }
 function edit(id, name, kind, description = '', emoji = '', profileID = '') {
   workspaceProfileID.value = profileID
-  const edited = kind === 'Workspace' && appState.value.workspaces.find((p) => p.id === id)
-  repositoryNames.value = Object.fromEntries(repositories(edited).map((r) => [r.id, r.name]))
   renameID.value = id
   renameValue.value = name
   renameKind.value = kind
@@ -732,11 +728,6 @@ async function rename() {
     const edited = state.workspaces?.find((p) => p.id === renameID.value)
     if (renameKind.value === 'Workspace' && edited && (edited.profileID || '') !== workspaceProfileID.value)
       state = await call('SetWorkspaceProfile', renameID.value, workspaceProfileID.value)
-    if (renameKind.value === 'Workspace')
-      for (const repo of repositories(edited)) {
-        const name = repositoryNames.value[repo.id]?.trim()
-        if (name && name !== repo.name) state = await call('RenameRepository', renameID.value, repo.id, name)
-      }
     apply(state)
     closeModal()
   } catch (e) {
@@ -766,9 +757,7 @@ async function addRepository(p) {
   try {
     const folder = await call('ChooseFolder')
     if (!folder) return
-    const state = apply(await call('AddRepository', p.id, folder))
-    const added = repositories(state.workspaces.find((x) => x.id === p.id)).at(-1)
-    if (added && !(added.id in repositoryNames.value)) repositoryNames.value[added.id] = added.name
+    apply(await call('AddRepository', p.id, folder))
   } catch (e) {
     fail(e)
   }
@@ -776,7 +765,6 @@ async function addRepository(p) {
 async function removeRepository(p, repo) {
   try {
     apply(await call('RemoveRepository', p.id, repo.id))
-    delete repositoryNames.value[repo.id]
   } catch (e) {
     formError.value = String(e)
   }
@@ -2086,13 +2074,8 @@ onBeforeUnmount(() => {
           <ul>
             <li v-for="repo in repositories(editedWorkspace)" :key="repo.id">
               <span class="repository-fields"
-                ><input
-                  autocorrect="off"
-                  autocapitalize="off"
-                  v-model="repositoryNames[repo.id]"
-                  :aria-label="'Name of the repository at ' + repo.directory"
-                  spellcheck="false"
-                /><small class="muted caption truncate" :title="repo.directory"
+                ><strong class="truncate">{{ repo.name }}</strong
+                ><small class="muted caption truncate" :title="repo.directory"
                   >{{ repo.directory }}{{ repo.gitHub ? ' · ' + repo.gitHub : '' }}</small
                 ><small
                   v-if="repositories(editedWorkspace).length > 1 && repositorySessionCount(editedWorkspace, repo)"

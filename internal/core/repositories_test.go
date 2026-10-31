@@ -170,9 +170,6 @@ func TestSessionsWorkInTheirRepository(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if state, err = s.RenameRepository(p.ID, other.ID, " Website "); err != nil || state.Workspaces[0].Repositories[1].Name != "Website" {
-		t.Fatalf("rename: %v", err)
-	}
 	if state, err = s.RemoveRepository(p.ID, other.ID); err != nil || len(state.Workspaces[0].Repositories) != 1 || state.Workspaces[0].LastRepositoryID != "" {
 		t.Fatalf("remove: %+v %v", state.Workspaces[0], err)
 	}
