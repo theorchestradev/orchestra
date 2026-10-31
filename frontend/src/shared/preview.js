@@ -416,10 +416,6 @@ export const backend = {
     p.repositories.push({ id: id(), name: directory.split('/').filter(Boolean).at(-1), directory })
     return backend.DetectRepository(pid)
   },
-  RenameRepository: (pid, rid, name) => {
-    repository(pid, rid).name = name.trim()
-    return changed()
-  },
   RemoveRepository: (pid, rid) => {
     const p = workspace(pid),
       repo = repository(pid, rid),
