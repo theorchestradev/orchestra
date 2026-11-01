@@ -81,7 +81,30 @@ sudo apt install build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
 npm --prefix frontend ci
 wails dev                # on Linux: wails dev -tags webkit2_41
 make build               # build/bin/Orchestra.app, or build/bin/orchestra on Linux
+make demo                # build and open an isolated demo of this worktree
+make demo DEMO_LAUNCH=0   # build and package the demo without opening it
 ```
+
+`make demo` also requires Python 3. It builds the current worktree, including uncommitted changes, with development
+build information and no release telemetry or updater. On macOS it creates
+`build/bin/demo/Orchestra Demo - <worktree>.app` with its own bundle identifier;
+on Linux it creates `build/bin/demo/orchestra-demo`. Open that bundle or launcher
+to reopen the demo: its launcher always selects the isolated environment.
+
+Each worktree keeps its own demo state under `/tmp/orchestra-demo-<uid>-<worktree-hash>`.
+Preferences, themes, logs, session hosts, CLI configuration, caches and sample Git
+repositories stay there. Rebuilding preserves that state; the operating system may
+clear it with other temporary files. Run `python3 scripts/DemoSmoke.py` to verify the
+launcher isolation and fixture persistence. Quit the demo and stop its background sessions
+before rebuilding. To start fresh, remove **only the printed demo data directory**
+after closing the demo.
+
+The demo uses the real app and native bridge with simulated agent CLIs, GitHub data
+and skill installs. It starts with a clean environment and a separate home directory;
+it does not copy your workspaces, settings, themes or credentials. Subscription usage
+and model queries may show unavailable because no account is connected. This is data
+isolation, not an OS sandbox: opening real folders or external applications still
+accesses those resources. Use the sample repositories for disposable validation.
 
 Pushing a SemVer tag such as `v0.2.0` runs
 [the release workflow](.github/workflows/release.yml), which publishes signed builds.

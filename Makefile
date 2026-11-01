@@ -33,7 +33,7 @@ else
 TAGS := -tags webkit2_41
 endif
 
-.PHONY: build check-wails
+.PHONY: build demo check-wails
 
 build: check-wails
 	$(WAILS) build -skipbindings $(TAGS) $(if $(PLATFORM),-platform $(PLATFORM)) -o orchestra -ldflags "$(LDFLAGS)"
@@ -45,6 +45,12 @@ ifneq ($(VERSION),dev)
 	plutil -replace CFBundleVersion -string $(firstword $(subst -, ,$(VERSION))) build/bin/Orchestra.app/Contents/Info.plist
 endif
 endif
+
+# Keep release telemetry and updates disabled even if VERSION/RELEASE_TELEMETRY were inherited.
+# DEMO_LAUNCH=0 packages the app without opening it.
+demo:
+	$(MAKE) build VERSION=dev RELEASE_TELEMETRY=0
+	python3 scripts/demo.py $(if $(filter 0,$(DEMO_LAUNCH)),--no-launch,)
 
 check-wails:
 	@version=$$("$(WAILS)" version 2>/dev/null | grep -o -m1 'v[0-9][0-9.]*'); \

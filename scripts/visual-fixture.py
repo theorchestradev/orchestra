@@ -3,15 +3,13 @@
 import json, os, pathlib, shutil, subprocess, sys, uuid
 root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else '/tmp/orchestra-visual')
 root.mkdir(parents=True, exist_ok=True)
-folder = root / 'workspace'
-folder.mkdir(exist_ok=True)
-subprocess.run(['/usr/bin/git', 'init', '-q', str(folder)], check=True)
-subprocess.run(['/usr/bin/git', '-C', str(folder), 'config', '--local', 'remote.origin.url', 'https://github.com/example/orchestra.git'], check=True)
-# A second repository in the same workspace, with its own GitHub remote.
-site = root / 'site'
-site.mkdir(exist_ok=True)
-subprocess.run(['/usr/bin/git', 'init', '-q', str(site)], check=True)
-subprocess.run(['/usr/bin/git', '-C', str(site), 'config', '--local', 'remote.origin.url', 'https://github.com/example/site.git'], check=True)
+tools_only = '--tools-only' in sys.argv[2:]
+folder, site = root / 'workspace', root / 'site'
+for directory in (folder, site): directory.mkdir(exist_ok=True)
+if not tools_only:
+ for directory, remote in ((folder, 'orchestra'), (site, 'site')):
+  subprocess.run(['/usr/bin/git', 'init', '-q', str(directory)], check=True)
+  subprocess.run(['/usr/bin/git', '-C', str(directory), 'config', '--local', 'remote.origin.url', f'https://github.com/example/{remote}.git'], check=True)
 bin_dir = root / 'bin'
 bin_dir.mkdir(exist_ok=True)
 python = shutil.which('python3')
@@ -24,6 +22,9 @@ marker = os.path.join(home, command + '-signed-in')
 if args[:2] in (['auth','status'], ['login','status']): sys.exit(0 if os.path.exists(marker) else 1)
 if args[:2] == ['auth','login'] or args[:1] == ['login']:
  open(marker,'w').write('fixture'); print('Fixture: signed in. No account was contacted.'); sys.exit(0)
+if args[:1] == ['--version']: print('Orchestra demo CLI 1.0'); sys.exit(0)
+if not os.environ.get('ORCHESTRA_AGENT_ID_FILE'):
+ print('Fixture: account and model queries are simulated.', file=sys.stderr); sys.exit(1)
 identifier = next((sys.argv[i+1] for i,x in enumerate(sys.argv[:-1]) if x in ('--resume','--session-id','--session','--conversation')), str(uuid.uuid4()))
 open(os.environ['ORCHESTRA_AGENT_ID_FILE'],'w').write(identifier)
 open(os.environ['ORCHESTRA_STATUS_FILE'],'w').write('waiting')
@@ -41,7 +42,7 @@ for command in ['codex','claude','pi','vibe','opencode','agy','grok','cline','om
  path.write_text(f'#!/bin/sh\nexec "{python}" "{agent}" {command} "$@"\n')
  path.chmod(0o700)
 shell = bin_dir/'fixture-shell'
-shell.write_text('#!/bin/sh\nexec /bin/sh -c "$4"\n'); shell.chmod(0o700)
+shell.write_text('#!/bin/sh\nwhile [ "$#" -gt 0 ]; do\n if [ "$1" = "-c" ]; then shift; exec /bin/sh -c "$1"; fi\n shift\ndone\n' + f'exec "{python}" "{agent}" terminal\n'); shell.chmod(0o700)
 gh = bin_dir/'gh'
 gh.write_text(f'''#!{python}
 import datetime, json, sys
@@ -73,6 +74,7 @@ else:
 print(json.dumps(result))
 ''')
 gh.chmod(0o700)
+if tools_only: sys.exit(0)
 pid, sid, peer, work, side, app_repo, site_repo = (str(uuid.uuid4()) for _ in range(7))
 # Default and the Work profile's Claude account are signed in; the long-named profile is not.
 profiles = [{'id':work,'name':'Work','emoji':'💼','folders':{a:str(root/'profiles'/'work'/a) for a in ('claude','codex')}},{'id':side,'name':'Side Projects and Open Source Contributions Account','folders':{a:str(root/'profiles'/'side-projects-and-open-source-contribut'/a) for a in ('claude','codex')}}]
