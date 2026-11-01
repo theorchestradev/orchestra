@@ -4,7 +4,7 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
-## Unreleased
+## 0.16.1 — 2026-11-01
 
 ### Changed
 
