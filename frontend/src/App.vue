@@ -1595,13 +1595,10 @@ onBeforeUnmount(() => {
       :profiles="appState.profiles"
       :destination="currentDestination"
       :preferences="shownPreferences"
-      :diff-open="showsDiff"
       :update="update"
       :update-ready="Boolean(updateStatus?.staged)"
       @update="openModal('update')"
       @inbox="openInbox"
-      @diff="toggleDiff"
-      @appearance="toggleAppearance"
       @settings="openSettings"
       @change="changePreferences({ ...preferences, ...$event })"
     />

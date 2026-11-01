@@ -362,7 +362,7 @@ func TestStatusBarPreferences(t *testing.T) {
 	}
 	prefs.HideStatusBar = true
 	prefs.HiddenStatusBarItems = []string{"branch", "waiting", "usage"}
-	prefs.StatusBarLayout = [][]string{{"theme", "usage"}, {"workspace", "branch"}}
+	prefs.StatusBarLayout = [][]string{{"inbox", "usage"}, {"workspace", "branch"}}
 	if _, err := s.SetPreferences(prefs); err != nil {
 		t.Fatal(err)
 	}
@@ -385,5 +385,20 @@ func TestInvalidStatusBarLayout(t *testing.T) {
 		if _, err := s.SetPreferences(prefs); err == nil {
 			t.Fatalf("accepted invalid layout: %v", layout)
 		}
+	}
+}
+
+func TestStatusBarDropsRetiredItems(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	prefs.HiddenStatusBarItems = []string{"changes", "branch", "theme"}
+	prefs.StatusBarLayout = [][]string{{"workspace", "changes"}, {"theme", "inbox"}}
+	state, err := s.SetPreferences(prefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := state.Preferences
+	if !reflect.DeepEqual(got.HiddenStatusBarItems, []string{"branch"}) || !reflect.DeepEqual(got.StatusBarLayout, [][]string{{"workspace"}, {"inbox"}}) {
+		t.Fatalf("retired item kept: %+v, %+v", got.HiddenStatusBarItems, got.StatusBarLayout)
 	}
 }

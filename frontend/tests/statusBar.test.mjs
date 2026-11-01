@@ -32,34 +32,34 @@ test('legacy usage preference can be toggled without hiding other indicators', (
 })
 
 test('items move between sides and reorder without affecting visibility', () => {
-  const original = { hiddenStatusBarItems: ['theme'] }
-  const moved = moveStatusBarItem(original, 'theme', 0, 0)
-  assert.equal(statusBarLayout(moved)[0].items[0][0], 'theme')
+  const original = { hiddenStatusBarItems: ['inbox'] }
+  const moved = moveStatusBarItem(original, 'inbox', 0, 0)
+  assert.equal(statusBarLayout(moved)[0].items[0][0], 'inbox')
   assert.equal(
-    statusBarLayout(moved)[1].items.some(([id]) => id === 'theme'),
+    statusBarLayout(moved)[1].items.some(([id]) => id === 'inbox'),
     false,
   )
-  assert.equal(statusBarItemVisible(moved, 'theme'), false)
-  const reordered = moveStatusBarItem(moved, 'theme', 0, 2)
+  assert.equal(statusBarItemVisible(moved, 'inbox'), false)
+  const reordered = moveStatusBarItem(moved, 'inbox', 0, 2)
   assert.deepEqual(
     statusBarLayout(reordered)[0]
       .items.slice(0, 3)
       .map(([id]) => id),
-    ['workspace', 'repository', 'theme'],
+    ['workspace', 'repository', 'inbox'],
   )
   const allRight = { statusBarLayout: [[], statusBarGroups.flatMap((g) => g.items.map(([id]) => id))] }
   assert.deepEqual(statusBarLayout(allRight)[0].items, [])
-  assert.equal(statusBarLayout(allRight)[1].items.length, 16)
+  assert.equal(statusBarLayout(allRight)[1].items.length, 14)
   assert.equal(original.statusBarLayout, undefined)
 })
 
 test('saved layouts ignore unknown and duplicate IDs and restore missing indicators', () => {
-  const layout = statusBarLayout({ statusBarLayout: [['theme', 'theme', 'unknown'], []] })
+  const layout = statusBarLayout({ statusBarLayout: [['inbox', 'inbox', 'unknown'], []] })
   const ids = layout.flatMap((g) => g.items.map(([id]) => id))
-  assert.equal(ids.length, 16)
-  assert.equal(new Set(ids).size, 16)
+  assert.equal(ids.length, 14)
+  assert.equal(new Set(ids).size, 14)
   assert.equal(ids.includes('unknown'), false)
-  assert.equal(layout[0].items[0][0], 'theme')
+  assert.equal(layout[0].items[0][0], 'inbox')
 })
 
 test('rendered indicators follow their configured side and order', async () => {
@@ -118,7 +118,9 @@ test('rendered indicators follow their configured side and order', async () => {
     Object.assign(preferences, statusBarItemChange(preferences, 'branch'))
     await nextTick()
     assert.equal(document.querySelector('footer').textContent.includes('feature/test'), false)
-    assert.equal(document.querySelectorAll('.status-summary button').length > 0, true)
+    assert.match(document.querySelector('.status-summary').textContent, /No running sessions/)
+    assert.equal(document.querySelector('footer').textContent.includes('Changes / Files'), false)
+    assert.equal(document.querySelector('[aria-label^="Theme"]'), null)
   } finally {
     app?.unmount()
     dom.window.close()

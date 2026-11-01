@@ -917,10 +917,16 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 		}
 		seen[tab] = true
 	}
+	// Changes / Files and Theme left the status bar; layouts saved by 0.16.0 may still name them.
+	retired := func(item string) bool { return item == "changes" || item == "theme" }
+	p.HiddenStatusBarItems = slices.DeleteFunc(p.HiddenStatusBarItems, retired)
+	for i := range p.StatusBarLayout {
+		p.StatusBarLayout[i] = slices.DeleteFunc(p.StatusBarLayout[i], retired)
+	}
 	if len(p.StatusBarLayout) != 0 && len(p.StatusBarLayout) != 2 {
 		return State{}, errors.New("Invalid status bar layout.")
 	}
-	statusItems := map[string]bool{"workspace": true, "repository": true, "session": true, "profile": true, "activity": true, "branch": true, "exitMessage": true, "view": true, "working": true, "waiting": true, "running": true, "changes": true, "update": true, "inbox": true, "usage": true, "theme": true}
+	statusItems := map[string]bool{"workspace": true, "repository": true, "session": true, "profile": true, "activity": true, "branch": true, "exitMessage": true, "view": true, "working": true, "waiting": true, "running": true, "update": true, "inbox": true, "usage": true}
 	seenItems := map[string]bool{}
 	for _, side := range p.StatusBarLayout {
 		for _, item := range side {

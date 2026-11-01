@@ -238,6 +238,14 @@ export function activityLabel(activity) {
     { waiting: 'Waiting for input', working: 'Agent working', ended: 'Session ended' }[activity] || 'Status unavailable'
   )
 }
+// Status bar tooltips list the sessions `include` matches under each workspace.
+export function statusSessions(workspaces, heading, include) {
+  const lines = (workspaces || []).flatMap((p) => {
+    const names = (p.sessions || []).filter(include).map((s) => '  ' + s.name)
+    return names.length ? [(p.emoji ? p.emoji + ' ' : '') + p.name, ...names] : []
+  })
+  return [heading, ...lines].join('\n')
+}
 export function statusSummary(workspaces, runs) {
   const sessions = (workspaces || []).flatMap((p) => p.sessions || []).filter((s) => s.running)
   const count = (status) => (runs || []).filter((r) => r.status === status).length

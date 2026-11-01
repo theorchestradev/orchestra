@@ -1,7 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { agents, agentIcon, themeOptions, activityLabel, statusSummary, isTerminal } from '../shared/appearance'
-import { shortcutLabel } from '../shared/platform'
+import { agents, agentIcon, activityLabel, statusSessions, statusSummary, isTerminal } from '../shared/appearance'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import { repositories, sessionRepository } from '../shared/workspace'
 import Icon from './Icon.vue'
@@ -17,11 +16,10 @@ const props = defineProps({
   profiles: Array,
   destination: String,
   preferences: Object,
-  diffOpen: Boolean,
   update: Object,
   updateReady: Boolean,
 })
-const emit = defineEmits(['inbox', 'appearance', 'diff', 'update', 'settings', 'change'])
+const emit = defineEmits(['inbox', 'update', 'settings', 'change'])
 const summary = computed(() => statusSummary(props.workspaces, props.runs))
 const agentName = computed(() =>
   isTerminal(props.session) ? 'Terminal' : agents.find((a) => a.id === props.session?.agent)?.name || 'Agent',
@@ -57,7 +55,13 @@ const repository = computed(() =>
       ? repositories(props.workspace)[0]
       : null,
 )
-const themeName = computed(() => themeOptions().find((t) => t.id === props.preferences.theme)?.name || 'System')
+// Sessions with requests waiting in their inbox or needing attention.
+const inboxSessions = computed(
+  () =>
+    new Set(
+      (props.runs || []).filter((r) => ['queued', 'needsAttention'].includes(r.status)).map((r) => r.toSessionID),
+    ),
+)
 const inbox = computed(() =>
   [
     summary.value.queued && `${summary.value.queued} in inbox`,
@@ -146,19 +150,6 @@ const inbox = computed(() =>
               >{{ session.exitMessage }}</span
             ></template
           >
-          <template v-if="id === 'changes'"
-            ><button
-              v-if="session"
-              class="status-item status-button"
-              :class="{ selected: diffOpen }"
-              aria-label="Changes and Files"
-              :aria-pressed="diffOpen"
-              :title="(diffOpen ? 'Hide' : 'Show') + ` Changes and Files (${shortcutLabel('⇧⌘B')})`"
-              @click="emit('diff')"
-            >
-              <Icon name="sidebar.right" :size="12" /><span class="status-optional">Changes / Files</span>
-            </button></template
-          >
           <template v-if="id === 'update'"
             ><button
               v-if="update"
@@ -178,7 +169,7 @@ const inbox = computed(() =>
               class="status-item status-button"
               :class="{ 'status-error': summary.attention }"
               :aria-label="'Messages: ' + inbox"
-              :title="inbox"
+              :title="statusSessions(workspaces, inbox, (s) => inboxSessions.has(s.id))"
               @click="emit('inbox')"
             >
               <Icon v-if="summary.attention" name="exclamationmark.triangle" :size="12" />Inbox<span
@@ -197,26 +188,6 @@ const inbox = computed(() =>
               @detailed="emit('change', { usageDetailed: $event })"
               @settings="emit('settings', $event)"
           /></template>
-          <template v-if="id === 'theme'"
-            ><button
-              class="status-item status-button"
-              :aria-label="
-                'Theme ' +
-                themeName +
-                ', ' +
-                preferences.appearance +
-                ' appearance. Switch to ' +
-                (preferences.appearance === 'light' ? 'dark' : 'light')
-              "
-              :title="'Switch to ' + (preferences.appearance === 'light' ? 'Dark' : 'Light') + ' appearance'"
-              @click="emit('appearance')"
-            >
-              <Icon :name="preferences.appearance === 'light' ? 'sun.max' : 'moon'" :size="12" /><span
-                class="truncate"
-                >{{ themeName }}</span
-              >
-            </button></template
-          >
           <template v-if="id === 'view'"
             ><span v-if="!session && ['github', 'reviews', 'scratchpad'].includes(destination)" class="status-item"
               ><Icon
@@ -238,17 +209,25 @@ const inbox = computed(() =>
             ></template
           >
           <template v-if="id === 'working'"
-            ><span v-if="summary.working" class="status-item" :title="'Working sessions across all workspaces'"
+            ><span
+              v-if="summary.working"
+              class="status-item"
+              :title="statusSessions(workspaces, 'Working sessions', (s) => s.running && s.activity === 'working')"
               ><i class="activity-dot working" />{{ summary.working }}<span class="status-optional">working</span></span
             ></template
           >
           <template v-if="id === 'waiting'"
-            ><span v-if="summary.waiting" class="status-item" :title="'Waiting sessions across all workspaces'"
+            ><span
+              v-if="summary.waiting"
+              class="status-item"
+              :title="statusSessions(workspaces, 'Waiting sessions', (s) => s.running && s.activity === 'waiting')"
               ><i class="activity-dot waiting" />{{ summary.waiting }}<span class="status-optional">waiting</span></span
             ></template
           >
           <template v-if="id === 'running'"
-            ><span class="status-item" :title="summary.running + ' running sessions across all workspaces'"
+            ><span
+              class="status-item"
+              :title="summary.running ? statusSessions(workspaces, 'Running sessions', (s) => s.running) : undefined"
               ><template v-if="summary.running"
                 ><Icon name="terminal" :size="12" />{{ summary.running
                 }}<span class="status-optional">running</span></template

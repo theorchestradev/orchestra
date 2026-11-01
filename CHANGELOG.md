@@ -4,6 +4,17 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### Changed
+
+- **A simpler status bar.** Changes / Files and Theme are no longer in the
+  status bar; use ⇧⌘B and the command bar instead. Agent usage is now the last
+  item on the right.
+- **See which sessions are working, waiting, running or have messages.**
+  Hovering those counts or Inbox in the status bar lists the sessions under
+  each workspace.
+
 ## 0.16.0 — 2026-11-01
 
 ### New

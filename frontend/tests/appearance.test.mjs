@@ -18,6 +18,7 @@ import {
   adjacentItem,
   dropIndex,
   activityLabel,
+  statusSessions,
   statusSummary,
   visibleSidebarWorkspaces,
   arcScrollDelta,
@@ -183,6 +184,27 @@ test('status bar summarizes running sessions and inbox requests', () => {
   ]
   assert.deepEqual(statusSummary(workspaces, runs), { running: 3, working: 1, waiting: 1, queued: 2, attention: 1 })
   assert.deepEqual(statusSummary(undefined, undefined), { running: 0, working: 0, waiting: 0, queued: 0, attention: 0 })
+  const named = [
+    {
+      name: 'Orchestra',
+      emoji: '🎻',
+      sessions: [
+        { name: 'Claude Code 1', running: true, activity: 'working' },
+        { name: 'Codex 1', running: true, activity: 'waiting' },
+        { name: 'Pi 1', running: false, activity: 'working' },
+      ],
+    },
+    { name: 'Site', sessions: [{ name: 'Codex 2', running: true, activity: 'working' }] },
+    { name: 'Idle', sessions: [] },
+  ]
+  assert.equal(
+    statusSessions(named, 'Working sessions', (s) => s.running && s.activity === 'working'),
+    'Working sessions\n🎻 Orchestra\n  Claude Code 1\nSite\n  Codex 2',
+  )
+  assert.equal(
+    statusSessions(named, 'Running sessions', (s) => s.running),
+    'Running sessions\n🎻 Orchestra\n  Claude Code 1\n  Codex 1\nSite\n  Codex 2',
+  )
   assert.equal(activityLabel('waiting'), 'Waiting for input')
   assert.equal(activityLabel('working'), 'Agent working')
   assert.equal(activityLabel(''), 'Status unavailable')

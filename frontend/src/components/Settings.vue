@@ -46,11 +46,9 @@ const statusBarExamples = {
   working: { text: '2 working', activity: 'working' },
   waiting: { text: '4 waiting', activity: 'waiting' },
   running: { text: '6 running', icon: 'terminal' },
-  changes: { text: 'Changes / Files', icon: 'sidebar.right' },
   update: { text: 'Update', icon: 'arrow.down.circle' },
   inbox: { text: 'Inbox 2' },
   usage: { text: '97% · 4d 12h', agent: 'codex' },
-  theme: { text: 'Ayu', icon: 'moon' },
 }
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))

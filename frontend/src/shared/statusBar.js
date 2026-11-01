@@ -19,11 +19,9 @@ export const statusBarGroups = [
       ['working', 'Working sessions'],
       ['waiting', 'Waiting sessions'],
       ['running', 'Running sessions'],
-      ['changes', 'Changes / Files'],
       ['update', 'Available update'],
       ['inbox', 'Inbox'],
       ['usage', 'Agent usage'],
-      ['theme', 'Theme'],
     ],
   },
 ]
