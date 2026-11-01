@@ -4,6 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.16.0 — 2026-11-01
+
+### New
+
+- **A default agent for each workspace.** Edit Workspace → Default Agent
+  overrides the Default Agent setting for that workspace. New Session, the
+  command bar, Work Items, Reviews and Resolve conflicts preselect it, together
+  with the workspace's profile.
+- **Choose what the status bar shows.** Settings → Status Bar hides or shows
+  the status bar and each of its items, and reorders them on either side.
+- **Keep the computer awake while sessions run.** An optional General setting
+  keeps the computer from sleeping while Orchestra is open and a session is
+  running. The display can still turn off.
+
 ## 0.15.1 — 2026-10-31
 
 ### Changed
