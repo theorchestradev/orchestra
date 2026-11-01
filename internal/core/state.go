@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -158,6 +159,8 @@ type Preferences struct {
 	// KeepSessionsRunning starts new sessions in the session host, so they keep running
 	// after Orchestra quits and reconnect when it opens again.
 	KeepSessionsRunning bool `json:"keepSessionsRunning"`
+	// KeepAwake keeps the computer from sleeping while a session runs.
+	KeepAwake bool `json:"keepAwake"`
 }
 type State struct {
 	Version             int          `json:"version"`
@@ -198,6 +201,10 @@ type Store struct {
 	// appLock keeps a second Orchestra from sharing the runtime folder and the host.
 	appLock    *os.File
 	stopOnQuit bool
+	// keepAwake is the process keeping the computer awake while KeepAwake is on and a session runs.
+	keepAwake *exec.Cmd
+	// keepAwakeUnavailable stops retrying after the system refused to keep the computer awake.
+	keepAwakeUnavailable bool
 }
 
 // SetTracker connects Store's usage signals to the App-owned analytics client.
@@ -475,7 +482,10 @@ func (s *Store) snapshotLocked() State {
 	return state
 }
 func (s *Store) Snapshot() State { s.mu.Lock(); defer s.mu.Unlock(); return s.snapshotLocked() }
-func (s *Store) changedLocked()  { s.emit("state", s.snapshotLocked()) }
+func (s *Store) changedLocked() {
+	s.updateKeepAwakeLocked()
+	s.emit("state", s.snapshotLocked())
+}
 func (s *Store) workspaceLocked(id string) (*Workspace, error) {
 	for _, p := range s.state.Workspaces {
 		if p.ID == id {
@@ -1232,6 +1242,7 @@ func (s *Store) Shutdown() {
 		s.collaboration.stopLocked(kept)
 	}
 	s.closeBackgroundLocked()
+	s.stopKeepAwakeLocked()
 	if s.hostDir != "" {
 		return
 	}

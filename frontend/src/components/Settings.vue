@@ -248,6 +248,27 @@ if (!mac)
           <hr />
           <div class="setting-row">
             <div>
+              <label for="keepAwake">Keep Computer Awake While Sessions Run</label>
+              <p class="muted caption">
+                Keep the computer from sleeping while Orchestra is open and a session is running. The display can still
+                turn off.
+              </p>
+            </div>
+            <button
+              id="keepAwake"
+              class="switch"
+              :class="{ on: preferences.keepAwake }"
+              role="switch"
+              :aria-checked="!!preferences.keepAwake"
+              aria-label="Keep Computer Awake While Sessions Run"
+              @click="choose('keepAwake', !preferences.keepAwake)"
+            >
+              <span />
+            </button>
+          </div>
+          <hr />
+          <div class="setting-row">
+            <div>
               <label for="github-refresh">GitHub Auto Refresh</label>
               <p class="muted caption">Refresh issues and pull requests while this page is visible.</p>
             </div>

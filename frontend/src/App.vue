@@ -93,6 +93,7 @@ const appState = ref({
     usageDetailed: false,
     keepLocalMainUpdated: false,
     keepSessionsRunning: false,
+    keepAwake: false,
   },
 })
 // Update checks run in Go; the status bar offers a found release unless it was skipped.

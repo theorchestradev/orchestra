@@ -61,6 +61,7 @@ let state = {
     usageDetailed: false,
     keepLocalMainUpdated: false,
     keepSessionsRunning: false,
+    keepAwake: false,
     betaUpdates: false,
   },
   workspaces: [
