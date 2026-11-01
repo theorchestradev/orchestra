@@ -30,6 +30,7 @@ test('command bar lists navigation, creation and app commands for the selected w
     'terminal',
     'workspace',
     'settings',
+    'statusBar',
     'update',
     'sidebar',
     'diff',
@@ -43,7 +44,7 @@ test('command bar lists navigation, creation and app commands for the selected w
     false,
   )
   const none = commandItems({ workspaces: [], preferences: {} }).map((c) => c.id)
-  assert.deepEqual(none, ['goto', 'workspace', 'settings', 'update', 'sidebar', 'appearance', 'theme'])
+  assert.deepEqual(none, ['goto', 'workspace', 'settings', 'statusBar', 'update', 'sidebar', 'appearance', 'theme'])
 })
 
 test('command labels follow current state', () => {
@@ -53,6 +54,11 @@ test('command labels follow current state', () => {
   )
   assert.equal(light.appearance, 'Switch to Dark Appearance')
   assert.equal(light.sidebar, 'Show Sidebar')
+  assert.equal(light.statusBar, 'Hide Status Bar')
+  assert.equal(
+    names(commandItems({ workspaces: [], preferences: { hideStatusBar: true } })).statusBar,
+    'Show Status Bar',
+  )
   assert.equal(light.diff, 'Show Changes')
   const open = commandItems({ workspaces, workspace: workspaces[0], preferences: { diffPaneOpen: true } })
   assert.equal(open.find((c) => c.id === 'diff').name, 'Hide Changes')

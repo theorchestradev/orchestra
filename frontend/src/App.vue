@@ -413,6 +413,10 @@ function command(kind) {
     closeModal()
     return
   }
+  if (kind === 'statusBar') {
+    changePreferences({ ...preferences.value, hideStatusBar: !preferences.value.hideStatusBar })
+    return
+  }
   if (kind === 'sidebar') {
     toggleSidebar()
     return
@@ -1576,6 +1580,7 @@ onBeforeUnmount(() => {
       @choose="chooseTelemetry"
     />
     <StatusBar
+      v-if="!preferences.hideStatusBar"
       :workspaces="appState.workspaces"
       :runs="appState.runs"
       :workspace="workspace"

@@ -353,3 +353,37 @@ func TestWindowOpacityPreference(t *testing.T) {
 		}
 	}
 }
+
+func TestStatusBarPreferences(t *testing.T) {
+	s := fixtureStore(t)
+	prefs := s.Snapshot().Preferences
+	if prefs.HideStatusBar || len(prefs.HiddenStatusBarItems) != 0 || prefs.HideUsageStatus {
+		t.Fatal("status bar defaults must preserve all existing indicators")
+	}
+	prefs.HideStatusBar = true
+	prefs.HiddenStatusBarItems = []string{"branch", "waiting", "usage"}
+	prefs.StatusBarLayout = [][]string{{"theme", "usage"}, {"workspace", "branch"}}
+	if _, err := s.SetPreferences(prefs); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	got := reopened.Snapshot().Preferences
+	if !got.HideStatusBar || !reflect.DeepEqual(got.StatusBarLayout, prefs.StatusBarLayout) || strings.Join(got.HiddenStatusBarItems, ",") != "branch,waiting,usage" {
+		t.Fatalf("status bar preferences were not restored: %+v", got)
+	}
+}
+
+func TestInvalidStatusBarLayout(t *testing.T) {
+	s := fixtureStore(t)
+	for _, layout := range [][][]string{{{"branch"}}, {{"branch"}, {"branch"}}, {{"unknown"}, {}}} {
+		prefs := s.Snapshot().Preferences
+		prefs.StatusBarLayout = layout
+		if _, err := s.SetPreferences(prefs); err == nil {
+			t.Fatalf("accepted invalid layout: %v", layout)
+		}
+	}
+}

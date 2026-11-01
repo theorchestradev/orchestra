@@ -77,6 +77,12 @@ export function commandItems({
     workspace && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
     { id: 'workspace', group: 'Create', name: 'New Workspace…', icon: 'folder', shortcut: shortcut('workspace') },
     { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: shortcut('settings') },
+    {
+      id: 'statusBar',
+      group: 'App',
+      name: preferences.hideStatusBar ? 'Show Status Bar' : 'Hide Status Bar',
+      icon: 'list.bullet.rectangle',
+    },
     { id: 'update', group: 'App', name: 'Check for Updates…', icon: 'arrow.down.circle' },
     {
       id: 'sidebar',

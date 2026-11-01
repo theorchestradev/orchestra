@@ -144,6 +144,10 @@ type Preferences struct {
 	OpenInApp string `json:"openInApp,omitempty"`
 	// HideOpenInButton hides the session view's Open in button; the zero value shows it.
 	HideOpenInButton bool `json:"hideOpenInButton"`
+	// HideStatusBar hides the whole bar; omitted preferences preserve the existing layout.
+	HideStatusBar        bool       `json:"hideStatusBar"`
+	StatusBarLayout      [][]string `json:"statusBarLayout,omitempty"`
+	HiddenStatusBarItems []string   `json:"hiddenStatusBarItems,omitempty"`
 	// HideUsageStatus hides the status bar's agent usage; the zero value shows it.
 	HideUsageStatus bool `json:"hideUsageStatus"`
 	// UsageDetailed shows every limit window in the status bar's usage popover instead of one row per agent.
@@ -897,6 +901,24 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 			return State{}, errors.New("Invalid sidebar tab order.")
 		}
 		seen[tab] = true
+	}
+	if len(p.StatusBarLayout) != 0 && len(p.StatusBarLayout) != 2 {
+		return State{}, errors.New("Invalid status bar layout.")
+	}
+	statusItems := map[string]bool{"workspace": true, "repository": true, "session": true, "profile": true, "activity": true, "branch": true, "exitMessage": true, "view": true, "working": true, "waiting": true, "running": true, "changes": true, "update": true, "inbox": true, "usage": true, "theme": true}
+	seenItems := map[string]bool{}
+	for _, side := range p.StatusBarLayout {
+		for _, item := range side {
+			if !statusItems[item] || seenItems[item] {
+				return State{}, errors.New("Invalid status bar layout.")
+			}
+			seenItems[item] = true
+		}
+	}
+	for _, item := range p.HiddenStatusBarItems {
+		if !statusItems[item] {
+			return State{}, errors.New("Invalid status bar item.")
+		}
 	}
 	previous := s.state.Preferences
 	p.TelemetryEnabled = previous.TelemetryEnabled

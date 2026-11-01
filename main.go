@@ -61,6 +61,7 @@ func main() {
 	file.AddText("Check for Updates…", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "update") })
 	appMenu.Append(menu.EditMenu())
 	view := appMenu.AddSubmenu("View")
+	view.AddText("Toggle Status Bar", nil, func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "statusBar") })
 	view.AddText("Toggle Sidebar", keys.CmdOrCtrl("b"), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "sidebar") })
 	view.AddText("Toggle Changes", keys.Combo("b", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "diff") })
 	view.AddText("Toggle Files", keys.Combo("e", keys.CmdOrCtrlKey, keys.ShiftKey), func(*menu.CallbackData) { runtime.EventsEmit(app.ctx, "command", "files") })

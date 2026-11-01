@@ -1,7 +1,15 @@
 <script setup>
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { themeOptions, themeSource, agents, windowOpacityRange, effectiveAppearance } from '../shared/appearance'
+import {
+  themeOptions,
+  themeSource,
+  agents,
+  agentIcon,
+  windowOpacityRange,
+  effectiveAppearance,
+} from '../shared/appearance'
 import Icon from './Icon.vue'
+import { statusBarLayout, statusBarItemVisible, statusBarItemChange, moveStatusBarItem } from '../shared/statusBar'
 import Modal from './Modal.vue'
 import AgentUsage from './AgentUsage.vue'
 import AgentSkill from './AgentSkill.vue'
@@ -25,6 +33,25 @@ const props = defineProps({
   initialSection: String,
   initialFocus: String,
 })
+// Illustrative values stay visible even when an indicator has no current session data.
+const statusBarExamples = {
+  workspace: { text: 'Orchestra', icon: 'folder' },
+  repository: { text: 'theorchestradev/orchestra', icon: 'folder' },
+  session: { text: 'Codex 1', agent: 'codex' },
+  profile: { text: '💼 Work' },
+  activity: { text: 'Waiting for input', activity: 'waiting' },
+  branch: { text: 'orchestra/codex-1', icon: 'arrow.triangle.branch' },
+  exitMessage: { text: 'Process exited with code 1' },
+  view: { text: 'Work Items', icon: 'list.bullet.rectangle' },
+  working: { text: '2 working', activity: 'working' },
+  waiting: { text: '4 waiting', activity: 'waiting' },
+  running: { text: '6 running', icon: 'terminal' },
+  changes: { text: 'Changes / Files', icon: 'sidebar.right' },
+  update: { text: 'Update', icon: 'arrow.down.circle' },
+  inbox: { text: 'Inbox 2' },
+  usage: { text: '97% · 4d 12h', agent: 'codex' },
+  theme: { text: 'Ayu', icon: 'moon' },
+}
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
 const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
@@ -39,6 +66,7 @@ const sections = {
   'Source Control': 'arrow.triangle.branch',
   Profiles: 'person.crop.circle',
   Appearance: 'paintpalette',
+  'Status Bar': 'list.bullet.rectangle',
   Terminal: 'terminal',
   Shortcuts: 'keyboard',
   Usage: 'circle.dotted',
@@ -58,6 +86,11 @@ const modes = [
   { id: 'dark', name: 'Dark', icon: 'moon' },
 ]
 const choose = (key, value) => emit('change', { ...props.preferences, [key]: value })
+async function moveStatusItem(id, side, index) {
+  emit('change', moveStatusBarItem(props.preferences, id, side, index))
+  await nextTick()
+  document.getElementById('status-item-' + id)?.focus()
+}
 // Duplicate as Custom Theme writes the selected theme's colors through Go; App then reloads the
 // custom themes and selects the copy.
 const selectedTheme = computed(() => themeOptions().find((t) => t.id === props.preferences.theme) || themeOptions()[0])
@@ -498,6 +531,108 @@ if (!mac)
             </button>
           </div>
         </div>
+        <div v-else-if="section === 'Status Bar'" class="settings-card general-settings">
+          <div class="setting-row">
+            <label for="show-status-bar">Show Status Bar</label>
+            <button
+              id="show-status-bar"
+              class="switch"
+              :class="{ on: !preferences.hideStatusBar }"
+              role="switch"
+              :aria-checked="!preferences.hideStatusBar"
+              aria-label="Show Status Bar"
+              @click="choose('hideStatusBar', !preferences.hideStatusBar)"
+            >
+              <span />
+            </button>
+          </div>
+          <p class="muted caption">
+            Choose which indicators appear, move them between sides, and change their order. Examples show how each
+            indicator appears.
+          </p>
+          <section
+            v-for="(group, side) in statusBarLayout(preferences)"
+            :key="group.name"
+            class="status-bar-group"
+            :aria-labelledby="'status-bar-side-' + side"
+          >
+            <header class="status-bar-group-heading">
+              <Icon :name="side === 0 ? 'sidebar.left' : 'sidebar.right'" :size="16" />
+              <h3 :id="'status-bar-side-' + side">{{ group.name }} side</h3>
+              <span class="muted caption">{{ group.items.length }} items</span>
+            </header>
+            <div v-for="([id, label], index) in group.items" :key="id" class="setting-row status-bar-setting">
+              <div class="status-bar-item-description">
+                <label :for="'status-item-' + id">{{ label }}</label>
+                <span
+                  class="status-bar-example"
+                  :title="'Example: ' + statusBarExamples[id].text"
+                  :aria-label="'Example: ' + statusBarExamples[id].text"
+                >
+                  <img
+                    v-if="statusBarExamples[id].agent"
+                    :src="agentIcon(statusBarExamples[id].agent, shownAppearance)"
+                    alt=""
+                  />
+                  <Icon v-else-if="statusBarExamples[id].icon" :name="statusBarExamples[id].icon" :size="12" />
+                  <i
+                    v-else-if="statusBarExamples[id].activity"
+                    class="activity-dot"
+                    :class="statusBarExamples[id].activity"
+                  />
+                  <span class="truncate">{{ statusBarExamples[id].text }}</span>
+                </span>
+              </div>
+              <div class="status-bar-item-actions">
+                <button
+                  class="icon-button"
+                  :disabled="index === 0"
+                  :aria-label="'Move ' + label + ' up'"
+                  :title="'Move ' + label + ' up'"
+                  @click="moveStatusItem(id, side, index - 1)"
+                >
+                  <Icon name="chevron.down" class="status-move-up" :size="12" />
+                </button>
+                <button
+                  class="icon-button"
+                  :disabled="index === group.items.length - 1"
+                  :aria-label="'Move ' + label + ' down'"
+                  :title="'Move ' + label + ' down'"
+                  @click="moveStatusItem(id, side, index + 1)"
+                >
+                  <Icon name="chevron.down" :size="12" />
+                </button>
+                <button
+                  class="icon-button"
+                  :aria-label="'Move ' + label + ' to the ' + (side === 0 ? 'right' : 'left')"
+                  :title="'Move to the ' + (side === 0 ? 'right' : 'left')"
+                  @click="moveStatusItem(id, 1 - side, statusBarLayout(preferences)[1 - side].items.length)"
+                >
+                  <Icon :name="side === 0 ? 'chevron.right' : 'chevron.left'" :size="12" />
+                </button>
+                <button
+                  :id="'status-item-' + id"
+                  class="switch"
+                  :class="{ on: statusBarItemVisible(preferences, id) }"
+                  role="switch"
+                  :aria-checked="statusBarItemVisible(preferences, id)"
+                  :aria-label="label"
+                  @click="emit('change', statusBarItemChange(preferences, id))"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+          <button
+            class="text-link"
+            @click="
+              emit('change', { ...preferences, statusBarLayout: [], hiddenStatusBarItems: [], hideUsageStatus: false })
+            "
+          >
+            Restore Default Layout
+          </button>
+        </div>
         <div v-else-if="section === 'Terminal'" class="settings-card terminal-settings">
           <div class="setting-row font-family-setting">
             <div>
@@ -702,11 +837,11 @@ if (!mac)
               <button
                 id="usage-status"
                 class="switch"
-                :class="{ on: !preferences.hideUsageStatus }"
+                :class="{ on: statusBarItemVisible(preferences, 'usage') }"
                 role="switch"
-                :aria-checked="!preferences.hideUsageStatus"
+                :aria-checked="statusBarItemVisible(preferences, 'usage')"
                 aria-label="Show Usage in Status Bar"
-                @click="choose('hideUsageStatus', !preferences.hideUsageStatus)"
+                @click="emit('change', statusBarItemChange(preferences, 'usage'))"
               >
                 <span />
               </button>

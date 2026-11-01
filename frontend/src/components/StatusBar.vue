@@ -6,6 +6,8 @@ import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import { repositories, sessionRepository } from '../shared/workspace'
 import Icon from './Icon.vue'
 import UsageStatus from './UsageStatus.vue'
+import { statusBarLayout, statusBarItemVisible } from '../shared/statusBar'
+const layout = computed(() => statusBarLayout(props.preferences))
 const props = defineProps({
   workspaces: Array,
   runs: Array,
@@ -67,142 +69,194 @@ const inbox = computed(() =>
 </script>
 <template>
   <footer class="status-bar" aria-label="Status bar">
-    <div class="status-context">
-      <template v-if="workspace"
-        ><span
-          class="status-item truncate"
-          :title="
-            repositories(workspace)
-              .map((r) => r.directory)
-              .join('\n')
-          "
-          ><span v-if="workspace.emoji" class="status-emoji" aria-hidden="true">{{ workspace.emoji }}</span
-          ><img v-else-if="workspaceIcon" class="status-workspace-icon" :src="workspaceIcon" alt="" /><Icon
-            v-else
-            name="folder"
-            :size="12"
-          /><span class="truncate">{{ workspace.name }}</span></span
-        ><span
-          v-if="repository"
-          class="status-item status-optional truncate"
-          :title="repository.directory + (repository.gitHub ? ' · GitHub repository ' + repository.gitHub : '')"
-          ><Icon name="folder" :size="12" /><span class="visually-hidden">Repository: </span
-          ><span class="truncate">{{ repository.gitHub || repository.name }}</span></span
-        ></template
+    <div v-for="(group, side) in layout" :key="group.name" :class="side === 0 ? 'status-context' : 'status-summary'">
+      <template v-for="[id] in group.items" :key="id"
+        ><template v-if="statusBarItemVisible(preferences, id)">
+          <template v-if="id === 'workspace'"
+            ><span
+              v-if="workspace"
+              class="status-item truncate"
+              :title="
+                repositories(workspace)
+                  .map((r) => r.directory)
+                  .join('\n')
+              "
+              ><span v-if="workspace.emoji" class="status-emoji" aria-hidden="true">{{ workspace.emoji }}</span
+              ><img v-else-if="workspaceIcon" class="status-workspace-icon" :src="workspaceIcon" alt="" /><Icon
+                v-else
+                name="folder"
+                :size="12"
+              /><span class="truncate">{{ workspace.name }}</span></span
+            ></template
+          >
+          <template v-if="id === 'repository'"
+            ><span
+              v-if="repository"
+              class="status-item status-optional truncate"
+              :title="repository.directory + (repository.gitHub ? ' · GitHub repository ' + repository.gitHub : '')"
+              ><Icon name="folder" :size="12" /><span class="visually-hidden">Repository: </span
+              ><span class="truncate">{{ repository.gitHub || repository.name }}</span></span
+            ></template
+          >
+          <template v-if="id === 'session'"
+            ><span v-if="session" class="status-item truncate" :title="agentName + ' — ' + session.name"
+              ><Icon v-if="isTerminal(session)" name="terminal" :size="12" /><img
+                v-else
+                :src="agentIcon(session.agent, preferences.appearance)"
+                alt=""
+              /><span class="truncate">{{ session.name }}</span></span
+            ></template
+          >
+          <template v-if="id === 'profile'"
+            ><span
+              v-if="session && profile"
+              class="status-item status-optional truncate"
+              :title="'Profile: ' + profile.name"
+              ><span class="status-emoji" aria-hidden="true">{{ profile.symbol }}</span
+              ><span class="truncate"><span class="visually-hidden">Profile: </span>{{ profile.name }}</span></span
+            ></template
+          >
+          <template v-if="id === 'activity'"
+            ><span v-if="session" class="status-item" aria-live="polite"
+              ><i
+                class="activity-dot"
+                :class="session.restored ? null : session.running ? session.activity : 'ended'"
+              />{{ activity }}</span
+            ></template
+          >
+          <template v-if="id === 'branch'"
+            ><span
+              v-if="session"
+              class="status-item truncate"
+              :title="
+                session.worktreeBranch
+                  ? session.worktreeBranch + ' · ' + session.worktreeDirectory
+                  : 'Runs in the ' + (repository?.name || 'repository') + ' folder'
+              "
+              ><Icon name="arrow.triangle.branch" :size="12" /><span class="truncate">{{
+                session.worktreeBranch || 'Repository folder'
+              }}</span></span
+            ></template
+          >
+          <template v-if="id === 'exitMessage'"
+            ><span
+              v-if="session && session.exitMessage"
+              class="status-item status-optional truncate"
+              :title="session.exitMessage"
+              >{{ session.exitMessage }}</span
+            ></template
+          >
+          <template v-if="id === 'changes'"
+            ><button
+              v-if="session"
+              class="status-item status-button"
+              :class="{ selected: diffOpen }"
+              aria-label="Changes and Files"
+              :aria-pressed="diffOpen"
+              :title="(diffOpen ? 'Hide' : 'Show') + ` Changes and Files (${shortcutLabel('⇧⌘B')})`"
+              @click="emit('diff')"
+            >
+              <Icon name="sidebar.right" :size="12" /><span class="status-optional">Changes / Files</span>
+            </button></template
+          >
+          <template v-if="id === 'update'"
+            ><button
+              v-if="update"
+              class="status-item status-button update-available"
+              :aria-label="'Orchestra ' + update.version + (updateReady ? ' is ready to install' : ' is available')"
+              :title="'Orchestra ' + update.version + (updateReady ? ' is ready to install' : ' is available')"
+              @click="emit('update')"
+            >
+              <Icon name="arrow.down.circle" :size="12" /><span class="status-optional">{{
+                updateReady ? 'Restart to Update' : 'Update'
+              }}</span>
+            </button></template
+          >
+          <template v-if="id === 'inbox'"
+            ><button
+              v-if="inbox"
+              class="status-item status-button"
+              :class="{ 'status-error': summary.attention }"
+              :aria-label="'Messages: ' + inbox"
+              :title="inbox"
+              @click="emit('inbox')"
+            >
+              <Icon v-if="summary.attention" name="exclamationmark.triangle" :size="12" />Inbox<span
+                class="count unread"
+                >{{ summary.queued + summary.attention }}</span
+              >
+            </button></template
+          >
+          <template v-if="id === 'usage'"
+            ><UsageStatus
+              :appearance="preferences.appearance"
+              :agent="session?.agent"
+              :profile-id="usageProfileID"
+              :profile-name="profileName(profiles, usageProfileID)"
+              :detailed="preferences.usageDetailed"
+              @detailed="emit('change', { usageDetailed: $event })"
+              @settings="emit('settings', $event)"
+          /></template>
+          <template v-if="id === 'theme'"
+            ><button
+              class="status-item status-button"
+              :aria-label="
+                'Theme ' +
+                themeName +
+                ', ' +
+                preferences.appearance +
+                ' appearance. Switch to ' +
+                (preferences.appearance === 'light' ? 'dark' : 'light')
+              "
+              :title="'Switch to ' + (preferences.appearance === 'light' ? 'Dark' : 'Light') + ' appearance'"
+              @click="emit('appearance')"
+            >
+              <Icon :name="preferences.appearance === 'light' ? 'sun.max' : 'moon'" :size="12" /><span
+                class="truncate"
+                >{{ themeName }}</span
+              >
+            </button></template
+          >
+          <template v-if="id === 'view'"
+            ><span v-if="!session && ['github', 'reviews', 'scratchpad'].includes(destination)" class="status-item"
+              ><Icon
+                :name="
+                  destination === 'github'
+                    ? 'list.bullet.rectangle'
+                    : destination === 'reviews'
+                      ? 'arrow.triangle.pull'
+                      : 'note.text'
+                "
+                :size="12"
+              />{{
+                destination === 'github'
+                  ? 'Work Items'
+                  : destination === 'reviews'
+                    ? 'Reviews'
+                    : workspace?.scratchpadName || 'Scratchpad'
+              }}</span
+            ></template
+          >
+          <template v-if="id === 'working'"
+            ><span v-if="summary.working" class="status-item" :title="'Working sessions across all workspaces'"
+              ><i class="activity-dot working" />{{ summary.working }}<span class="status-optional">working</span></span
+            ></template
+          >
+          <template v-if="id === 'waiting'"
+            ><span v-if="summary.waiting" class="status-item" :title="'Waiting sessions across all workspaces'"
+              ><i class="activity-dot waiting" />{{ summary.waiting }}<span class="status-optional">waiting</span></span
+            ></template
+          >
+          <template v-if="id === 'running'"
+            ><span class="status-item" :title="summary.running + ' running sessions across all workspaces'"
+              ><template v-if="summary.running"
+                ><Icon name="terminal" :size="12" />{{ summary.running
+                }}<span class="status-optional">running</span></template
+              ><template v-else>No running sessions</template></span
+            ></template
+          >
+        </template></template
       >
-      <template v-if="session"
-        ><span class="status-item truncate" :title="agentName + ' — ' + session.name"
-          ><Icon v-if="isTerminal(session)" name="terminal" :size="12" /><img
-            v-else
-            :src="agentIcon(session.agent, preferences.appearance)"
-            alt=""
-          /><span class="truncate">{{ session.name }}</span></span
-        ><span v-if="profile" class="status-item status-optional truncate" :title="'Profile: ' + profile.name"
-          ><span class="status-emoji" aria-hidden="true">{{ profile.symbol }}</span
-          ><span class="truncate"><span class="visually-hidden">Profile: </span>{{ profile.name }}</span></span
-        ><span class="status-item" aria-live="polite"
-          ><i class="activity-dot" :class="session.restored ? null : session.running ? session.activity : 'ended'" />{{
-            activity
-          }}</span
-        ><span
-          class="status-item truncate"
-          :title="
-            session.worktreeBranch
-              ? session.worktreeBranch + ' · ' + session.worktreeDirectory
-              : 'Runs in the ' + (repository?.name || 'repository') + ' folder'
-          "
-          ><Icon name="arrow.triangle.branch" :size="12" /><span class="truncate">{{
-            session.worktreeBranch || 'Repository folder'
-          }}</span></span
-        ><span v-if="session.exitMessage" class="status-item status-optional truncate" :title="session.exitMessage">{{
-          session.exitMessage
-        }}</span></template
-      >
-      <span v-else-if="destination === 'github'" class="status-item"
-        ><Icon name="list.bullet.rectangle" :size="12" />Work Items</span
-      ><span v-else-if="destination === 'reviews'" class="status-item"
-        ><Icon name="arrow.triangle.pull" :size="12" />Reviews</span
-      ><span v-else-if="destination === 'scratchpad'" class="status-item"
-        ><Icon name="note.text" :size="12" />{{ workspace.scratchpadName || 'Scratchpad' }}</span
-      >
-    </div>
-    <div class="status-summary">
-      <span
-        class="status-item"
-        :title="
-          summary.running + ' running ' + (summary.running === 1 ? 'session' : 'sessions') + ' across all workspaces'
-        "
-        ><template v-if="summary.running"
-          ><span v-if="summary.working" class="status-item"
-            ><i class="activity-dot working" />{{ summary.working }}<span class="status-optional">working</span></span
-          ><span v-if="summary.waiting" class="status-item"
-            ><i class="activity-dot waiting" />{{ summary.waiting }}<span class="status-optional">waiting</span></span
-          ><span class="status-item"
-            ><Icon name="terminal" :size="12" />{{ summary.running }}<span class="status-optional">running</span></span
-          ></template
-        ><template v-else>No running sessions</template></span
-      >
-      <button
-        v-if="session"
-        class="status-item status-button"
-        :class="{ selected: diffOpen }"
-        aria-label="Changes and Files"
-        :aria-pressed="diffOpen"
-        :title="(diffOpen ? 'Hide' : 'Show') + ` Changes and Files (${shortcutLabel('⇧⌘B')})`"
-        @click="emit('diff')"
-      >
-        <Icon name="sidebar.right" :size="12" /><span class="status-optional">Changes / Files</span>
-      </button>
-      <button
-        v-if="update"
-        class="status-item status-button update-available"
-        :aria-label="'Orchestra ' + update.version + (updateReady ? ' is ready to install' : ' is available')"
-        :title="'Orchestra ' + update.version + (updateReady ? ' is ready to install' : ' is available')"
-        @click="emit('update')"
-      >
-        <Icon name="arrow.down.circle" :size="12" /><span class="status-optional">{{
-          updateReady ? 'Restart to Update' : 'Update'
-        }}</span>
-      </button>
-      <button
-        v-if="inbox"
-        class="status-item status-button"
-        :class="{ 'status-error': summary.attention }"
-        :aria-label="'Messages: ' + inbox"
-        :title="inbox"
-        @click="emit('inbox')"
-      >
-        <Icon v-if="summary.attention" name="exclamationmark.triangle" :size="12" />Inbox<span class="count unread">{{
-          summary.queued + summary.attention
-        }}</span>
-      </button>
-      <UsageStatus
-        v-if="!preferences.hideUsageStatus"
-        :appearance="preferences.appearance"
-        :agent="session?.agent"
-        :profile-id="usageProfileID"
-        :profile-name="profileName(profiles, usageProfileID)"
-        :detailed="preferences.usageDetailed"
-        @detailed="emit('change', { usageDetailed: $event })"
-        @settings="emit('settings', $event)"
-      />
-      <button
-        class="status-item status-button"
-        :aria-label="
-          'Theme ' +
-          themeName +
-          ', ' +
-          preferences.appearance +
-          ' appearance. Switch to ' +
-          (preferences.appearance === 'light' ? 'dark' : 'light')
-        "
-        :title="'Switch to ' + (preferences.appearance === 'light' ? 'Dark' : 'Light') + ' appearance'"
-        @click="emit('appearance')"
-      >
-        <Icon :name="preferences.appearance === 'light' ? 'sun.max' : 'moon'" :size="12" /><span class="truncate">{{
-          themeName
-        }}</span>
-      </button>
     </div>
   </footer>
 </template>
