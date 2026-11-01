@@ -1,5 +1,5 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
-import { hasWorkItems, workspaceTitle, sessionRepository } from './workspace.js'
+import { hasWorkItems, workspaceTitle, sessionRepository, workspaceAgent } from './workspace.js'
 import { shortcut } from './shortcuts.js'
 import { appSymbol } from './openIn.js'
 
@@ -12,9 +12,10 @@ export function commandItems({
   preferences = {},
   sidebarHidden = false,
 }) {
+  const defaultAgent = workspaceAgent(workspace, preferences)
   const sessionAgents = [...agents]
-    .sort((a, b) => Number(b.id === preferences.defaultAgent) - Number(a.id === preferences.defaultAgent))
-    .map((a) => ({ id: a.id, name: a.name, agent: a.id, detail: a.id === preferences.defaultAgent ? 'Default' : '' }))
+    .sort((a, b) => Number(b.id === defaultAgent) - Number(a.id === defaultAgent))
+    .map((a) => ({ id: a.id, name: a.name, agent: a.id, detail: a.id === defaultAgent ? 'Default' : '' }))
   const items = [
     {
       id: 'goto',

@@ -99,6 +99,8 @@ type Workspace struct {
 	ScratchpadMode string `json:"scratchpadMode,omitempty"`
 	// ProfileID is the profile new sessions use; empty is Default.
 	ProfileID string `json:"profileID,omitempty"`
+	// DefaultAgent overrides Preferences.DefaultAgent for new sessions; empty uses it.
+	DefaultAgent string `json:"defaultAgent,omitempty"`
 	// LocalMainNoticeDismissed hides the notice that local main is behind origin.
 	LocalMainNoticeDismissed bool       `json:"localMainNoticeDismissed,omitempty"`
 	Sessions                 []*Session `json:"sessions"`
@@ -391,6 +393,9 @@ func (s *Store) restoreLocked() {
 		}
 		if _, err := s.profileLocked(p.ProfileID); err != nil {
 			p.ProfileID = ""
+		}
+		if _, ok := agentSpecs[p.DefaultAgent]; !ok {
+			p.DefaultAgent = ""
 		}
 		if _, err := s.repositoryLocked(p, p.LastRepositoryID); err != nil {
 			p.LastRepositoryID = ""

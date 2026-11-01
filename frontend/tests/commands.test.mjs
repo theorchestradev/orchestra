@@ -71,6 +71,18 @@ test('command labels follow current state', () => {
   assert.equal(session.children[0].detail, 'Default')
 })
 
+test('new session commands prefer the workspace agent over the Default Agent', () => {
+  const workspace = { ...workspaces[0], defaultAgent: 'codex' }
+  const session = commandItems({ workspaces, workspace, preferences: { defaultAgent: 'pi' } }).find(
+    (c) => c.id === 'session',
+  )
+  assert.deepEqual(
+    session.children.filter((c) => c.detail).map((c) => c.agent),
+    ['codex'],
+  )
+  assert.equal(session.children[0].agent, 'codex')
+})
+
 test('go to lists every workspace page and session', () => {
   const items = destinations(workspaces)
   assert.deepEqual(

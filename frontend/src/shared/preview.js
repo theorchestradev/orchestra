@@ -567,6 +567,10 @@ export const backend = {
     for (const p of state.workspaces) if (p.profileID === profileID) p.profileID = ''
     return changed()
   },
+  SetWorkspaceAgent: (pid, agent) => {
+    workspace(pid).defaultAgent = agent
+    return changed()
+  },
   SetWorkspaceProfile: (pid, profileID) => {
     workspace(pid).profileID = profileID
     return changed()

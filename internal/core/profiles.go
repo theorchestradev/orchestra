@@ -274,6 +274,28 @@ func (s *Store) SetWorkspaceProfile(workspaceID, profileID string) (State, error
 	return s.snapshotLocked(), nil
 }
 
+// SetWorkspaceAgent chooses the agent new sessions in the workspace preselect; empty
+// uses the Default Agent preference.
+func (s *Store) SetWorkspaceAgent(workspaceID, agent string) (State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, err := s.workspaceLocked(workspaceID)
+	if err != nil {
+		return State{}, err
+	}
+	if _, ok := agentSpecs[agent]; agent != "" && !ok {
+		return State{}, errors.New("Unknown default agent.")
+	}
+	previous := p.DefaultAgent
+	p.DefaultAgent = agent
+	if err = s.saveLocked(); err != nil {
+		p.DefaultAgent = previous
+		return State{}, err
+	}
+	s.changedLocked()
+	return s.snapshotLocked(), nil
+}
+
 // LogIn adds a terminal session in the profile that runs the agent's login command, so the
 // user signs in themselves. Orchestra never handles the credentials.
 func (s *Store) LogIn(workspaceID, profileID, agent string) (State, error) {

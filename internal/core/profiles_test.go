@@ -360,3 +360,20 @@ func TestProfileSkillInstall(t *testing.T) {
 		t.Fatalf("shared Codex install = %q, %v", *scripts, err)
 	}
 }
+
+func TestWorkspaceAgentOverridesTheDefaultAgent(t *testing.T) {
+	s := fixtureStore(t)
+	p := workspaceFixture(t, s)
+	state, err := s.SetWorkspaceAgent(p.ID, "codex")
+	if err != nil || state.Workspaces[0].DefaultAgent != "codex" {
+		t.Fatalf("workspace agent = %q, %v", state.Workspaces[0].DefaultAgent, err)
+	}
+	for _, agent := range []string{"terminal", "missing"} {
+		if _, err = s.SetWorkspaceAgent(p.ID, agent); err == nil {
+			t.Fatalf("agent %q accepted", agent)
+		}
+	}
+	if state, err = s.SetWorkspaceAgent(p.ID, ""); err != nil || state.Workspaces[0].DefaultAgent != "" {
+		t.Fatalf("cleared workspace agent = %q, %v", state.Workspaces[0].DefaultAgent, err)
+	}
+}

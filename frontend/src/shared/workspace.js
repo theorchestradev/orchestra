@@ -4,6 +4,9 @@ export const workspaceTitle = (p) => (p?.emoji ? p.emoji + ' ' + p.name : p?.nam
 // Arc Mode spaces show the emoji, or else the name's first letter.
 export const spaceSymbol = (p) => p.emoji || Array.from(p.name.trim())[0]?.toUpperCase() || '•'
 
+// New sessions preselect the workspace's agent, else the Default Agent preference.
+export const workspaceAgent = (p, preferences) => p?.defaultAgent || preferences?.defaultAgent || ''
+
 // New Session offers Initialize Git Repository only for this error from createSessionWorktree.
 export const needsGitRepository = (error) =>
   /^(Error: )?A worktree requires a Git repository\b/.test(String(error ?? ''))

@@ -14,6 +14,7 @@ import {
   defaultRepository,
   hasWorkItems,
   repositoryLabel,
+  workspaceAgent,
 } from './shared/workspace'
 import { findProfile, profileName, sessionProfile } from './shared/profiles'
 import {
@@ -125,6 +126,7 @@ const workspaceName = ref(''),
   // The profile a new session or an edited workspace uses; "" is Default.
   sessionProfileID = ref(''),
   workspaceProfileID = ref(''),
+  workspaceAgentID = ref(''),
   formError = ref('')
 const visitedTerminals = ref(new Set()),
   // Work Items and Reviews panes mount on first visit, keyed "<workspace id>:<destination>".
@@ -154,10 +156,10 @@ const keptSessionCount = computed(() =>
     ? appState.value.workspaces.flatMap((p) => p.sessions).filter((s) => s.running && s.background).length
     : 0,
 )
+// New Session lists the chosen workspace's agent first.
+const defaultSessionAgent = computed(() => workspaceAgent(modalWorkspace.value, preferences.value))
 const sessionAgents = computed(() =>
-  [...agents].sort(
-    (a, b) => Number(b.id === preferences.value.defaultAgent) - Number(a.id === preferences.value.defaultAgent),
-  ),
+  [...agents].sort((a, b) => Number(b.id === defaultSessionAgent.value) - Number(a.id === defaultSessionAgent.value)),
 )
 const scratchpadWorkspaceID = ref('')
 const scratchpadWorkspace = computed(() => appState.value.workspaces.find((p) => p.id === scratchpadWorkspaceID.value))
@@ -353,12 +355,12 @@ function openModal(kind, p = workspace.value) {
   }
   if (kind === 'session') {
     newWorktree.value = true
-    sessionAgent.value = sessionAgents.value[0].id
     newBranch.value = newBase.value = ''
     worktreeBranches.value = { current: '', branches: [] }
     gitInitialized.value = offerGitInit.value = false
     worktreeAvailable.value = true
     if (p) sessionWorkspaceID.value = p.id
+    sessionAgent.value = sessionAgents.value[0].id
     sessionRepositoryID.value = defaultRepository(modalWorkspace.value)?.id || ''
     sessionProfileID.value = findProfile(appState.value.profiles, p?.profileID) ? p.profileID : ''
     checkWorktree(modalWorkspace.value?.id, sessionRepositoryID.value)
@@ -697,7 +699,7 @@ async function startGitHubSession(item, prompt, name, choice) {
   if (busy.value) return
   sessionWorkspaceID.value = workspace.value.id
   await createSession(
-    choice.agent || preferences.value.defaultAgent,
+    choice.agent || workspaceAgent(workspace.value, preferences.value),
     prompt,
     true,
     name,
@@ -714,8 +716,9 @@ async function startGitHubSession(item, prompt, name, choice) {
     formError.value = ''
   }
 }
-function edit(id, name, kind, description = '', emoji = '', profileID = '') {
+function edit(id, name, kind, description = '', emoji = '', profileID = '', agent = '') {
   workspaceProfileID.value = profileID
+  workspaceAgentID.value = agent
   renameID.value = id
   renameValue.value = name
   renameKind.value = kind
@@ -733,6 +736,8 @@ async function rename() {
     const edited = state.workspaces?.find((p) => p.id === renameID.value)
     if (renameKind.value === 'Workspace' && edited && (edited.profileID || '') !== workspaceProfileID.value)
       state = await call('SetWorkspaceProfile', renameID.value, workspaceProfileID.value)
+    if (renameKind.value === 'Workspace' && edited && (edited.defaultAgent || '') !== workspaceAgentID.value)
+      state = await call('SetWorkspaceAgent', renameID.value, workspaceAgentID.value)
     apply(state)
     closeModal()
   } catch (e) {
@@ -1456,7 +1461,7 @@ onBeforeUnmount(() => {
                   :workspace="p"
                   :kind="view === 'reviews' ? 'reviews' : 'workItems'"
                   :refresh-interval="preferences.gitHubRefreshInterval"
-                  :default-agent="preferences.defaultAgent"
+                  :default-agent="workspaceAgent(p, preferences)"
                   :profiles="appState.profiles"
                   :visible="workspace?.id === p.id && currentDestination === view && !modal"
                   @work="workOn"
@@ -1561,7 +1566,7 @@ onBeforeUnmount(() => {
         :tab="sidebarTab"
         :tab-order="preferences.sidebarTabs"
         :repository="sessionRepository(workspace, session)?.gitHub"
-        :default-agent="preferences.defaultAgent"
+        :default-agent="workspaceAgent(workspace, preferences)"
         :profiles="appState.profiles"
         :profile-id="workspace?.profileID || ''"
         @tab="sidebarTab = $event"
@@ -1628,6 +1633,7 @@ onBeforeUnmount(() => {
               menu.workspace.description,
               menu.workspace.emoji,
               menu.workspace.profileID || '',
+              menu.workspace.defaultAgent || '',
             )
           "
         >
@@ -1928,7 +1934,7 @@ onBeforeUnmount(() => {
               :autofocus="repositories(modalWorkspace).length < 2"
             >
               <option v-for="agent in sessionAgents" :key="agent.id" :value="agent.id">
-                {{ agent.name }}{{ agent.id === preferences.defaultAgent ? ' (Default)' : '' }}
+                {{ agent.name }}{{ agent.id === defaultSessionAgent ? ' (Default)' : '' }}
               </option></select
             ><Icon name="chevron.up.chevron.down" :size="10" />
           </div>
@@ -2113,6 +2119,18 @@ onBeforeUnmount(() => {
             </li>
           </ul>
         </section>
+        <div v-if="renameKind === 'Workspace'" class="setting-row session-profile">
+          <span>
+            <label for="workspace-agent">Default Agent</label>
+            <small id="workspace-agent-description" class="muted caption">New sessions preselect this agent.</small>
+          </span>
+          <div class="theme-select general-select">
+            <select id="workspace-agent" v-model="workspaceAgentID" aria-describedby="workspace-agent-description">
+              <option value="">Use Default ({{ agents.find((a) => a.id === preferences.defaultAgent)?.name }})</option>
+              <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" />
+          </div>
+        </div>
         <div v-if="renameKind === 'Workspace' && appState.profiles.length" class="setting-row session-profile">
           <span>
             <label for="workspace-profile">Profile</label>

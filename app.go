@@ -501,6 +501,12 @@ func (a *App) SetWorkspaceProfile(workspace, profileID string) (core.State, erro
 	}
 	return a.store.SetWorkspaceProfile(workspace, profileID)
 }
+func (a *App) SetWorkspaceAgent(workspace, agent string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SetWorkspaceAgent(workspace, agent)
+}
 
 // ProfileLogins asks each agent's CLI whether the profile is signed in; "" is Default.
 func (a *App) ProfileLogins(profileID string) ([]core.ProfileLogin, error) {
