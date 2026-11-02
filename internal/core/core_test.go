@@ -1309,3 +1309,41 @@ func TestSelectReviews(t *testing.T) {
 		t.Fatalf("new session = %s", got)
 	}
 }
+
+func TestSelectBoard(t *testing.T) {
+	s := fixtureStore(t)
+	p := workspaceFixture(t, s)
+	sess := sessionFixture(t, s, p, "terminal")
+	for _, destination := range []string{"board", "workspace", "github", "board", "reviews", "board", "scratchpad", "board", sess.ID} {
+		state, err := s.Select(p.ID, destination)
+		if err != nil {
+			t.Fatal(err)
+		}
+		shown := state.Workspaces[0]
+		if destination == "board" || destination == "workspace" {
+			if !shown.ShowsBoard || shown.ShowsGitHub || shown.ShowsReviews || shown.ShowsScratchpad || shown.SelectedSessionID != sess.ID {
+				t.Fatalf("board selection = %+v", shown)
+			}
+			data, err := os.ReadFile(s.path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var saved State
+			if err := json.Unmarshal(data, &saved); err != nil {
+				t.Fatal(err)
+			}
+			if !saved.Workspaces[0].ShowsBoard {
+				t.Fatal("board selection was not saved")
+			}
+		} else if shown.ShowsBoard {
+			t.Fatalf("board remained selected after %s", destination)
+		}
+	}
+	if _, err := s.Select(p.ID, "board"); err != nil {
+		t.Fatal(err)
+	}
+	sessionFixture(t, s, p, "terminal")
+	if s.Snapshot().Workspaces[0].ShowsBoard {
+		t.Fatal("new session did not leave board")
+	}
+}

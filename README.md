@@ -28,6 +28,8 @@
 - **Interface font size:** Settings → Appearance → Font size offers Smaller, Small, Default, Large and Larger. Default preserves the original text sizes. Changes apply immediately and are saved; terminal text keeps its separate font-size setting.
 - **Page layout:** Settings, Work Items, Reviews, Automations and Scratchpad use a centered column with Settings-style spacing. Turn on **Settings → Appearance → Full Width Pages** to use the wider layout.
 - **Automations:** schedule an agent and prompt once or on selected weekdays from the global Automations menu. Choose a workspace, repository and time; Orchestra must be open. Missed occurrences run once when the app reopens. Every run creates a normal session. Create or open an automation on its own page, with a breadcrumb back to Automations. Switch between Configuration and Runs to edit its settings, view persistent run history, open a linked session, inspect the original prompt or clear the records without deleting sessions. History records launch results, not agent task completion; deleted sessions leave their run records intact. Earlier versions contribute only the last known run, with its original configuration unavailable.
+- **Board:** see each workspace’s agents in Waiting, Doing, Inactive and Unknown columns.
+  Cards follow live activity automatically and open the agent’s session when selected.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
   repository or worktree, and open files in the sidebar to read syntax-highlighted code
   in the central view.

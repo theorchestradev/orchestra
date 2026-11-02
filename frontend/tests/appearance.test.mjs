@@ -80,6 +80,7 @@ test('workspace navigation preserves page priority and messaging labels', () => 
   assert.equal(destination({ sources: hidden, showsReviews: true, selectedSessionID: 'a' }), 'a')
   assert.equal(destination({ selectedSessionID: 'a' }), 'a')
   assert.equal(destination({}), 'empty')
+  assert.equal(destination({ showsBoard: true, selectedSessionID: 'a' }), 'board')
   assert.equal(runLabel('queued'), 'In inbox')
   assert.equal(runLabel('running'), 'Awaiting reply')
 })
@@ -109,13 +110,13 @@ test('sidebar navigation follows visible order and wraps', () => {
   ]
   assert.deepEqual(
     sidebarItems(workspaces).map((i) => i.workspace.id + ':' + i.destination),
-    ['a:github', 'a:reviews', 'a:scratchpad', 'a:s1', 'a:s2', 'c:s4'],
+    ['a:github', 'a:reviews', 'a:board', 'a:scratchpad', 'a:s1', 'a:s2', 'c:board', 'c:s4'],
   )
-  assert.equal(adjacentItem(workspaces, 'a', 's2', 1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'a', 's2', 1).destination, 'board')
   assert.equal(adjacentItem(workspaces, 'c', 's4', 1).destination, 'github')
   assert.equal(adjacentItem(workspaces, 'a', 'github', -1).destination, 's4')
   assert.equal(adjacentItem(workspaces, 'a', 'github', 1).destination, 'reviews')
-  assert.equal(adjacentItem(workspaces, 'a', 'scratchpad', -1).destination, 'reviews')
+  assert.equal(adjacentItem(workspaces, 'a', 'scratchpad', -1).destination, 'board')
   assert.equal(adjacentItem(workspaces, 'a', 'empty', 1).destination, 'github')
   assert.equal(adjacentItem(workspaces, 'a', 'empty', -1).destination, 's4')
   assert.equal(adjacentItem([], 'a', 'empty', 1), null)
@@ -131,7 +132,7 @@ test('the Scratchpad sits at its saved position among sessions, below Work Items
   }
   assert.deepEqual(
     sidebarItems([p]).map((i) => i.destination),
-    ['github', 'reviews', 's1', 'scratchpad', 's2'],
+    ['github', 'reviews', 'board', 's1', 'scratchpad', 's2'],
   )
   assert.equal(adjacentItem([p], 'a', 's1', 1).destination, 'scratchpad')
   assert.equal(adjacentItem([p], 'a', 'scratchpad', 1).destination, 's2')
@@ -157,11 +158,11 @@ test('Arc Mode scopes the list and navigation to the active space without changi
   const active = visibleSidebarWorkspaces(workspaces, 'a', true)
   assert.deepEqual(active, [workspaces[0]])
   const navigation = active.map((p) => ({ ...p, isExpanded: true }))
-  assert.equal(adjacentItem(navigation, 'a', 's1', 1).destination, 'scratchpad')
-  assert.equal(adjacentItem(navigation, 'a', 'scratchpad', -1).destination, 's1')
+  assert.equal(adjacentItem(navigation, 'a', 's1', 1).destination, 'board')
+  assert.equal(adjacentItem(navigation, 'a', 'scratchpad', -1).destination, 'board')
   assert.equal(workspaces[0].isExpanded, false)
   assert.deepEqual(visibleSidebarWorkspaces(workspaces, 'b', true), [workspaces[1]])
-  assert.equal(adjacentItem([workspaces[1]], 'b', 'empty', 1), null)
+  assert.equal(adjacentItem([workspaces[1]], 'b', 'empty', 1).destination, 'board')
   assert.deepEqual(visibleSidebarWorkspaces(workspaces, 'missing', true), [workspaces[0]])
   assert.deepEqual(visibleSidebarWorkspaces([], 'missing', true), [])
 })

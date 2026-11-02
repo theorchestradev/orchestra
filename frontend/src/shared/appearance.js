@@ -137,6 +137,7 @@ export function agentIcon(id, appearance) {
   return `/agents/${agent.icon}${agent.dark && appearance === 'dark' ? '-dark' : ''}.svg`
 }
 export function destination(workspace) {
+  if (workspace?.showsBoard) return 'board'
   return workspace?.showsScratchpad
     ? 'scratchpad'
     : workspace?.showsGitHub && listsWorkItems(workspace)
@@ -178,6 +179,7 @@ export function sidebarItems(workspaces) {
       [
         ...(listsWorkItems(p) ? ['github'] : []),
         ...(listsReviews(p) ? ['reviews'] : []),
+        'board',
         ...workspaceRows(p).map((s) => s.id),
       ].map((destination) => ({
         workspace: p,

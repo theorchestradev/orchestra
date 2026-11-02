@@ -49,6 +49,7 @@ import UsageConsent from './components/UsageConsent.vue'
 import { track } from './shared/telemetry'
 import CommandBar from './components/CommandBar.vue'
 import Scratchpad from './components/Scratchpad.vue'
+import Board from './components/Board.vue'
 import TerminalView from './components/Terminal.vue'
 import WorkItems from './components/WorkItems.vue'
 import Messages from './components/Messages.vue'
@@ -484,7 +485,8 @@ function command(kind) {
 async function runCommand({ command: kind, item }) {
   closeModal()
   if (kind === 'goto') return select(item.workspace, item.destination)
-  if (kind === 'github' || kind === 'reviews' || kind === 'scratchpad') return select(workspace.value, kind)
+  if (kind === 'board' || kind === 'github' || kind === 'reviews' || kind === 'scratchpad')
+    return select(workspace.value, kind)
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
   if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(workspace.value)
@@ -1406,6 +1408,13 @@ onBeforeUnmount(() => {
                       >{{ gitHubCounts[p.id + ':' + view.id] }}</span
                     >
                   </button></template
+                ><button
+                  class="sidebar-row"
+                  :class="{ selected: workspace?.id === p.id && currentDestination === 'board' }"
+                  :aria-current="workspace?.id === p.id && currentDestination === 'board' ? 'page' : undefined"
+                  @click="select(p, 'board')"
+                >
+                  <Icon name="board" :size="15" /><span>Board</span></button
                 ><SidebarList
                   :items="workspaceRows(p)"
                   handle=".session-row,.scratchpad-row"
@@ -1569,7 +1578,14 @@ onBeforeUnmount(() => {
           <button class="standard-button" @click="openModal('workspace')">New Workspace</button>
         </div>
         <template v-else
-          ><Scratchpad
+          ><Board
+            v-if="currentDestination === 'board'"
+            :workspace="workspace"
+            :appearance="shownPreferences.appearance"
+            @select="select(workspace, $event.id)"
+            @create="openModal('session')"
+          />
+          <Scratchpad
             ref="scratchpadView"
             v-if="currentDestination === 'scratchpad'"
             :key="workspace.id"

@@ -836,6 +836,7 @@ func (s *Store) ExecuteRequest(id string) (State, error) {
 	}
 	s.trackLocked("feature_used", map[string]any{"feature": "inbox_execute"})
 	p.SelectedSessionID = sess.ID
+	p.ShowsBoard = false
 	p.ShowsGitHub = false
 	p.ShowsReviews = false
 	p.ShowsScratchpad = false

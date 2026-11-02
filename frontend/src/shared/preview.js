@@ -549,13 +549,14 @@ export const backend = {
     state.selectedWorkspaceID = pid
     const p = workspace(pid)
     if (destination !== 'workspace') {
+      p.showsBoard = destination === 'board'
       p.showsScratchpad = destination === 'scratchpad'
       p.showsGitHub = destination === 'github'
       p.showsReviews = destination === 'reviews'
       if (p.showsScratchpad) {
         p.hasScratchpad = true
         p.isExpanded = true
-      } else if (!p.showsGitHub && !p.showsReviews) p.selectedSessionID = destination
+      } else if (!p.showsBoard && !p.showsGitHub && !p.showsReviews) p.selectedSessionID = destination
     }
     return changed()
   },
@@ -932,7 +933,7 @@ export const backend = {
     p.sessions.push(sess)
     p.lastRepositoryID = repo.id
     p.selectedSessionID = sess.id
-    p.showsScratchpad = p.showsGitHub = p.showsReviews = false
+    p.showsBoard = p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.isExpanded = true
     state.selectedWorkspaceID = pid
     const result = changed()
@@ -1218,7 +1219,7 @@ export const backend = {
     const run = state.runs.find((r) => r.id === target)
     run.status = 'running'
     const p = workspace(run.workspaceID)
-    p.showsScratchpad = p.showsGitHub = p.showsReviews = false
+    p.showsBoard = p.showsScratchpad = p.showsGitHub = p.showsReviews = false
     p.selectedSessionID = run.toSessionID
     return changed()
   },

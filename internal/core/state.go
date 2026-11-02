@@ -107,6 +107,7 @@ type Workspace struct {
 	IsExpanded        bool   `json:"isExpanded"`
 	SelectedSessionID string `json:"selectedSessionID,omitempty"`
 	// ShowsGitHub shows Work Items, ShowsReviews the pull requests to review.
+	ShowsBoard      bool   `json:"showsBoard,omitempty"`
 	ShowsGitHub     bool   `json:"showsGitHub"`
 	ShowsReviews    bool   `json:"showsReviews,omitempty"`
 	ShowsScratchpad bool   `json:"showsScratchpad"`
@@ -680,7 +681,7 @@ func (s *Store) Select(workspaceID, destination string) (State, error) {
 	if err != nil {
 		return State{}, err
 	}
-	if destination != "workspace" && destination != "github" && destination != "reviews" && destination != "scratchpad" {
+	if destination != "workspace" && destination != "board" && destination != "github" && destination != "reviews" && destination != "scratchpad" {
 		_, sess, err := s.sessionLocked(destination)
 		if err != nil {
 			return State{}, err
@@ -696,6 +697,7 @@ func (s *Store) Select(workspaceID, destination string) (State, error) {
 	}
 	s.state.SelectedWorkspaceID = workspaceID
 	if destination != "workspace" {
+		p.ShowsBoard = destination == "board"
 		p.ShowsGitHub = destination == "github"
 		p.ShowsReviews = destination == "reviews"
 		p.ShowsScratchpad = destination == "scratchpad"
@@ -1194,7 +1196,7 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 		}
 	}
 	previousWorkspaceID, previousSessionID, previousRepositoryID := s.state.SelectedWorkspaceID, p.SelectedSessionID, p.LastRepositoryID
-	previousExpanded, previousGitHub, previousReviews, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad
+	previousExpanded, previousBoard, previousGitHub, previousReviews, previousScratchpad := p.IsExpanded, p.ShowsBoard, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad
 	p.Sessions = append(p.Sessions, sess)
 	if loginAgent == "" && selectSession {
 		p.LastRepositoryID = repo.ID
@@ -1202,6 +1204,7 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	if selectSession {
 		p.SelectedSessionID = sess.ID
 		p.IsExpanded = true
+		p.ShowsBoard = false
 		p.ShowsGitHub = false
 		p.ShowsReviews = false
 		p.ShowsScratchpad = false
@@ -1210,7 +1213,7 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	if err = s.saveLocked(); err != nil {
 		p.Sessions = p.Sessions[:len(p.Sessions)-1]
 		p.SelectedSessionID, s.state.SelectedWorkspaceID, p.LastRepositoryID = previousSessionID, previousWorkspaceID, previousRepositoryID
-		p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad = previousExpanded, previousGitHub, previousReviews, previousScratchpad
+		p.IsExpanded, p.ShowsBoard, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad = previousExpanded, previousBoard, previousGitHub, previousReviews, previousScratchpad
 		if worktreeRoot != "" {
 			if cleanupErr := removeSessionWorktree(repo.Directory, worktreeRoot, sess.WorktreeBranch); cleanupErr != nil {
 				s.log.Warn("worktree remove failed", "workspace", p.ID, "session", sess.ID, "error", cleanupErr)

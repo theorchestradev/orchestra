@@ -37,6 +37,7 @@ export function commandItems({
       name: 'Open Reviews',
       icon: 'arrow.triangle.pull',
     },
+    workspace && { id: 'board', group: 'Navigation', name: 'Open Board', icon: 'board' },
     workspace && {
       id: 'scratchpad',
       group: 'Navigation',
@@ -149,6 +150,14 @@ export function destinations(workspaces = []) {
           },
         ].filter((item) => (item.destination === 'reviews' ? hasReviews(p) : hasWorkItems(p)))
       : []),
+    {
+      id: p.id + ':board',
+      name: 'Board',
+      detail: workspaceTitle(p),
+      icon: 'board',
+      workspace: p,
+      destination: 'board',
+    },
     ...(p.hasScratchpad
       ? [
           {
