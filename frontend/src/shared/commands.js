@@ -37,7 +37,7 @@ export function commandItems({
       name: 'Open Reviews',
       icon: 'arrow.triangle.pull',
     },
-    workspace && { id: 'board', group: 'Navigation', name: 'Open Board', icon: 'board' },
+    { id: 'board', group: 'Navigation', name: 'Open Board', icon: 'board' },
     workspace && {
       id: 'scratchpad',
       group: 'Navigation',
@@ -128,59 +128,54 @@ export function commandItems({
 }
 
 export function destinations(workspaces = []) {
-  return workspaces.flatMap((p) => [
-    { id: p.id + ':workspace', name: workspaceTitle(p), icon: 'folder', workspace: p, destination: 'workspace' },
-    ...(hasWorkItems(p) || hasReviews(p)
-      ? [
-          {
-            id: p.id + ':github',
-            name: 'Work Items',
-            detail: workspaceTitle(p),
-            icon: 'list.bullet.rectangle',
-            workspace: p,
-            destination: 'github',
-          },
-          {
-            id: p.id + ':reviews',
-            name: 'Reviews',
-            detail: workspaceTitle(p),
-            icon: 'arrow.triangle.pull',
-            workspace: p,
-            destination: 'reviews',
-          },
-        ].filter((item) => (item.destination === 'reviews' ? hasReviews(p) : hasWorkItems(p)))
-      : []),
-    {
-      id: p.id + ':board',
-      name: 'Board',
-      detail: workspaceTitle(p),
-      icon: 'board',
-      workspace: p,
-      destination: 'board',
-    },
-    ...(p.hasScratchpad
-      ? [
-          {
-            id: p.id + ':scratchpad',
-            name: p.scratchpadName || 'Scratchpad',
-            detail: workspaceTitle(p),
-            icon: 'note.text',
-            workspace: p,
-            destination: 'scratchpad',
-          },
-        ]
-      : []),
-    ...p.sessions.map((s) => ({
-      id: s.id,
-      name: s.name,
-      detail: [workspaceTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
-        .filter(Boolean)
-        .join(' · '),
-      ...(isTerminal(s) ? { icon: 'terminal' } : { agent: s.agent }),
-      workspace: p,
-      destination: s.id,
-    })),
-  ])
+  return [
+    { id: 'global:board', name: 'Board', icon: 'board', destination: 'board', globalBoard: true },
+    ...workspaces.flatMap((p) => [
+      { id: p.id + ':workspace', name: workspaceTitle(p), icon: 'folder', workspace: p, destination: 'workspace' },
+      ...(hasWorkItems(p) || hasReviews(p)
+        ? [
+            {
+              id: p.id + ':github',
+              name: 'Work Items',
+              detail: workspaceTitle(p),
+              icon: 'list.bullet.rectangle',
+              workspace: p,
+              destination: 'github',
+            },
+            {
+              id: p.id + ':reviews',
+              name: 'Reviews',
+              detail: workspaceTitle(p),
+              icon: 'arrow.triangle.pull',
+              workspace: p,
+              destination: 'reviews',
+            },
+          ].filter((item) => (item.destination === 'reviews' ? hasReviews(p) : hasWorkItems(p)))
+        : []),
+      ...(p.hasScratchpad
+        ? [
+            {
+              id: p.id + ':scratchpad',
+              name: p.scratchpadName || 'Scratchpad',
+              detail: workspaceTitle(p),
+              icon: 'note.text',
+              workspace: p,
+              destination: 'scratchpad',
+            },
+          ]
+        : []),
+      ...p.sessions.map((s) => ({
+        id: s.id,
+        name: s.name,
+        detail: [workspaceTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
+          .filter(Boolean)
+          .join(' · '),
+        ...(isTerminal(s) ? { icon: 'terminal' } : { agent: s.agent }),
+        workspace: p,
+        destination: s.id,
+      })),
+    ]),
+  ]
 }
 
 // Every query word must appear in the item's name or detail.

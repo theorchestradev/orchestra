@@ -484,9 +484,9 @@ function command(kind) {
 }
 async function runCommand({ command: kind, item }) {
   closeModal()
-  if (kind === 'goto') return select(item.workspace, item.destination)
+  if (kind === 'goto') return item.globalBoard ? openBoard() : select(item.workspace, item.destination)
   if (kind === 'board' || kind === 'github' || kind === 'reviews' || kind === 'scratchpad')
-    return select(workspace.value, kind)
+    return kind === 'board' ? openBoard() : select(workspace.value, kind)
   if (kind === 'theme') return changePreferences({ ...preferences.value, theme: item.theme })
   if (kind === 'appearance') return toggleAppearance()
   if (kind === 'terminal') return newTerminal(workspace.value)
@@ -529,7 +529,7 @@ function navigate(step) {
     currentDestination.value,
     step,
   )
-  if (item) select(item.workspace, item.destination)
+  if (item) item.globalBoard ? openBoard() : select(item.workspace, item.destination)
 }
 function toggleSidebar() {
   if (modal.value) return
@@ -606,6 +606,13 @@ async function select(p, dest) {
     if (sess.restored && (!sess.hasLaunched || sess.agentSessionID || isTerminal(sess))) await start(sess, false)
   }
   return state
+}
+async function openBoard() {
+  activeFileID.value = ''
+  menu.value = null
+  const target = workspace.value || appState.value.workspaces[0]
+  if (target) await action('Select', target.id, 'board')
+  globalView.value = 'board'
 }
 async function start(sess, newConversation) {
   busy.value = true
@@ -1302,11 +1309,15 @@ onBeforeUnmount(() => {
           <Icon name="sidebar.left" :size="16" />
         </button>
       </div>
-      <nav
-        v-if="!preferences.hideSearch || !preferences.hideAutomations"
-        class="sidebar-global"
-        aria-label="Global navigation"
-      >
+      <nav class="sidebar-global" aria-label="Global navigation">
+        <button
+          class="sidebar-row"
+          :class="{ selected: globalView === 'board' || currentDestination === 'board' }"
+          :aria-current="globalView === 'board' || currentDestination === 'board' ? 'page' : undefined"
+          @click="openBoard"
+        >
+          <Icon name="board" :size="15" /><span>Board</span>
+        </button>
         <button
           v-if="!preferences.hideSearch"
           class="sidebar-row command-search-row"
@@ -1408,13 +1419,6 @@ onBeforeUnmount(() => {
                       >{{ gitHubCounts[p.id + ':' + view.id] }}</span
                     >
                   </button></template
-                ><button
-                  class="sidebar-row"
-                  :class="{ selected: workspace?.id === p.id && currentDestination === 'board' }"
-                  :aria-current="workspace?.id === p.id && currentDestination === 'board' ? 'page' : undefined"
-                  @click="select(p, 'board')"
-                >
-                  <Icon name="board" :size="15" /><span>Board</span></button
                 ><SidebarList
                   :items="workspaceRows(p)"
                   handle=".session-row,.scratchpad-row"
@@ -1539,7 +1543,7 @@ onBeforeUnmount(() => {
         @settings="openModal('settings')"
         @create="openModal('workspace')"
       />
-      <div v-else class="sidebar-footer">
+      <div v-if="!preferences.arcMode" class="sidebar-footer">
         <button class="sidebar-row" :class="{ selected: modal === 'settings' }" @click="openModal('settings')">
           <Icon name="gearshape" :size="14" />Settings
         </button>
@@ -1571,6 +1575,14 @@ onBeforeUnmount(() => {
           @session="select($event.workspace, $event.id)"
           @state="apply"
         />
+        <Board
+          v-else-if="globalView === 'board' || currentDestination === 'board'"
+          :workspaces="appState.workspaces"
+          :current-workspace-id="workspace?.id || ''"
+          :appearance="shownPreferences.appearance"
+          @select="select($event.workspace, $event.session.id)"
+          @create="openModal('session', $event)"
+        />
         <div v-else-if="!workspace" class="empty-state">
           <Icon name="folder" :size="48" />
           <h2>No Workspace Selected</h2>
@@ -1578,14 +1590,7 @@ onBeforeUnmount(() => {
           <button class="standard-button" @click="openModal('workspace')">New Workspace</button>
         </div>
         <template v-else
-          ><Board
-            v-if="currentDestination === 'board'"
-            :workspace="workspace"
-            :appearance="shownPreferences.appearance"
-            @select="select(workspace, $event.id)"
-            @create="openModal('session')"
-          />
-          <Scratchpad
+          ><Scratchpad
             ref="scratchpadView"
             v-if="currentDestination === 'scratchpad'"
             :key="workspace.id"

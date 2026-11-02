@@ -172,25 +172,28 @@ export function workspaceRows(p) {
     rows.splice(Math.max(0, Math.min(p.scratchpadIndex || 0, rows.length)), 0, { id: 'scratchpad', scratchpad: true })
   return rows
 }
-export function sidebarItems(workspaces) {
-  return (workspaces || [])
+export function sidebarItems(workspaces, workspaceID) {
+  const list = (workspaces || [])
     .filter((p) => p.isExpanded)
     .flatMap((p) =>
       [
         ...(listsWorkItems(p) ? ['github'] : []),
         ...(listsReviews(p) ? ['reviews'] : []),
-        'board',
         ...workspaceRows(p).map((s) => s.id),
       ].map((destination) => ({
         workspace: p,
         destination,
       })),
     )
+  const boardWorkspace = (workspaces || []).find((p) => p.id === workspaceID) || workspaces?.[0]
+  return boardWorkspace ? [{ workspace: boardWorkspace, destination: 'board', globalBoard: true }, ...list] : list
 }
 export function adjacentItem(workspaces, workspaceID, current, step) {
-  const items = sidebarItems(workspaces)
+  const items = sidebarItems(workspaces, workspaceID)
   if (!items.length) return null
-  const index = items.findIndex((i) => i.workspace.id === workspaceID && i.destination === current)
+  const index = items.findIndex((i) =>
+    i.globalBoard ? current === 'board' : i.workspace.id === workspaceID && i.destination === current,
+  )
   if (index < 0) return items[step > 0 ? 0 : items.length - 1]
   return items[(index + step + items.length) % items.length]
 }

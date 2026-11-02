@@ -1,11 +1,18 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { agents, agentIcon, activityLabel, isTerminal } from '../shared/appearance'
 import { repositoryLabel } from '../shared/workspace'
 import Icon from './Icon.vue'
 
-const props = defineProps({ workspace: Object, appearance: String })
+const props = defineProps({ workspaces: Array, currentWorkspaceId: String, appearance: String })
 defineEmits(['select', 'create'])
+const workspaceFilter = ref('')
+const createWorkspace = computed(
+  () =>
+    props.workspaces.find((workspace) => workspace.id === workspaceFilter.value) ||
+    props.workspaces.find((workspace) => workspace.id === props.currentWorkspaceId) ||
+    props.workspaces[0],
+)
 const columns = computed(() => {
   const groups = [
     { id: 'waiting', name: 'Waiting', description: 'Waiting for your input', sessions: [] },
@@ -13,21 +20,26 @@ const columns = computed(() => {
     { id: 'inactive', name: 'Inactive', description: 'Ready to start, resume or restart', sessions: [] },
     { id: 'unknown', name: 'Unknown', description: 'Activity is not available yet', sessions: [] },
   ]
-  for (const session of props.workspace.sessions || []) {
-    if (isTerminal(session)) continue
-    const activity =
-      session.restored || !session.running || session.activity === 'ended'
-        ? 'inactive'
-        : ['waiting', 'working'].includes(session.activity)
-          ? session.activity
-          : 'unknown'
-    groups.find((group) => group.id === activity).sessions.push(session)
+  for (const workspace of props.workspaces || []) {
+    if (workspaceFilter.value && workspace.id !== workspaceFilter.value) continue
+    for (const session of workspace.sessions || []) {
+      if (isTerminal(session)) continue
+      const activity =
+        session.restored || !session.running || session.activity === 'ended'
+          ? 'inactive'
+          : ['waiting', 'working'].includes(session.activity)
+            ? session.activity
+            : 'unknown'
+      groups.find((group) => group.id === activity).sessions.push({ workspace, session })
+    }
   }
   return groups
 })
 const count = computed(() => columns.value.reduce((n, column) => n + column.sessions.length, 0))
-function detail(session) {
-  return [repositoryLabel(props.workspace, session), session.worktreeBranch].filter(Boolean).join(' · ')
+function detail(card) {
+  return [card.workspace.name, repositoryLabel(card.workspace, card.session), card.session.worktreeBranch]
+    .filter(Boolean)
+    .join(' · ')
 }
 function status(session) {
   if (session.restored)
@@ -42,9 +54,20 @@ function status(session) {
     <header class="board-header">
       <div>
         <h1 id="board-title">Board</h1>
-        <p>{{ workspace.name }} · {{ count }} {{ count === 1 ? 'agent' : 'agents' }}</p>
+        <p>{{ count }} {{ count === 1 ? 'agent' : 'agents' }}</p>
       </div>
-      <button class="standard-button" @click="$emit('create')"><Icon name="plus" :size="12" />New Session</button>
+      <label class="board-workspace-filter">
+        <span>Workspace</span>
+        <select v-model="workspaceFilter" aria-label="Filter Board by workspace">
+          <option value="">All Workspaces</option>
+          <option v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
+            {{ workspace.name }}
+          </option>
+        </select>
+      </label>
+      <button class="standard-button" :disabled="!createWorkspace" @click="$emit('create', createWorkspace)">
+        <Icon name="plus" :size="12" />New Session
+      </button>
     </header>
     <p class="board-hint">Agents move automatically as their activity changes. Select a card to open its session.</p>
     <div class="board-columns" tabindex="0" aria-label="Agent activity columns">
@@ -56,27 +79,27 @@ function status(session) {
         <p class="board-column-description">{{ column.description }}</p>
         <div class="board-cards">
           <button
-            v-for="session in column.sessions"
-            :key="session.id"
+            v-for="card in column.sessions"
+            :key="card.session.id"
             class="board-card"
-            :title="[session.name, detail(session), status(session)].filter(Boolean).join('\n')"
-            :aria-label="'Open ' + session.name + ' — ' + status(session)"
-            @click="$emit('select', session)"
+            :title="[card.session.name, detail(card), status(card.session)].filter(Boolean).join('\n')"
+            :aria-label="'Open ' + card.session.name + ' in ' + card.workspace.name + ' — ' + status(card.session)"
+            @click="$emit('select', card)"
           >
             <span class="board-card-heading">
-              <img :src="agentIcon(session.agent, appearance)" alt="" />
-              <strong>{{ session.name }}</strong>
+              <img :src="agentIcon(card.session.agent, appearance)" alt="" />
+              <strong>{{ card.session.name }}</strong>
             </span>
             <span class="board-card-agent">{{
-              agents.find((agent) => agent.id === session.agent)?.name || session.agent
+              agents.find((agent) => agent.id === card.session.agent)?.name || card.session.agent
             }}</span>
-            <span v-if="detail(session)" class="board-card-detail">{{ detail(session) }}</span>
+            <span class="board-card-detail">{{ detail(card) }}</span>
             <span class="board-card-status"
               ><span
                 class="activity-dot"
-                :class="session.restored ? 'unknown' : session.activity"
+                :class="card.session.restored ? 'unknown' : card.session.activity"
                 aria-hidden="true"
-              />{{ status(session) }}</span
+              />{{ status(card.session) }}</span
             >
           </button>
           <p v-if="!column.sessions.length" class="board-empty">No agents here</p>
@@ -99,6 +122,7 @@ function status(session) {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 16px;
   padding: 26px 24px 12px;
 }
@@ -122,6 +146,20 @@ function status(session) {
 }
 .board-header .standard-button {
   flex-shrink: 0;
+}
+.board-workspace-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+.board-workspace-filter select {
+  min-width: 160px;
+  max-width: min(260px, 32vw);
+  padding: 7px 10px;
+  color: var(--text);
 }
 .board-hint {
   padding: 0 24px 20px;
