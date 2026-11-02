@@ -11,7 +11,7 @@ var claudeAgent = &agentSpec{
 	ID: "claude", Name: "Claude Code", Executable: "claude", SkillKey: "claude-code",
 	Command: func(l launch) string {
 		hooks := map[string]any{}
-		for _, event := range append(hookEvents, "PermissionRequest") {
+		for _, event := range append(hookEvents, "PermissionRequest", "StopFailure") {
 			group := map[string]any{"hooks": []any{map[string]string{"type": "command", "command": statusCommand(hookState(event))}}}
 			if event == "PreToolUse" || event == "PermissionRequest" {
 				group["matcher"] = "*"
@@ -23,11 +23,11 @@ var claudeAgent = &agentSpec{
 		if l.Resume != "" {
 			command += " --resume " + shellQuote(l.Resume)
 		} else {
-			command += " --session-id " + shellQuote(l.Session.ID)
+			command += " --session-id " + shellQuote(l.conversationID())
 		}
 		command += " --permission-mode auto --settings " + shellQuote(string(data)) + l.Flags
 		if l.Prompt != "" {
-			command += " " + l.Prompt
+			command += " -- " + l.Prompt
 		}
 		return command
 	},
@@ -35,13 +35,18 @@ var claudeAgent = &agentSpec{
 	// Claude Code keeps no transcript for a conversation that never received a prompt, or
 	// one it cleaned up, so --resume can fail for an ID Orchestra preset.
 	ResumeFailed: regexp.MustCompile(`No conversation found with session ID`),
-	ModelFlag:    "--model",
-	Models:       []AgentModel{{"fable", "Fable", claudeEfforts}, {"opus", "Opus", claudeEfforts}, {"sonnet", "Sonnet", claudeEfforts}, {"haiku", "Haiku", []string{}}},
-	EffortFlag:   quotedFlag("--effort"),
-	Efforts:      claudeEfforts,
 
-	ConfigEnv:          "CLAUDE_CONFIG_DIR",
-	LoginCommand:       "claude auth login",
-	LoginStatusCommand: "claude auth status --json",
-	ProfileSkillDir:    ".claude",
+	Model: &agentModelSpec{
+		Flag:       "--model",
+		Catalog:    []AgentModel{{"fable", "Fable", claudeEfforts}, {"opus", "Opus", claudeEfforts}, {"sonnet", "Sonnet", claudeEfforts}, {"haiku", "Haiku", []string{}}},
+		EffortFlag: quotedFlag("--effort"),
+		Efforts:    claudeEfforts,
+	},
+
+	Account: &agentAccountSpec{
+		Env:      "CLAUDE_CONFIG_DIR",
+		Login:    "claude auth login",
+		Status:   "claude auth status --json",
+		SkillDir: ".claude",
+	},
 }

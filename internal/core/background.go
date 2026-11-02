@@ -79,6 +79,11 @@ func (s *Store) openBackgroundLocked() (map[string]sessionhost.Info, error) {
 	// Session files from earlier launches would report a stale status to a restarted session.
 	entries, _ := os.ReadDir(run)
 	for _, entry := range entries {
+		// Live CLIs may reload plugins and settings from this folder. Only stale
+		// observation files can be removed while any host process still uses it.
+		if len(live) > 0 && filepath.Ext(entry.Name()) != ".status" && filepath.Ext(entry.Name()) != ".agent" {
+			continue
+		}
 		id, _, _ := strings.Cut(entry.Name(), ".")
 		if _, ok := live[id]; !ok && entry.Name() != "app.lock" {
 			_ = os.RemoveAll(filepath.Join(run, entry.Name()))

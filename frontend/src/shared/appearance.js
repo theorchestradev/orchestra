@@ -109,8 +109,8 @@ export function syntaxTokens(preferences) {
   }
 }
 export const agents = [
-  { id: 'codex', name: 'Codex', icon: 'CodexIcon', dark: true },
-  { id: 'claude', name: 'Claude Code', icon: 'ClaudeIcon' },
+  { id: 'codex', name: 'Codex', icon: 'CodexIcon', dark: true, profiles: true },
+  { id: 'claude', name: 'Claude Code', icon: 'ClaudeIcon', profiles: true },
   { id: 'pi', name: 'Pi', icon: 'PiIcon' },
   { id: 'vibe', name: 'Mistral Vibe', icon: 'MistralIcon' },
   { id: 'opencode', name: 'OpenCode', icon: 'OpenCodeIcon', dark: true },
@@ -120,6 +120,15 @@ export const agents = [
   { id: 'omp', name: 'omp', icon: 'OmpIcon' },
   { id: 'kilo', name: 'Kilo', icon: 'KiloIcon', dark: true },
   { id: 'muse', name: 'Muse Code', icon: 'MuseIcon' },
+  { id: 'cursor', name: 'Cursor CLI', icon: 'CursorIcon', dark: true, profiles: true },
+  { id: 'copilot', name: 'GitHub Copilot CLI', icon: 'CopilotIcon', dark: true },
+  { id: 'aider', name: 'Aider', icon: 'AiderIcon', initialPrompt: false },
+  { id: 'goose', name: 'Goose', icon: 'GooseIcon', dark: true },
+  { id: 'qwen', name: 'Qwen Code', icon: 'QwenIcon' },
+  { id: 'kiro', name: 'Kiro CLI', icon: 'KiroIcon' },
+  { id: 'droid', name: 'Factory Droid', icon: 'DroidIcon', dark: true },
+  { id: 'kimi', name: 'Kimi Code CLI', icon: 'KimiIcon', initialPrompt: false },
+  { id: 'amp', name: 'Amp', icon: 'AmpIcon', initialPrompt: false },
 ]
 // Plain terminal sessions run the login shell; they are not agents and stay out of `agents`.
 export const isTerminal = (session) => session?.agent === 'terminal'

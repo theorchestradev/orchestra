@@ -206,8 +206,8 @@ async function remove() {
     <p class="muted caption profile-notes">
       Log In opens a terminal in {{ workspace ? workspaceTitle(workspace) : 'the selected workspace' }} where you
       complete the CLI’s sign-in. A new profile starts without the CLI settings, MCP servers and skills of Default.
-      {{ otherAgents }} cannot choose an account yet, so they always use Default’s. In a Terminal session, a shell
-      startup file that sets CLAUDE_CONFIG_DIR or CODEX_HOME can still switch account.
+      {{ otherAgents }} cannot choose an account yet, so they always use Default’s. In a Terminal session, environment
+      variables or shell startup files can still override the CLI’s account selection.
     </p>
     <Teleport to=".app-shell">
       <Modal v-if="editing" :label="editing.id ? 'Edit Profile' : 'New Profile'" @close="!busy && (editing = null)"

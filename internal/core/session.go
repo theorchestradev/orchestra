@@ -18,6 +18,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/google/uuid"
 	"github.com/theorchestradev/orchestra/internal/telemetry"
 )
 
@@ -25,7 +26,7 @@ import (
 var resourceFS embed.FS
 var resources = func() map[string][]byte {
 	m := map[string][]byte{}
-	for _, name := range []string{"PiStatusExtension.js", "OpenCodeSessionPlugin.js", "OmpStatusExtension.js"} {
+	for _, name := range []string{"PiStatusExtension.js", "OpenCodeSessionPlugin.js", "OmpStatusExtension.js", "AmpStatusPlugin.js"} {
 		m[name], _ = resourceFS.ReadFile("resources/" + name)
 	}
 	return m
@@ -64,7 +65,7 @@ func loginShell() string {
 
 func shellQuote(value string) string { return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'" }
 func statusCommand(state string) string {
-	return "if [ -n \"$ORCHESTRA_AGENT_ID_FILE\" ]; then \"$ORCHESTRA_CLI_DIRECTORY/orchestra\" agent-id >/dev/null 2>&1 || :; else /bin/cat >/dev/null; fi; if [ -n \"$ORCHESTRA_STATUS_FILE\" ]; then printf " + state + " > \"$ORCHESTRA_STATUS_FILE\"; fi"
+	return "if [ -n \"$ORCHESTRA_STATUS_FILE\" ]; then \"$ORCHESTRA_CLI_DIRECTORY/orchestra\" agent-status " + state + " >/dev/null 2>&1 || :; else /bin/cat >/dev/null; fi"
 }
 
 // sessionFiles are the status and conversation ID files of a session in the runtime folder.
@@ -90,6 +91,9 @@ func launchCommand(sess *Session, dir string) (string, error) {
 		l.Resume = sess.AgentSessionID
 	}
 	if l.Resume == "" && sess.InitialPrompt != "" {
+		if spec.NoInitialPrompt {
+			return "", fmt.Errorf("%s cannot start an interactive session with an initial prompt.", spec.Name)
+		}
 		l.Prompt = shellQuote(sess.InitialPrompt)
 	}
 	return spec.Command(l), nil
@@ -172,7 +176,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 		sess.HasLaunched = false
 		sess.AgentSessionID = ""
 		if presetsID(sess.Agent) {
-			sess.AgentSessionID = sess.ID
+			sess.AgentSessionID = uuid.NewString()
 		}
 	}
 	directory, err := sessionFolder(repo.Directory, sess.WorktreeDirectory)
@@ -182,6 +186,13 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	profile, err := s.profileLocked(sess.ProfileID)
 	if err != nil {
 		return TerminalOutput{}, errProfileRemoved
+	}
+	accountAgent := sess.Agent
+	if sess.Agent == terminalAgent && sess.LoginAgent != "" {
+		accountAgent = sess.LoginAgent
+	}
+	if spec := agentSpecs[accountAgent]; profile != nil && spec != nil && spec.Account != nil && profile.Folders[accountAgent] == "" {
+		return TerminalOutput{}, fmt.Errorf("This profile has no %s account folder. Reopen Orchestra to update the profile.", spec.Name)
 	}
 	command, err := launchCommand(sess, s.runtimeDir)
 	if err != nil {
@@ -194,6 +205,9 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	if err != nil {
 		return TerminalOutput{}, err
 	}
+	for key, value := range folders {
+		env[key] = value
+	}
 	shell := loginShell()
 	env["TERM"] = "xterm-256color"
 	env["COLORTERM"] = "truecolor"
@@ -202,6 +216,7 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	}
 	statusFile, idFile := sessionFiles(s.runtimeDir, id)
 	t := &TerminalSession{statusFile: statusFile, idFile: idFile, done: make(chan struct{}), launched: time.Now(), log: s.log.With("session", id)}
+	env["ORCHESTRA_AGENT_KIND"] = sess.Agent
 	env["ORCHESTRA_STATUS_FILE"] = t.statusFile
 	env["ORCHESTRA_AGENT_ID_FILE"] = t.idFile
 	collab, err := s.collaboration.environmentLocked(id)
@@ -211,13 +226,31 @@ func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (T
 	for k, v := range collab {
 		env[k] = v
 	}
+	beforePrepare := maps.Clone(env)
 	if spec, ok := agentSpecs[sess.Agent]; ok && spec.Prepare != nil {
 		if err = spec.Prepare(s, sess, t, env); err != nil {
 			return TerminalOutput{}, err
 		}
 	}
-	// The profile's folders are exported after the shell reads the user's rc files, so an export
-	// there cannot switch account. env runs the agent's executable, never an rc alias or function.
+	// Export launch overlays after rc files too: a saved GOOSE_MODEL or inline
+	// OpenCode config must not discard the user's choice or Orchestra's plugin.
+	for key, value := range env {
+		if previous, ok := beforePrepare[key]; !ok || previous != value {
+			folders[key] = value
+		}
+	}
+	if spec := agentSpecs[sess.Agent]; spec != nil {
+		keys := slices.Clone(spec.OverrideEnv)
+		if sess.Model != "" && spec.Model != nil && spec.Model.Env != "" {
+			keys = append(keys, spec.Model.Env)
+		}
+		for _, key := range keys {
+			if value, ok := env[key]; ok {
+				folders[key] = value
+			}
+		}
+	}
+	// Account folders also override rc files. env bypasses rc aliases and functions.
 	setup := "export PATH=" + shellQuote(s.runtimeDir) + ":$PATH; "
 	for _, k := range slices.Sorted(maps.Keys(folders)) {
 		setup += "export " + k + "=" + shellQuote(folders[k]) + "; "

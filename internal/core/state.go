@@ -321,6 +321,11 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 		return nil, err
 	}
 	s.restoreLocked()
+	if s.canSave && s.ensureProfileAccountsLocked() {
+		if err := s.saveLocked(); err != nil {
+			return nil, err
+		}
+	}
 	if migrated && s.canSave {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
@@ -1076,6 +1081,9 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	}
 	if agent == terminalAgent {
 		prompt, createWorktree, gitHubItem = "", false, nil
+	}
+	if spec := agentSpecs[agent]; spec != nil && spec.NoInitialPrompt && prompt != "" {
+		return State{}, fmt.Errorf("%s cannot start an interactive session with an initial prompt. Create a session and enter the request in its terminal.", spec.Name)
 	}
 	if gitHubItem != nil && gitHubItem.Number <= 0 {
 		return State{}, errors.New("Invalid GitHub issue or pull request.")

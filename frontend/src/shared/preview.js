@@ -1,6 +1,7 @@
 // Explicit visual fixtures. This module cannot start processes or access native user state.
 import { emitPreview } from './api'
-import { workspaceRows } from './appearance'
+import { agents, workspaceRows } from './appearance'
+import { profileAgents } from './profiles'
 const id = () => crypto.randomUUID()
 const workspaceID = id(),
   appID = id(),
@@ -517,12 +518,12 @@ export const backend = {
     return {
       node: true,
       detected: true,
-      agents: ['codex', 'claude', 'pi', 'vibe', 'opencode', 'antigravity', 'grok', 'cline', 'omp', 'kilo', 'muse'].map(
-        (id) => ({
+      agents: agents
+        .filter((a) => a.id !== 'aider' && a.id !== 'omp')
+        .map(({ id }) => ({
           id,
           installed: found.includes(id),
-        }),
-      ),
+        })),
     }
   },
   AgentSkillCommand: (ids) => {
@@ -578,7 +579,7 @@ export const backend = {
   ProfileLogins: async (profileID) => {
     await new Promise((r) => setTimeout(r, 400))
     const profile = state.profiles.find((p) => p.id === profileID)
-    return ['codex', 'claude'].map((agent) => ({
+    return profileAgents.map((agent) => ({
       agent,
       folder: profile?.folders?.[agent] || '',
       loggedIn: !!signedIn[profileID]?.includes(agent),
@@ -646,6 +647,16 @@ export const backend = {
       (agent === 'pi' ? Promise.reject('Could not list models. Check that Pi is installed and signed in.') : [])
     )
   },
+  AgentLaunchOptions: async (agent) => ({
+    models: await backend.AgentModels(agent),
+    customModel: !['vibe', 'cline', 'amp'].includes(agent),
+    efforts:
+      agent === 'copilot'
+        ? ['low', 'medium', 'high', 'xhigh', 'max']
+        : agent === 'droid'
+          ? ['off', 'none', 'low', 'medium', 'high', 'xhigh', 'max']
+          : [],
+  }),
   // Preview folders named *no-git* disable worktrees in New Session and offer Initialize Git.
   InitializeGitRepository: async (pid, rid) => {
     await new Promise((r) => setTimeout(r, 600))

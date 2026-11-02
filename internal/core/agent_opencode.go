@@ -9,11 +9,14 @@ import (
 // OpenCode reports status and its conversation ID through OpenCodeSessionPlugin.js.
 var opencodeAgent = &agentSpec{
 	ID: "opencode", Name: "OpenCode", Executable: "opencode", SkillKey: "opencode",
-	Command:      func(l launch) string { return l.command("opencode", "--session", "--prompt") },
-	Prepare:      sessionPlugin("OPENCODE_CONFIG_CONTENT"),
-	ModelFlag:    "--model",
-	ModelCommand: []string{"opencode", "models"},
-	ParseModels:  parseProviderModels,
+	Command: func(l launch) string { return l.command("opencode", "--session", "--prompt") },
+	Prepare: sessionPlugin("OPENCODE_CONFIG_CONTENT"),
+
+	Model: &agentModelSpec{
+		Flag:    "--model",
+		Command: []string{"opencode", "models"},
+		Parse:   parseProviderModels,
+	},
 }
 
 // sessionPlugin adds OpenCodeSessionPlugin.js to the inline config the CLI reads from

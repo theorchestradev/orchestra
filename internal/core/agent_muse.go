@@ -18,7 +18,7 @@ var museAgent = &agentSpec{
 		statusFile, idFile := sessionFiles(l.Dir, l.Session.ID)
 		exports := "export ORCHESTRA_STATUS_FILE=" + shellQuote(statusFile) + " ORCHESTRA_AGENT_ID_FILE=" + shellQuote(idFile) + " ORCHESTRA_CLI_DIRECTORY=" + shellQuote(l.Dir) + "; "
 		hooks := map[string]any{}
-		states := map[string]string{"PermissionRequest": "waiting", "PostToolUse": "working"}
+		states := map[string]string{"PermissionRequest": "waiting", "PostToolUse": "working", "StopFailure": "waiting"}
 		for _, event := range hookEvents {
 			states[event] = hookState(event)
 		}
@@ -35,13 +35,16 @@ var museAgent = &agentSpec{
 			return command + " resume " + shellQuote(l.Resume)
 		}
 		if l.Prompt != "" {
-			command += " " + l.Prompt
+			command += " -- " + l.Prompt
 		}
 		return command
 	},
 	ResumeFailed: regexp.MustCompile(`retained session not found`),
-	ModelFlag:    "--model",
-	Models:       []AgentModel{{"muse-spark-1.3", "Muse Spark 1.3", museEfforts}, {"muse-spark-1.2", "Muse Spark 1.2", museEfforts}},
-	EffortFlag:   quotedFlag("--reasoning-effort"),
-	Efforts:      museEfforts,
+
+	Model: &agentModelSpec{
+		Flag:       "--model",
+		Catalog:    []AgentModel{{"muse-spark-1.3", "Muse Spark 1.3", museEfforts}, {"muse-spark-1.2", "Muse Spark 1.2", museEfforts}},
+		EffortFlag: quotedFlag("--reasoning-effort"),
+		Efforts:    museEfforts,
+	},
 }

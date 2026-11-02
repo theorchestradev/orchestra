@@ -1,5 +1,5 @@
 <script>
-// Model catalogs come from the installed CLIs; list each agent's once per app run.
+// Model catalogs come from the installed CLIs, once per agent and account per app run.
 const catalogs = new Map()
 </script>
 <script setup>
@@ -26,26 +26,36 @@ const profile = ref(''),
   model = ref(''),
   effort = ref(''),
   models = ref([]),
+  customModels = ref(false),
+  customEfforts = ref([]),
   loading = ref(false),
   error = ref('')
 const choices = computed(() => (props.profiles.length ? 'profile, agent, model and effort' : 'agent, model and effort'))
+const supportsPrompt = (id) => agents.find((a) => a.id === id)?.initialPrompt !== false
 const agentName = computed(() => agents.find((a) => a.id === agent.value)?.name)
-const efforts = computed(() => modelEfforts(models.value, model.value))
+const efforts = computed(() => (models.value.length ? modelEfforts(models.value, model.value) : customEfforts.value))
 let request = 0
 async function loadModels() {
   const id = agent.value,
+    key = JSON.stringify([id, profile.value]),
     token = ++request
   model.value = ''
   effort.value = ''
   models.value = []
+  customModels.value = false
+  customEfforts.value = []
   error.value = ''
   loading.value = true
   try {
-    if (!catalogs.has(id)) catalogs.set(id, call('AgentModels', id))
-    const list = await catalogs.get(id)
-    if (token === request) models.value = list || []
+    if (!catalogs.has(key)) catalogs.set(key, call('AgentLaunchOptions', id, profile.value))
+    const options = await catalogs.get(key)
+    if (token === request) {
+      models.value = options?.models || []
+      customModels.value = !!options?.customModel
+      customEfforts.value = options?.efforts || []
+    }
   } catch (e) {
-    catalogs.delete(id)
+    catalogs.delete(key)
     if (token === request) error.value = String(e)
   } finally {
     if (token === request) {
@@ -55,7 +65,7 @@ async function loadModels() {
     }
   }
 }
-watch(agent, loadModels)
+watch([agent, profile], loadModels)
 watch(efforts, (list) => {
   if (!list.includes(effort.value)) effort.value = ''
 })
@@ -80,8 +90,11 @@ function listen(on) {
 }
 async function toggle() {
   if (open.value) return close()
-  if (!agents.some((a) => a.id === agent.value))
-    agent.value = agents.some((a) => a.id === props.defaultAgent) ? props.defaultAgent : agents[0].id
+  if (!agents.some((a) => a.id === agent.value) || !supportsPrompt(agent.value))
+    agent.value =
+      agents.some((a) => a.id === props.defaultAgent) && supportsPrompt(props.defaultAgent)
+        ? props.defaultAgent
+        : agents[0].id
   // Each opening starts from the workspace's profile, or Default when it was removed.
   profile.value = findProfile(props.profiles, props.profileId) ? props.profileId : ''
   open.value = true
@@ -146,7 +159,9 @@ onBeforeUnmount(() => listen(false))
         <label
           >Agent<span class="theme-select general-select"
             ><select v-model="agent">
-              <option v-for="a in agents" :key="a.id" :value="a.id">{{ a.name }}</option></select
+              <option v-for="a in agents" :key="a.id" :value="a.id" :disabled="a.initialPrompt === false">
+                {{ a.name }}{{ a.initialPrompt === false ? ' (use New Session)' : '' }}
+              </option></select
             ><Icon name="chevron.up.chevron.down" :size="10" /></span
         ></label>
         <div v-if="loading" class="metadata-loading" role="status"><span class="spinner" />Loading models…</div>
@@ -154,15 +169,31 @@ onBeforeUnmount(() => listen(false))
           ><p class="metadata-error" role="alert">{{ error }}</p>
           <button type="button" class="standard-button" @click="loadModels">Try Again</button></template
         >
-        <p v-else-if="!models.length" class="muted caption">{{ agentName }} starts with its own model and effort.</p>
+        <p v-else-if="!models.length && !customModels" class="muted caption">
+          {{ agentName }} starts with its own model and effort.
+        </p>
         <template v-else
-          ><label
+          ><label v-if="models.length"
             >Model<span class="theme-select general-select"
               ><select v-model="model">
                 <option value="">Default</option>
                 <option v-for="m in models" :key="m.id" :value="m.id">{{ m.name }}</option></select
               ><Icon name="chevron.up.chevron.down" :size="10" /></span
           ></label>
+          <label v-if="!models.length && customModels"
+            >Model ID
+            <input
+              v-model="model"
+              autocorrect="off"
+              autocapitalize="off"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="Use the CLI default"
+            />
+          </label>
+          <p v-if="!models.length && customModels" class="muted caption">
+            Enter a model ID configured in {{ agentName }}, or leave blank to use its default.
+          </p>
           <label v-if="efforts.length"
             >Effort<span class="theme-select general-select"
               ><select v-model="effort">
@@ -170,6 +201,9 @@ onBeforeUnmount(() => listen(false))
                 <option v-for="e in efforts" :key="e" :value="e">{{ effortLabel(e) }}</option></select
               ><Icon name="chevron.up.chevron.down" :size="10" /></span></label
         ></template>
+        <p v-if="efforts.length && !models.length" class="muted caption">
+          Effort support depends on the selected model.
+        </p>
         <footer>
           <button type="button" class="standard-button" @click="close(true)">Cancel</button
           ><button type="submit" class="standard-button primary" :disabled="loading">{{ label }}</button>

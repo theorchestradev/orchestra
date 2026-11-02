@@ -91,6 +91,8 @@ func RunCLI(args []string, out, stderr io.Writer) int {
 	var err error
 	if args[0] == "agent-id" {
 		err = saveAgentID(os.Stdin, os.Getenv("ORCHESTRA_AGENT_ID_FILE"))
+	} else if args[0] == "agent-status" && (len(args) == 2 || len(args) == 3) {
+		err = reportAgentStatus(os.Stdin, args[1], os.Getenv("ORCHESTRA_STATUS_FILE"), os.Getenv("ORCHESTRA_AGENT_ID_FILE"), args[2:]...)
 	} else {
 		err = runCLI(args, out)
 	}
@@ -102,7 +104,7 @@ func RunCLI(args []string, out, stderr io.Writer) int {
 }
 
 // saveAgentID stores the session_id from an agent hook payload, so hooks need no
-// platform-specific JSON tools. It is used by statusCommand and not listed in help.
+// platform-specific JSON tools. Kept for hooks from earlier app versions and not listed in help.
 func saveAgentID(in io.Reader, path string) error {
 	defer io.Copy(io.Discard, in)
 	var payload struct {

@@ -255,7 +255,7 @@ func TestProfileLoginsAskTheCLI(t *testing.T) {
 	})
 	profile := &Profile{ID: "p", Name: "Work", Folders: map[string]string{"codex": folder, "claude": filepath.Join(folder, "missing")}}
 	logins := ProfileLogins(context.Background(), profile)
-	if len(logins) != 2 || logins[0].Agent != "codex" || !logins[0].LoggedIn || logins[0].Folder != folder || logins[1].LoggedIn {
+	if len(logins) != len(agentConfigEnv) || logins[0].Agent != "codex" || !logins[0].LoggedIn || logins[0].Folder != folder || logins[1].LoggedIn {
 		t.Fatalf("logins = %+v", logins)
 	}
 	// A folder that does not exist yet is signed out without running the CLI.
@@ -267,7 +267,7 @@ func TestProfileLoginsAskTheCLI(t *testing.T) {
 	}
 	*scripts = nil
 	logins = ProfileLogins(context.Background(), nil)
-	if len(*scripts) != 2 || logins[0].LoggedIn != true || logins[1].LoggedIn || logins[1].Folder != "" {
+	if len(*scripts) != len(agentConfigEnv) || logins[0].LoggedIn != true || logins[1].LoggedIn || logins[1].Folder != "" {
 		t.Fatalf("Default logins = %+v, %q", logins, *scripts)
 	}
 	for _, script := range *scripts {
@@ -336,6 +336,7 @@ func TestProfileSkillInstall(t *testing.T) {
 	}
 	work := &Profile{ID: "p", Name: "Work", Folders: map[string]string{"claude": "~/.orchestra/profiles/work/claude", "codex": "~/.orchestra/profiles/work/codex"}}
 	installed(filepath.Join(home, ".claude"))
+	installed(filepath.Join(home, ".cursor"))
 	installed(filepath.Join(home, ".agents")) // Codex skills are shared by every profile.
 	if !profileSkillInstalled(nil, "claude") || !profileSkillInstalled(nil, "codex") || profileSkillInstalled(work, "claude") || !profileSkillInstalled(work, "codex") {
 		t.Fatal("skill detection")

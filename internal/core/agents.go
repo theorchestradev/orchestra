@@ -4,9 +4,12 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/google/uuid"
 )
 
 // agentSpec is everything Orchestra knows about one agent CLI. Each agent lives in
@@ -20,6 +23,8 @@ import (
 // prompts. Antigravity and omp have no reviewed auto mode, so they only auto-approve
 // edits. Cline approves every tool by default, so it starts with approvals turned back on.
 // Muse's built-in :auto-review permission profile is its reviewed auto mode.
+// Qwen uses its auto classifier and Goose uses smart_approve. Other adapters keep
+// their CLI's interactive permission defaults; none enable full bypass.
 type agentSpec struct {
 	ID, Name string
 	// Executable is the CLI on the login-shell PATH, for detection and launch errors.
@@ -28,8 +33,13 @@ type agentSpec struct {
 	SkillKey string
 	// Command builds the shell command that starts or resumes the agent.
 	Command func(l launch) string
+	// NoInitialPrompt means the CLI has no reviewed way to seed its interactive UI.
+	NoInitialPrompt bool
 	// Prepare adjusts the launch environment, before Command runs in it.
 	Prepare func(s *Store, sess *Session, t *TerminalSession, env map[string]string) error
+	// OverrideEnv are prepared values that must override shell rc files even when
+	// they already matched the app's inherited environment before Prepare.
+	OverrideEnv []string
 	// PresetID agents take Orchestra's session ID as their conversation ID.
 	PresetID bool
 	// RecoverID finds the conversation ID in the terminal output once the agent exits.
@@ -45,28 +55,37 @@ type agentSpec struct {
 	StatusSetup bool
 	// ForwardsReplies agents answer Inbox requests through their own extension.
 	ForwardsReplies bool
-	// ModelFlag passes a model at launch; empty means the agent takes no model choice.
-	ModelFlag string
-	// ModelCommand lists the installed CLI's models for ParseModels. Without one,
-	// Models is the fixed catalog.
-	ModelCommand []string
-	ParseModels  func(output []byte) ([]AgentModel, error)
-	Models       []AgentModel
-	// EffortFlag passes an effort at launch; nil means the agent takes no effort choice.
-	// Efforts lists the accepted values; nil accepts any effortPattern value.
-	EffortFlag func(effort string) string
-	Efforts    []string
-	// ConfigEnv names the variable the CLI reads its config folder from: settings,
-	// conversations and login. Empty means profiles cannot choose the agent's account.
-	ConfigEnv string
-	// LoginCommand signs the CLI in, in a terminal the user drives. LoginStatusCommand
-	// exits 0 when the CLI is signed in; it only asks the CLI, and Orchestra never reads
-	// credential files.
-	LoginCommand, LoginStatusCommand string
-	// ProfileSkillDir is the default config folder under the home folder when the agent's
-	// global skills live in its config folder, so each profile needs its own install. Empty
-	// means the skills CLI installs into ~/.agents, which every profile shares.
-	ProfileSkillDir string
+	// Nil capabilities are unsupported. A model capability without a catalog
+	// accepts a manually entered ID; without flags it is applied by Prepare.
+	Model   *agentModelSpec
+	Account *agentAccountSpec
+}
+
+// agentModelSpec describes choices independently of a provider's transport.
+// Prepare applies choices that the CLI receives through settings or environment.
+type agentModelSpec struct {
+	Flag string
+	// Env names the model transport when Prepare uses an environment variable.
+	Env        string
+	Command    []string
+	Parse      func([]byte) ([]AgentModel, error)
+	Catalog    []AgentModel
+	EffortFlag func(string) string
+	// Nil with EffortFlag accepts provider-defined values; otherwise this is the allowlist.
+	Efforts []string
+}
+
+// agentAccountSpec describes account isolation, sign-in and skill locations.
+// Status is a read-only CLI command. ParseStatus handles CLIs that exit zero
+// even when signed out; Orchestra never reads authentication files.
+type agentAccountSpec struct {
+	Env           string
+	Aliases       []string
+	Login, Status string
+	ParseStatus   func([]byte) bool
+	SkillDir      string
+	// Some skills installers ignore Env. Copy their installed public stub instead.
+	CopySkill bool
 }
 
 // launch is what an agent's Command receives. Resume is the conversation to continue,
@@ -76,8 +95,17 @@ type launch struct {
 	Resume, Flags, Prompt, Dir string
 }
 
+// conversationID is preset for providers that accept a client-chosen ID. Starting
+// a new conversation changes this ID without changing Orchestra's session ID.
+func (l launch) conversationID() string {
+	if l.Session.AgentSessionID != "" {
+		return l.Session.AgentSessionID
+	}
+	return l.Session.ID
+}
+
 // agentOrder is the app's agent order; frontend/src/shared/appearance.js lists the same agents.
-var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent, ompAgent, kiloAgent, museAgent}
+var agentOrder = []*agentSpec{codexAgent, claudeAgent, piAgent, vibeAgent, opencodeAgent, antigravityAgent, grokAgent, clineAgent, ompAgent, kiloAgent, museAgent, cursorAgent, copilotAgent, aiderAgent, gooseAgent, qwenAgent, kiroAgent, droidAgent, kimiAgent, ampAgent}
 
 var agentSpecs = func() map[string]*agentSpec {
 	m := map[string]*agentSpec{}
@@ -99,10 +127,30 @@ func specIndex[T comparable](field func(*agentSpec) T) map[string]T {
 }
 
 var (
-	agentConfigEnv      = specIndex(func(s *agentSpec) string { return s.ConfigEnv })
-	loginCommands       = specIndex(func(s *agentSpec) string { return s.LoginCommand })
-	loginStatusCommands = specIndex(func(s *agentSpec) string { return s.LoginStatusCommand })
-	profileSkillDirs    = specIndex(func(s *agentSpec) string { return s.ProfileSkillDir })
+	agentConfigEnv = specIndex(func(s *agentSpec) string {
+		if s.Account != nil {
+			return s.Account.Env
+		}
+		return ""
+	})
+	loginCommands = specIndex(func(s *agentSpec) string {
+		if s.Account != nil {
+			return s.Account.Login
+		}
+		return ""
+	})
+	loginStatusCommands = specIndex(func(s *agentSpec) string {
+		if s.Account != nil {
+			return s.Account.Status
+		}
+		return ""
+	})
+	profileSkillDirs = specIndex(func(s *agentSpec) string {
+		if s.Account != nil {
+			return s.Account.SkillDir
+		}
+		return ""
+	})
 )
 
 // presetsID reports whether new sessions of the agent start with Orchestra's ID.
@@ -157,4 +205,15 @@ func scanModels(output []byte, line func(c *modelCatalog, text string, fields []
 		line(&c, scanner.Text(), strings.Fields(scanner.Text()))
 	}
 	return c, scanner.Err()
+}
+
+// prepareConversationID scopes CLI conversations to an Orchestra session without
+// reusing another conversation when Start New Conversation is chosen.
+func prepareConversationID(_ *Store, sess *Session, t *TerminalSession, env map[string]string) error {
+	id := sess.AgentSessionID
+	if !sess.HasLaunched || id == "" {
+		id = uuid.NewString()
+	}
+	env["ORCHESTRA_CONVERSATION_ID"] = id
+	return os.WriteFile(t.idFile, []byte(id), 0600)
 }

@@ -1,7 +1,8 @@
 import { spaceSymbol } from './workspace.js'
+import { agents } from './appearance.js'
 
 // Agents whose CLI reads its config folder from a variable, so a profile can choose the account.
-export const profileAgents = ['codex', 'claude']
+export const profileAgents = agents.filter((agent) => agent.profiles).map((agent) => agent.id)
 
 // An empty profile ID is Default, which uses each CLI's own config folder.
 export const findProfile = (profiles, id) => (id ? (profiles || []).find((p) => p.id === id) : null)

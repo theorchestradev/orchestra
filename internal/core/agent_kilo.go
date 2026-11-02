@@ -4,9 +4,12 @@ package core
 // the conversation ID. Its default permissions already ask before risky commands.
 var kiloAgent = &agentSpec{
 	ID: "kilo", Name: "Kilo", Executable: "kilo", SkillKey: "kilo",
-	Command:      func(l launch) string { return l.command("kilo", "--session", "--prompt") },
-	Prepare:      sessionPlugin("KILO_CONFIG_CONTENT"),
-	ModelFlag:    "--model",
-	ModelCommand: []string{"kilo", "models"},
-	ParseModels:  parseProviderModels,
+	Command: func(l launch) string { return l.command("kilo", "--session", "--prompt") },
+	Prepare: sessionPlugin("KILO_CONFIG_CONTENT"),
+
+	Model: &agentModelSpec{
+		Flag:    "--model",
+		Command: []string{"kilo", "models"},
+		Parse:   parseProviderModels,
+	},
 }

@@ -29,7 +29,7 @@ var clineAgent = &agentSpec{
 		}
 		command := "cline --tui --auto-approve false" + l.Flags
 		if l.Prompt != "" {
-			command += " " + l.Prompt
+			command += " -- " + l.Prompt
 		}
 		return command
 	},

@@ -436,6 +436,17 @@ func (a *App) DismissLocalMainNotice(workspaceID string) (core.State, error) {
 	return a.store.DismissLocalMainNotice(workspaceID)
 }
 
+func (a *App) AgentLaunchOptions(agent, profileID string) (core.AgentLaunchOptions, error) {
+	if err := a.ready(); err != nil {
+		return core.AgentLaunchOptions{}, err
+	}
+	profile, err := a.store.Profile(profileID)
+	if err != nil {
+		return core.AgentLaunchOptions{}, err
+	}
+	return core.LaunchOptions(a.ctx, agent, profile)
+}
+
 // AgentModels lists the models and efforts Work on and Review can start an agent with.
 func (a *App) AgentModels(agent string) ([]core.AgentModel, error) {
 	return core.AgentModels(a.ctx, agent)

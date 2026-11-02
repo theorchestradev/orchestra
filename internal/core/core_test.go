@@ -512,19 +512,22 @@ func TestWaitCycleAndCancellation(t *testing.T) {
 	}
 }
 func TestAllAgentCommandsAndPromptQuoting(t *testing.T) {
-	for agent := range agentSpecs {
+	for agent, spec := range agentSpecs {
 		sess := &Session{ID: "id", Agent: agent, InitialPrompt: "literal ' $(touch /tmp/no)\nmessage"}
+		if spec.NoInitialPrompt {
+			sess.InitialPrompt = ""
+		}
 		command, err := launchCommand(sess, "/tmp/extensions")
 		if err != nil {
 			t.Fatal(err)
 		}
-		if agent != "grok" && !strings.Contains(command, shellQuote(sess.InitialPrompt)) {
+		if !spec.NoInitialPrompt && !strings.Contains(command, shellQuote(sess.InitialPrompt)) {
 			t.Fatalf("%s did not quote prompt", agent)
 		}
 		sess.HasLaunched = true
 		sess.AgentSessionID = "resume ' id"
 		command, err = launchCommand(sess, "/tmp/extensions")
-		if err != nil || !strings.Contains(command, shellQuote(sess.AgentSessionID)) || strings.Contains(command, shellQuote(sess.InitialPrompt)) {
+		if err != nil || (agent != "aider" && !strings.Contains(command, shellQuote(sess.AgentSessionID))) || (sess.InitialPrompt != "" && strings.Contains(command, shellQuote(sess.InitialPrompt))) {
 			t.Fatalf("%s resume resent prompt or lost ID", agent)
 		}
 	}
@@ -542,6 +545,15 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		"omp":         "omp --approval-mode write ",
 		"kilo":        "",
 		"muse":        "muse --permission-profile :auto-review ",
+		"cursor":      "",
+		"copilot":     "",
+		"aider":       "",
+		"goose":       "",
+		"qwen":        "qwen --approval-mode auto",
+		"kiro":        "",
+		"droid":       "",
+		"kimi":        "",
+		"amp":         "",
 	}
 	for agent := range agentSpecs {
 		mode, ok := modes[agent]
@@ -550,6 +562,9 @@ func TestAgentCommandsStartInAutoMode(t *testing.T) {
 		}
 		for _, launched := range []bool{false, true} {
 			sess := &Session{ID: "id", Agent: agent, InitialPrompt: "prompt", HasLaunched: launched, AgentSessionID: "resume-id"}
+			if agentSpecs[agent].NoInitialPrompt {
+				sess.InitialPrompt = ""
+			}
 			command, err := launchCommand(sess, "/tmp/extensions")
 			if err != nil {
 				t.Fatal(err)
@@ -1255,7 +1270,7 @@ func TestMissingClaudeConversationOffersNewConversation(t *testing.T) {
 	if _, err := s.StartSession(agent.ID, false, 80, 24); err == nil {
 		t.Fatal("resumed without a conversation ID")
 	}
-	if sess = run(true); sess.AgentSessionID != agent.ID || sess.ExitMessage != "Claude Code exited (code 0)." {
+	if sess = run(true); sess.AgentSessionID == "" || sess.AgentSessionID == agent.ID || sess.ExitMessage != "Claude Code exited (code 0)." {
 		t.Fatalf("new conversation did not start: %q %q", sess.AgentSessionID, sess.ExitMessage)
 	}
 }

@@ -80,10 +80,32 @@ func TestBackgroundSessionSurvivesQuitAndReconnects(t *testing.T) {
 	s.mu.Lock()
 	token := s.collaboration.tokens[agent.ID]
 	s.mu.Unlock()
+	// These are still referenced by live provider processes after the app quits.
+	assets := []string{"cursor-status/hooks/hooks.json", "copilot-status/hooks.json", agent.ID + "-droid-settings.json"}
+	for _, name := range assets {
+		path := filepath.Join(s.runtimeDir, name)
+		if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("live integration"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	stale := filepath.Join(s.runtimeDir, "ended-session.status")
+	_ = os.WriteFile(stale, []byte("working"), 0600)
 	shutdownAndWait(t, s)
 
 	reopened := openBackground(t, path)
 	t.Cleanup(func() { shutdownAndWait(t, reopened) })
+	for _, name := range assets {
+		data, err := os.ReadFile(filepath.Join(reopened.runtimeDir, name))
+		if err != nil || string(data) != "live integration" {
+			t.Fatalf("live integration removed on reconnect: %s: %q %v", name, data, err)
+		}
+	}
+	if _, err := os.Stat(stale); !os.IsNotExist(err) {
+		t.Fatal("stale activity file survived reconnect")
+	}
 	sess := sessionState(reopened, agent.ID)
 	if !sess.Running || sess.Restored || !sess.Background {
 		t.Fatalf("session not reconnected: %+v", sess)

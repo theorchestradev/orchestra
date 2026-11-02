@@ -9,7 +9,9 @@
 </p>
 
 - **Any agent:** Claude Code, Codex, OpenCode, Pi, Mistral Vibe, Antigravity CLI, Grok
-  Build, Cline, omp, Kilo, Muse Code, or a plain shell, each in its own session.
+  Build, Cline, omp, Kilo, Muse Code, Cursor CLI, GitHub Copilot CLI, Aider, Goose,
+  Qwen Code, Kiro CLI, Factory Droid, Kimi Code CLI, Amp, or a plain shell, each in
+  its own session. See [agent support](docs/agents.md) for CLI requirements and limitations.
 - **Workspaces:** group the repositories you work on together, such as an app, its
   website and its docs. Each session works in one of them.
 - **Worktrees:** every session can run in its own Git worktree and branch, so agents
@@ -52,9 +54,9 @@ For the GitHub views, install the [GitHub CLI](https://cli.github.com/) and run
 3. When you close the session, **Remove the worktree** deletes a clean checkout and
    keeps any branch with unmerged commits.
 
-To use more than one Claude Code or Codex account, add a profile in Settings → Profiles
+To use more than one Claude Code, Codex or Cursor account, add a profile in Settings → Profiles
 and choose **Log In** for each agent. Orchestra keeps a separate config folder for each
-profile under `~/.orchestra/profiles/` (through `CLAUDE_CONFIG_DIR` and `CODEX_HOME`), so
+profile under `~/.orchestra/profiles/` (through the CLI's config-folder variables), so
 a profile starts without your usual CLI settings, MCP servers and skills; Settings →
 Profiles offers to install the Orchestra Skill when a profile is missing it. A workspace
 chooses the profile its new sessions use, and the New Session dialog can choose another.

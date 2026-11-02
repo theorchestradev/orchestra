@@ -72,8 +72,15 @@ func profileFolders(p *Profile) map[string]string {
 		return env
 	}
 	for agent, folder := range p.Folders {
+		spec := agentSpecs[agent]
+		if spec == nil || spec.Account == nil {
+			continue
+		}
 		if path, err := expandFolder(folder); err == nil {
-			env[agentConfigEnv[agent]] = path
+			env[spec.Account.Env] = path
+			for _, variable := range spec.Account.Aliases {
+				env[variable] = path
+			}
 		}
 	}
 	return env
@@ -345,15 +352,23 @@ func ProfileLogins(ctx context.Context, p *Profile) []ProfileLogin {
 		variable := agentConfigEnv[result.Agent]
 		result.Folder = env[variable]
 		result.Skill = profileSkillInstalled(p, result.Agent)
+		if p != nil && result.Folder == "" {
+			result.Message = "This profile has no config folder for this agent."
+			continue
+		}
 		script := "exec " + loginStatusCommands[result.Agent]
 		if result.Folder != "" {
 			if info, err := os.Stat(result.Folder); err != nil || !info.IsDir() {
 				continue
 			}
-			script = "export " + variable + "=" + shellQuote(result.Folder) + "; " + script
+			exports := "export " + variable + "=" + shellQuote(result.Folder) + "; "
+			for _, alias := range agentSpecs[result.Agent].Account.Aliases {
+				exports += "export " + alias + "=" + shellQuote(result.Folder) + "; "
+			}
+			script = exports + script
 		}
 		wg.Go(func() {
-			_, code, err := cliShell(ctx, script)
+			output, code, err := cliShell(ctx, script)
 			switch {
 			case err != nil:
 				result.Message = "Could not check the sign-in."
@@ -361,9 +376,45 @@ func ProfileLogins(ctx context.Context, p *Profile) []ProfileLogin {
 				result.Message = "Install the " + agentSpecs[result.Agent].Executable + " CLI to sign in."
 			default:
 				result.LoggedIn = code == 0
+				if parse := agentSpecs[result.Agent].Account.ParseStatus; result.LoggedIn && parse != nil {
+					result.LoggedIn = parse(output)
+				}
 			}
 		})
 	}
 	wg.Wait()
 	return results
+}
+
+// ensureProfileAccountsLocked provisions newly supported accounts. Sessions that
+// already launched without a dedicated folder retain the Default account they used.
+func (s *Store) ensureProfileAccountsLocked() bool {
+	changed := false
+	for _, p := range s.state.Profiles {
+		missing := map[string]bool{}
+		for agent := range agentConfigEnv {
+			if p.Folders[agent] == "" {
+				missing[agent] = true
+			}
+		}
+		if len(missing) == 0 {
+			continue
+		}
+		root := s.profileFolderLocked(p.Name)
+		if p.Folders == nil {
+			p.Folders = map[string]string{}
+		}
+		for agent := range missing {
+			p.Folders[agent] = homeRelative(filepath.Join(root, agent))
+		}
+		for _, w := range s.state.Workspaces {
+			for _, sess := range w.Sessions {
+				if missing[sess.Agent] && sess.HasLaunched && sess.ProfileID == p.ID {
+					sess.ProfileID = ""
+				}
+			}
+		}
+		changed = true
+	}
+	return changed
 }

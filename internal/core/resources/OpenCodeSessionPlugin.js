@@ -32,9 +32,13 @@ export const OrchestraSessionPlugin = async ({ directory }) => {
           const info = properties.info;
           if (!info || info.parentID || canonical(info.directory) !== canonical(directory)) return;
           if (event.type === "session.updated" && active && active !== info.id) return;
-          if (active !== info.id) busy = false;
+          if (active !== info.id) {
+            busy = false;
+            pending.clear();
+          }
           active = info.id;
           publish(active);
+          status();
           return;
         }
         case "session.status":

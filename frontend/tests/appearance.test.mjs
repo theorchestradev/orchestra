@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import {
+  agents,
   themeNames,
   palette,
   terminalTheme,
@@ -47,19 +48,7 @@ test('every built-in theme is named from themes.json and drives the terminal', (
     }
 })
 test('original agent brand variants exist in both modes', () => {
-  for (const agent of [
-    'codex',
-    'claude',
-    'pi',
-    'vibe',
-    'opencode',
-    'antigravity',
-    'grok',
-    'cline',
-    'omp',
-    'kilo',
-    'muse',
-  ])
+  for (const { id: agent } of agents)
     for (const mode of ['dark', 'light'])
       assert.ok(fs.existsSync(new URL('../public' + agentIcon(agent, mode), import.meta.url)))
 })

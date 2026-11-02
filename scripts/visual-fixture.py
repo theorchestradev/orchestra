@@ -17,15 +17,18 @@ agent = root / 'agent.py'
 agent.write_text('''import os, sys, tty, uuid
 # Sign-in commands only touch a marker in the profile's config folder; no account is contacted.
 command, args = sys.argv[1], sys.argv[2:]
-home = os.environ.get({'claude':'CLAUDE_CONFIG_DIR','codex':'CODEX_HOME'}.get(command,'')) or os.path.dirname(os.path.abspath(__file__))
+home = os.environ.get({'claude':'CLAUDE_CONFIG_DIR','codex':'CODEX_HOME','cursor-agent':'CURSOR_CONFIG_DIR'}.get(command,'')) or os.path.dirname(os.path.abspath(__file__))
 marker = os.path.join(home, command + '-signed-in')
+if command == 'cursor-agent' and args[:1] == ['status']:
+ print('{"isAuthenticated":'+('true' if os.path.exists(marker) else 'false')+'}'); sys.exit(0)
 if args[:2] in (['auth','status'], ['login','status']): sys.exit(0 if os.path.exists(marker) else 1)
 if args[:2] == ['auth','login'] or args[:1] == ['login']:
  open(marker,'w').write('fixture'); print('Fixture: signed in. No account was contacted.'); sys.exit(0)
+if command == 'cursor-agent' and args[:1] == ['create-chat']: print(str(uuid.uuid4())); sys.exit(0)
 if args[:1] == ['--version']: print('Orchestra demo CLI 1.0'); sys.exit(0)
 if not os.environ.get('ORCHESTRA_AGENT_ID_FILE'):
  print('Fixture: account and model queries are simulated.', file=sys.stderr); sys.exit(1)
-identifier = next((sys.argv[i+1] for i,x in enumerate(sys.argv[:-1]) if x in ('--resume','--session-id','--session','--conversation')), str(uuid.uuid4()))
+identifier = next((sys.argv[i+1] for i,x in enumerate(sys.argv[:-1]) if x in ('--resume','--session-id','--session','--conversation','--resume-id','--name')), str(uuid.uuid4()))
 open(os.environ['ORCHESTRA_AGENT_ID_FILE'],'w').write(identifier)
 open(os.environ['ORCHESTRA_STATUS_FILE'],'w').write('waiting')
 tty.setraw(sys.stdin.fileno())
@@ -37,7 +40,7 @@ while True:
  os.write(1,data.replace(b'\\r',b'\\r\\n'))
  if b'\\r' in data: os.write(1,b'\\r\\nFixture received terminal input.\\r\\n> ')
 ''')
-for command in ['codex','claude','pi','vibe','opencode','agy','grok','cline','omp','kilo','muse']:
+for command in ['codex','claude','pi','vibe','opencode','agy','grok','cline','omp','kilo','muse','cursor-agent','copilot','aider','goose','qwen','kiro-cli','droid','kimi','amp']:
  path=bin_dir/command
  path.write_text(f'#!/bin/sh\nexec "{python}" "{agent}" {command} "$@"\n')
  path.chmod(0o700)

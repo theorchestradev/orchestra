@@ -2,6 +2,8 @@ package core
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -33,7 +35,7 @@ func TestLaunchPassesModelAndEffortFlags(t *testing.T) {
 			if err != nil || !strings.Contains(command, tc[1]) {
 				t.Fatalf("%s (resume %v) missing %q: %s", agent, launched, tc[1], command)
 			}
-			if !launched && agent != "grok" && !strings.HasSuffix(command, shellQuote("prompt")) {
+			if !launched && !strings.HasSuffix(command, shellQuote("prompt")) {
 				t.Fatalf("%s prompt is not last: %s", agent, command)
 			}
 		}
@@ -83,7 +85,7 @@ func TestParseAgentModels(t *testing.T) {
 		"opencode":    {opencode, []AgentModel{{"opencode/big-pickle", "opencode/big-pickle", []string{}}, {"openrouter/~anthropic/claude-haiku-latest", "openrouter/~anthropic/claude-haiku-latest", []string{}}}},
 	}
 	for agent, tc := range cases {
-		got, err := agentSpecs[agent].ParseModels(tc.output)
+		got, err := agentSpecs[agent].Model.Parse(tc.output)
 		if err != nil || !reflect.DeepEqual(got, tc.want) {
 			t.Fatalf("%s: %v %#v", agent, err, got)
 		}
@@ -93,5 +95,38 @@ func TestParseAgentModels(t *testing.T) {
 	}
 	if models, err := AgentModels(context.Background(), "claude"); err != nil || len(models) == 0 {
 		t.Fatal("Claude aliases missing")
+	}
+}
+
+func TestModelCatalogUsesSelectedAccountAfterShellStartup(t *testing.T) {
+	dir := t.TempDir()
+	record := filepath.Join(dir, "account")
+	// Emulate an rc file that selects another account. The query must export the
+	// selected profile afterward, just as terminal sessions do.
+	shell := filepath.Join(dir, "shell")
+	if err := os.WriteFile(shell, []byte("#!/bin/sh\nexport CURSOR_CONFIG_DIR=wrong-account\nexport CURSOR_DATA_DIR=wrong-account\nexec /bin/sh -c \"$4\"\n"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cli := "#!/bin/sh\nprintf '%s\\n' \"$CURSOR_CONFIG_DIR\" \"$CURSOR_DATA_DIR\" > " + shellQuote(record) + "\nprintf 'Available models\\naccount-model - Account Model\\n'\n"
+	if err := os.WriteFile(filepath.Join(dir, "cursor-agent"), []byte(cli), 0700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("SHELL", shell)
+	t.Setenv("PATH", dir+":/usr/bin:/bin")
+	folder := filepath.Join(dir, "Work Account")
+	profile := &Profile{ID: "work", Folders: map[string]string{"cursor": folder}}
+	options, err := LaunchOptions(context.Background(), "cursor", profile)
+	if err != nil || len(options.Models) != 1 || options.Models[0].ID != "account-model" {
+		t.Fatalf("model catalog: %+v %v", options, err)
+	}
+	data, _ := os.ReadFile(record)
+	if string(data) != folder+"\n"+folder+"\n" {
+		t.Fatalf("queried another account: %q", data)
+	}
+	if _, err = os.Stat(folder); !os.IsNotExist(err) {
+		t.Fatal("read-only query created the account folder")
+	}
+	if _, err = LaunchOptions(context.Background(), "cursor", &Profile{ID: "missing"}); err == nil {
+		t.Fatal("missing profile account fell back to Default")
 	}
 }

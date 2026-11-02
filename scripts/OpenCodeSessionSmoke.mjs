@@ -44,6 +44,13 @@ try {
   assert.equal(status(), "working");
   await signal("session.status", { sessionID: "ses_previous", status: { type: "idle" } });
   assert.equal(status(), "waiting");
+  await signal("permission.asked", { id: "per_old", sessionID: "ses_previous" });
+  await tracked.event(event("session.created", "ses_newRoot"));
+  assert.equal(status(), "waiting");
+  await signal("session.status", { sessionID: "ses_newRoot", status: { type: "busy" } });
+  assert.equal(status(), "working", "new conversations must not inherit old approval prompts");
+  await signal("session.status", { sessionID: "ses_newRoot", status: { type: "idle" } });
+  assert.equal(status(), "waiting");
   console.log("PASS: OpenCode root IDs, resume, new conversation, child/project filtering, concurrent session isolation and status");
 } finally {
   for (const [key, value] of saved) {

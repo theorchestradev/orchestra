@@ -4,6 +4,34 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### New
+
+- Sessions for Cursor CLI, GitHub Copilot CLI, Aider, Goose, Qwen Code, Kiro CLI,
+  Factory Droid, Kimi Code CLI and Amp, bringing the agent catalog to 20.
+  See [agent support](docs/agents.md) for requirements and capability differences.
+- Activity hooks and conversation capture for the new CLIs where supported,
+  model selection through catalogs or explicit model IDs, and isolated Cursor
+  accounts in Settings → Profiles.
+
+### Changed
+
+- Agent adapters share model, effort and account capabilities in `agentSpec`.
+  Model catalogs use the selected profile's account.
+
+### Fixed
+
+- Live background sessions retain their plugin and settings files when Orchestra
+  reconnects. Stale activity files are still removed.
+- Amp follows explicit thread switches, and Copilot keeps working through
+  recoverable errors. Qwen classifier denials are distinguished from approval waits.
+- Grok receives initial GitHub prompts. New Claude, Pi and Grok conversations
+  get fresh IDs, and prompts that begin like flags stay literal text.
+- OpenCode and Kilo clear old approval waits when starting a new root conversation.
+  Launch overlays survive shell startup, and Cursor skill copying respects a
+  custom Default config folder.
+
 ## 0.16.1 — 2026-11-01
 
 ### Changed

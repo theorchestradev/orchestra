@@ -21,24 +21,28 @@ var codexAgent = &agentSpec{
 		}
 		command += l.Flags
 		if l.Prompt != "" {
-			command += " " + l.Prompt
+			command += " -- " + l.Prompt
 		}
 		return command
 	},
-	RecoverID:    regexp.MustCompile(`Session ID:\s*([0-9a-fA-F-]{36})`),
-	StatusSetup:  true,
-	ModelFlag:    "-m",
-	ModelCommand: []string{"codex", "debug", "models"},
-	ParseModels:  parseCodexModels,
-	// Codex lists efforts per model, so its values are only checked for shape.
-	EffortFlag: func(effort string) string {
-		return " -c " + shellQuote("model_reasoning_effort="+tomlString(effort))
+	RecoverID:   regexp.MustCompile(`Session ID:\s*([0-9a-fA-F-]{36})`),
+	StatusSetup: true,
+	Model: &agentModelSpec{
+		Flag:    "-m",
+		Command: []string{"codex", "debug", "models"},
+		Parse:   parseCodexModels,
+		// Codex lists efforts per model, so values are only checked for shape.
+		EffortFlag: func(effort string) string {
+			return " -c " + shellQuote("model_reasoning_effort="+tomlString(effort))
+		},
 	},
 
-	// The skills CLI puts Codex skills in ~/.agents/skills, which every profile shares.
-	ConfigEnv:          "CODEX_HOME",
-	LoginCommand:       "codex login",
-	LoginStatusCommand: "codex login status",
+	// Codex skills in ~/.agents/skills are shared by every profile.
+	Account: &agentAccountSpec{
+		Env:    "CODEX_HOME",
+		Login:  "codex login",
+		Status: "codex login status",
+	},
 }
 
 func parseCodexModels(output []byte) ([]AgentModel, error) {

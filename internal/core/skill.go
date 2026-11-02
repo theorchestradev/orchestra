@@ -149,6 +149,9 @@ func InstallAgentSkill(ctx context.Context, agents []string, profiles []*Profile
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	result, err := installSkill(ctx, "", command)
+	if defaults := skillInstallProfile(nil); defaults != nil {
+		profiles = append([]*Profile{defaults}, profiles...)
+	}
 	for _, p := range profiles {
 		if err != nil || result.ExitCode != 0 {
 			break
@@ -169,6 +172,7 @@ func InstallAgentSkill(ctx context.Context, agents []string, profiles []*Profile
 // InstallProfileSkill installs the Orchestra skill where a profile is missing it; nil is
 // Default. Skills every profile shares are installed once, for Default.
 func InstallProfileSkill(ctx context.Context, p *Profile) (SkillInstall, error) {
+	p = skillInstallProfile(p)
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
 	shared, own := []string{}, []string{}
@@ -197,10 +201,32 @@ func InstallProfileSkill(ctx context.Context, p *Profile) (SkillInstall, error) 
 	return result, err
 }
 
+// Some installers ignore their CLI's config-folder variable even for Default.
+// Treat that explicit folder like a named profile when copying the public stub.
+func skillInstallProfile(p *Profile) *Profile {
+	if p != nil {
+		return p
+	}
+	defaults := &Profile{Name: "Default", Folders: map[string]string{}}
+	for _, spec := range agentOrder {
+		if spec.Account != nil && spec.Account.CopySkill {
+			if folder := os.Getenv(spec.Account.Env); folder != "" {
+				defaults.Folders[spec.ID] = folder
+			}
+		}
+	}
+	if len(defaults.Folders) == 0 {
+		return nil
+	}
+	return defaults
+}
+
 // installProfileSkill installs the skill into the profile's own config folders and reports
 // whether any of the agents needed it.
 func installProfileSkill(ctx context.Context, p *Profile, agents []string) (SkillInstall, bool, error) {
 	exports, chosen := "", []string{}
+	copied := SkillInstall{}
+	didCopy := false
 	for _, agent := range agents {
 		folder, ok := p.Folders[agent]
 		if !ok || profileSkillDirs[agent] == "" {
@@ -213,15 +239,42 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 		if err != nil {
 			return SkillInstall{}, true, err
 		}
+		if spec := agentSpecs[agent]; spec.Account.CopySkill {
+			home, _ := os.UserHomeDir()
+			source := filepath.Join(home, spec.Account.SkillDir, "skills", "orchestra", "SKILL.md")
+			data, err := os.ReadFile(source)
+			if os.IsNotExist(err) {
+				command, _ := SkillCommand([]string{agent})
+				copied, err = installSkill(ctx, "", command)
+				if err != nil || copied.ExitCode != 0 {
+					return copied, true, err
+				}
+				data, err = os.ReadFile(source)
+			}
+			if err != nil {
+				return copied, true, err
+			}
+			target := filepath.Join(path, "skills", "orchestra", "SKILL.md")
+			if err = os.MkdirAll(filepath.Dir(target), 0700); err == nil {
+				err = atomicWrite(target, data, 0600)
+			}
+			if err != nil {
+				return copied, true, err
+			}
+			copied.Output += "\nInstalled Orchestra skill for " + spec.Name + " in this profile."
+			didCopy = true
+			continue
+		}
 		// The skills CLI installs into the agent's config folder when its variable is set.
 		exports += "export " + agentConfigEnv[agent] + "=" + shellQuote(path) + "; "
 		chosen = append(chosen, agent)
 	}
 	if len(chosen) == 0 {
-		return SkillInstall{}, false, nil
+		return copied, didCopy, nil
 	}
 	command, _ := SkillCommand(chosen)
 	result, err := installSkill(ctx, exports, command)
+	result.Output = strings.TrimSpace(copied.Output + "\n" + result.Output)
 	return result, true, err
 }
 

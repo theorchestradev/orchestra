@@ -14,11 +14,13 @@ var ompAgent = &agentSpec{
 		base := "omp --approval-mode write --extension " + shellQuote(filepath.Join(l.Dir, "OmpStatusExtension.js"))
 		return l.command(base, "--resume", "--")
 	},
-	ModelFlag:    "--model",
-	ModelCommand: []string{"omp", "models", "--json"},
-	ParseModels:  parseOmpModels,
-	// omp lists thinking levels per model, so its values are only checked for shape.
-	EffortFlag: quotedFlag("--thinking"),
+	Model: &agentModelSpec{
+		Flag:    "--model",
+		Command: []string{"omp", "models", "--json"},
+		Parse:   parseOmpModels,
+		// Thinking levels come from each model, so values are only checked for shape.
+		EffortFlag: quotedFlag("--thinking"),
+	},
 }
 
 func parseOmpModels(output []byte) ([]AgentModel, error) {

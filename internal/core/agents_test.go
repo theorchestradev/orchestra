@@ -24,10 +24,16 @@ func TestAgentListsFollowRegistry(t *testing.T) {
 		t.Fatal(err)
 	}
 	frontend := []string{}
-	for _, m := range regexp.MustCompile(`\{ id: '([a-z]+)', name: '([^']+)'`).FindAllStringSubmatch(string(data), -1) {
+	for _, m := range regexp.MustCompile(`\{ id: '([a-z]+)', name: '([^']+)'[^\n]*`).FindAllStringSubmatch(string(data), -1) {
 		frontend = append(frontend, m[1])
 		if names[m[1]] != m[2] {
 			t.Fatalf("appearance.js names %s %q, the registry %q", m[1], m[2], names[m[1]])
+		}
+		if (agentSpecs[m[1]].Account != nil) != strings.Contains(m[0], "profiles: true") {
+			t.Fatalf("appearance.js profile capability differs for %s", m[1])
+		}
+		if agentSpecs[m[1]].NoInitialPrompt != strings.Contains(m[0], "initialPrompt: false") {
+			t.Fatalf("appearance.js initial prompt capability differs for %s", m[1])
 		}
 	}
 	if !slices.Equal(frontend, ids) {
@@ -81,36 +87,45 @@ func TestAgentSpecsAreConsistent(t *testing.T) {
 		if spec.RecoverID != nil && spec.RecoverID.NumSubexp() != 1 {
 			fail("RecoverID needs exactly one group for the ID")
 		}
-		if (spec.ModelCommand == nil) != (spec.ParseModels == nil) || spec.ModelCommand != nil && spec.Models != nil {
-			fail("needs either ModelCommand with ParseModels or a fixed Models catalog")
-		}
-		if (spec.ModelFlag != "") != (spec.ModelCommand != nil || spec.Models != nil) {
-			fail("ModelFlag and a model catalog go together")
-		}
-		if spec.EffortFlag != nil && spec.ModelFlag == "" || spec.Efforts != nil && spec.EffortFlag == nil {
-			fail("efforts need EffortFlag, and EffortFlag needs ModelFlag")
-		}
-		for _, effort := range spec.Efforts {
-			if !effortPattern.MatchString(effort) {
-				fail("invalid effort " + effort)
+		if model := spec.Model; model != nil {
+			if model.Env != "" && (model.Flag != "" || spec.Prepare == nil) {
+				fail("environment model transport needs Prepare and cannot also use a flag")
+			}
+			if (model.Command == nil) != (model.Parse == nil) || model.Command != nil && model.Catalog != nil {
+				fail("needs a catalog command/parser or a fixed catalog")
+			}
+			if model.Flag == "" && spec.Prepare == nil {
+				fail("a model without a CLI flag needs Prepare")
+			}
+			if model.Efforts != nil && model.EffortFlag == nil && spec.Prepare == nil {
+				fail("effort choices need a flag or Prepare")
+			}
+			for _, effort := range model.Efforts {
+				if !effortPattern.MatchString(effort) {
+					fail("invalid effort " + effort)
+				}
+			}
+			for _, m := range model.Catalog {
+				unknown := slices.ContainsFunc(m.Efforts, func(e string) bool { return !slices.Contains(model.Efforts, e) })
+				if !modelPattern.MatchString(m.ID) || m.Efforts == nil || unknown {
+					fail("invalid model " + m.ID)
+				}
 			}
 		}
-		for _, model := range spec.Models {
-			unknown := slices.ContainsFunc(model.Efforts, func(e string) bool { return !slices.Contains(spec.Efforts, e) })
-			if !modelPattern.MatchString(model.ID) || model.Efforts == nil || unknown {
-				fail("invalid model " + model.ID)
+		if len(spec.OverrideEnv) > 0 && spec.Prepare == nil {
+			fail("environment overrides need Prepare")
+		}
+		if account := spec.Account; account != nil {
+			if account.Env == "" || account.Status == "" || account.Login == "" || spec.SkillKey == "" {
+				fail("account needs config isolation, sign-in, status and a skill key")
 			}
-		}
-		// Profiles list sign-ins for agents with a config folder and a skills CLI key.
-		if (spec.ConfigEnv != "") != (spec.LoginStatusCommand != "") || spec.ConfigEnv != "" && spec.SkillKey == "" {
-			fail("ConfigEnv needs LoginStatusCommand and SkillKey")
-		}
-		if (spec.LoginCommand != "" || spec.ProfileSkillDir != "") && spec.ConfigEnv == "" {
-			fail("LoginCommand and ProfileSkillDir need ConfigEnv")
-		}
-		for _, command := range []string{spec.LoginCommand, spec.LoginStatusCommand} {
-			if command != "" && !strings.HasPrefix(command, spec.Executable+" ") {
-				fail(command + " does not run " + spec.Executable)
+			for _, command := range []string{account.Login, account.Status} {
+				if !strings.HasPrefix(command, spec.Executable+" ") {
+					fail(command + " does not run " + spec.Executable)
+				}
+			}
+			if account.CopySkill && account.SkillDir == "" {
+				fail("copying profile skills needs their default directory")
 			}
 		}
 	}
@@ -220,7 +235,8 @@ console.log(seen.join(' ') + ' ' + readFileSync(process.env.ORCHESTRA_AGENT_ID_F
 // without Orchestra's variables.
 func TestMuseHooksReportWithoutEnvironment(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, "orchestra"), []byte("#!/bin/sh\n/bin/cat > \"$ORCHESTRA_AGENT_ID_FILE\"\n"), 0700); err != nil {
+	exe, _ := os.Executable()
+	if err := os.WriteFile(filepath.Join(dir, "orchestra"), []byte("#!/bin/sh\nexec "+shellQuote(exe)+" --orchestra-cli \"$@\"\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
 	// A fake muse prints the value of its -c flag, after the permission profile.
@@ -240,7 +256,7 @@ func TestMuseHooksReportWithoutEnvironment(t *testing.T) {
 		t.Fatalf("%v: %s", err, out)
 	}
 	statusFile, idFile := sessionFiles(dir, "id")
-	want := map[string]string{"SessionStart": "waiting", "UserPromptSubmit": "working", "PreToolUse": "working", "PostToolUse": "working", "PermissionRequest": "waiting", "Stop": "waiting"}
+	want := map[string]string{"SessionStart": "waiting", "UserPromptSubmit": "working", "PreToolUse": "working", "PostToolUse": "working", "PermissionRequest": "waiting", "Stop": "waiting", "StopFailure": "waiting"}
 	if len(hooks) != len(want) {
 		t.Fatalf("hooks %v", hooks)
 	}
@@ -252,12 +268,13 @@ func TestMuseHooksReportWithoutEnvironment(t *testing.T) {
 		cmd := exec.Command("/bin/sh", "-c", groups[0].Hooks[0].Command)
 		cmd.Env = []string{}
 		cmd.Stdin = strings.NewReader(`{"session_id":"muse-id"}`)
+		_ = os.Remove(statusFile)
 		if err = cmd.Run(); err != nil {
 			t.Fatal(err)
 		}
 		status, _ := os.ReadFile(statusFile)
 		id, _ := os.ReadFile(idFile)
-		if string(status) != state || string(id) != `{"session_id":"muse-id"}` {
+		if string(status) != state || string(id) != "muse-id" {
 			t.Fatalf("%s wrote status %q and ID %q", event, status, id)
 		}
 	}

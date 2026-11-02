@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"os/exec"
 	"regexp"
@@ -20,7 +21,7 @@ type AgentModel struct {
 }
 
 var (
-	modelPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/~@+\[\]-]{0,199}$`)
+	modelPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/~@+\[\]=,-]{0,199}$`)
 	effortPattern = regexp.MustCompile(`^[a-z]{1,16}$`)
 )
 
@@ -30,7 +31,7 @@ func validateLaunch(agent, model, effort string) error {
 		return nil
 	}
 	spec, ok := agentSpecs[agent]
-	if !ok || spec.ModelFlag == "" {
+	if !ok || spec.Model == nil {
 		return errors.New("This agent does not support choosing a model.")
 	}
 	if model != "" && !modelPattern.MatchString(model) {
@@ -39,10 +40,10 @@ func validateLaunch(agent, model, effort string) error {
 	if effort == "" {
 		return nil
 	}
-	if spec.EffortFlag == nil {
+	if spec.Model.EffortFlag == nil && spec.Model.Efforts == nil {
 		return errors.New("This agent does not support choosing an effort.")
 	}
-	if !effortPattern.MatchString(effort) || spec.Efforts != nil && !slices.Contains(spec.Efforts, effort) {
+	if !effortPattern.MatchString(effort) || spec.Model.Efforts != nil && !slices.Contains(spec.Model.Efforts, effort) {
 		return errors.New("Invalid effort.")
 	}
 	return nil
@@ -52,15 +53,15 @@ func validateLaunch(agent, model, effort string) error {
 // flags, leaving its configuration files untouched.
 func launchFlags(sess *Session) string {
 	spec, ok := agentSpecs[sess.Agent]
-	if !ok {
+	if !ok || spec.Model == nil {
 		return ""
 	}
 	flags := ""
-	if sess.Model != "" && spec.ModelFlag != "" {
-		flags += " " + spec.ModelFlag + " " + shellQuote(sess.Model)
+	if sess.Model != "" && spec.Model.Flag != "" {
+		flags += " " + spec.Model.Flag + " " + shellQuote(sess.Model)
 	}
-	if sess.Effort != "" && spec.EffortFlag != nil {
-		flags += spec.EffortFlag(sess.Effort)
+	if sess.Effort != "" && spec.Model.EffortFlag != nil {
+		flags += spec.Model.EffortFlag(sess.Effort)
 	}
 	return flags
 }
@@ -68,12 +69,18 @@ func launchFlags(sess *Session) string {
 // AgentModels lists the models an agent's installed CLI offers. These are
 // read-only catalog queries through the login shell sessions use, never agent turns.
 func AgentModels(ctx context.Context, agent string) ([]AgentModel, error) {
+	return agentModelsForProfile(ctx, agent, nil)
+}
+func agentModelsForProfile(ctx context.Context, agent string, profile *Profile) ([]AgentModel, error) {
 	spec, ok := agentSpecs[agent]
-	if !ok || spec.ModelFlag == "" {
+	if !ok || spec.Model == nil {
 		return []AgentModel{}, nil
 	}
-	if spec.ModelCommand == nil {
-		return slices.Clone(spec.Models), nil
+	if profile != nil && spec.Account != nil && profile.Folders[agent] == "" {
+		return nil, errors.New("This profile has no account folder for " + spec.Name + ".")
+	}
+	if spec.Model.Command == nil {
+		return slices.Clone(spec.Model.Catalog), nil
 	}
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -83,7 +90,12 @@ func AgentModels(ctx context.Context, agent string) ([]AgentModel, error) {
 		return nil, err
 	}
 	defer os.RemoveAll(directory)
-	cmd := exec.CommandContext(ctx, loginShell(), "-l", "-i", "-c", "exec "+strings.Join(spec.ModelCommand, " ")+" </dev/null")
+	script := ""
+	folders := profileFolders(profile)
+	for _, variable := range slices.Sorted(maps.Keys(folders)) {
+		script += "export " + variable + "=" + shellQuote(folders[variable]) + "; "
+	}
+	cmd := exec.CommandContext(ctx, loginShell(), "-l", "-i", "-c", script+"exec "+strings.Join(quotedModelCommand(spec.Model.Command), " ")+" </dev/null")
 	cmd.Dir = directory
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
@@ -93,10 +105,37 @@ func AgentModels(ctx context.Context, agent string) ([]AgentModel, error) {
 	}
 	var models []AgentModel
 	if err == nil {
-		models, err = spec.ParseModels(output)
+		models, err = spec.Model.Parse(output)
 	}
 	if err != nil || len(models) == 0 {
 		return nil, errors.New("Could not list models. Check that " + spec.Name + " is installed and signed in.")
 	}
 	return models, nil
+}
+
+// AgentLaunchOptions also describes CLIs that accept a model ID but expose no safe
+// catalog command. The UI can offer a manual ID without reading credential files.
+type AgentLaunchOptions struct {
+	Models      []AgentModel `json:"models"`
+	CustomModel bool         `json:"customModel"`
+	Efforts     []string     `json:"efforts"`
+}
+
+func LaunchOptions(ctx context.Context, agent string, profile *Profile) (AgentLaunchOptions, error) {
+	models, err := agentModelsForProfile(ctx, agent, profile)
+	options := AgentLaunchOptions{Models: models, Efforts: []string{}}
+	if spec := agentSpecs[agent]; spec != nil && spec.Model != nil {
+		options.CustomModel = true
+		if spec.Model.Efforts != nil {
+			options.Efforts = slices.Clone(spec.Model.Efforts)
+		}
+	}
+	return options, err
+}
+func quotedModelCommand(args []string) []string {
+	out := make([]string, len(args))
+	for i, arg := range args {
+		out[i] = shellQuote(arg)
+	}
+	return out
 }
