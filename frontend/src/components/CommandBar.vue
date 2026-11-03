@@ -11,10 +11,13 @@ const props = defineProps({
   session: Object,
   apps: Array,
   sidebarHidden: Boolean,
+  initialCommand: String,
 })
 const emit = defineEmits(['run', 'close'])
 const query = ref(''),
-  parent = ref(null),
+  parent = ref(
+    props.initialCommand ? commandItems(props).find((item) => item.id === props.initialCommand) || null : null,
+  ),
   selected = ref(0),
   search = ref(null),
   list = ref(null)

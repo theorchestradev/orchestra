@@ -1,7 +1,7 @@
 <script setup>
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, on, copy, preview } from './shared/api'
-import { mac } from './shared/platform'
+import { mac, shortcutLabel } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
@@ -109,6 +109,7 @@ const settingsSection = ref(''),
 const loading = ref(true),
   error = ref(''),
   modal = ref(''),
+  commandInitial = ref(''),
   menu = ref(null),
   // Where the session menu's Open in submenu shows, while it is open.
   openInMenu = ref(null),
@@ -348,8 +349,9 @@ async function action(method, ...args) {
     return null
   }
 }
-function openModal(kind, p = workspace.value) {
+function openModal(kind, p = workspace.value, initialCommand = '') {
   if (kind === 'settings') settingsSection.value = 'General'
+  if (kind === 'command') commandInitial.value = initialCommand
   if (kind === 'command' && modal.value !== kind) track('feature_used', { feature: 'command_bar' })
   menu.value = null
   formError.value = ''
@@ -1237,6 +1239,14 @@ onBeforeUnmount(() => {
       </div>
       <nav class="sidebar-global" aria-label="Global navigation">
         <button
+          class="sidebar-row command-search-row"
+          aria-label="Search"
+          title="Search"
+          @click="openModal('command', workspace, 'goto')"
+        >
+          <Icon name="magnifyingglass" :size="15" /><span>Search</span><kbd>{{ shortcutLabel('⌘K') }}</kbd>
+        </button>
+        <button
           class="sidebar-row"
           :class="{ selected: globalView === 'automations' }"
           :aria-current="globalView === 'automations' ? 'page' : undefined"
@@ -1865,6 +1875,7 @@ onBeforeUnmount(() => {
     /></Modal>
     <Modal v-else-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
       ><CommandBar
+        :initial-command="commandInitial"
         :preferences="shownPreferences"
         :workspaces="appState.workspaces"
         :workspace="workspace"

@@ -394,6 +394,12 @@ hr {
 .sidebar-row > span {
   min-width: 0;
 }
+.command-search-row kbd {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 10px;
+  font-family: inherit;
+}
 .session-row {
   gap: 10px;
 }
