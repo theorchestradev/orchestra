@@ -112,6 +112,14 @@ accesses those resources. Use the sample repositories for disposable validation.
 Pushing a SemVer tag such as `v0.2.0` runs
 [the release workflow](.github/workflows/release.yml), which publishes signed builds.
 
+## Contributors
+
+<a href="https://github.com/theorchestradev/orchestra/graphs/contributors">
+  <img src="https://contrib.rocks/image?repo=theorchestradev/orchestra" />
+</a>
+
+Made with [contrib.rocks](https://contrib.rocks).
+
 ## Contributing
 
 Read [AGENTS.md](AGENTS.md) for the conventions and the checks to run before opening a
