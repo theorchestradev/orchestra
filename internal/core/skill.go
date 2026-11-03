@@ -209,10 +209,18 @@ func skillInstallProfile(p *Profile) *Profile {
 	}
 	defaults := &Profile{Name: "Default", Folders: map[string]string{}}
 	for _, spec := range agentOrder {
-		if spec.Account != nil && spec.Account.CopySkill {
-			if folder := os.Getenv(spec.Account.Env); folder != "" {
-				defaults.Folders[spec.ID] = folder
+		if spec.Account == nil || !spec.Account.CopySkill {
+			continue
+		}
+		folder := os.Getenv(spec.Account.Env)
+		if folder == "" {
+			home, err := os.UserHomeDir()
+			if err == nil {
+				folder = filepath.Join(home, spec.Account.SkillDir)
 			}
+		}
+		if folder != "" {
+			defaults.Folders[spec.ID] = folder
 		}
 	}
 	if len(defaults.Folders) == 0 {
@@ -241,7 +249,10 @@ func installProfileSkill(ctx context.Context, p *Profile, agents []string) (Skil
 		}
 		if spec := agentSpecs[agent]; spec.Account.CopySkill {
 			home, _ := os.UserHomeDir()
-			source := filepath.Join(home, spec.Account.SkillDir, "skills", "orchestra", "SKILL.md")
+			source := filepath.Join(home, ".agents", "skills", "orchestra", "SKILL.md")
+			if _, err := os.Stat(source); os.IsNotExist(err) {
+				source = filepath.Join(home, spec.Account.SkillDir, "skills", "orchestra", "SKILL.md")
+			}
 			data, err := os.ReadFile(source)
 			if os.IsNotExist(err) {
 				command, _ := SkillCommand([]string{agent})
