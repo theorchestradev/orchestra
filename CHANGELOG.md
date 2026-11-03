@@ -4,6 +4,23 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### New
+
+- **Automations.** Open Automations at the top of the sidebar to schedule an agent
+  and prompt for a workspace repository. Run once, every day or on selected
+  weekdays, and manage schedules from the global list. Creation and editing group
+  the schedule under Trigger and the agent, repository and prompt under Action.
+- **Run an automation now.** The automation's options menu offers Edit, Run Now
+  and Delete. Run Now creates an extra session without changing the schedule.
+  Orchestra must be open to start scheduled runs; missed occurrences run once
+  when the app reopens.
+- **Create sessions from the CLI.** `orchestra session create --agent AGENT
+  --prompt TEXT` saves a new session in the calling session's workspace without
+  starting an agent. Optional `--name` and `--repository` select its name and
+  repository.
+
 ## 0.17.0 — 2026-11-02
 
 ### New
