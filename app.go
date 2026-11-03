@@ -82,6 +82,7 @@ func (a *App) startup(ctx context.Context) {
 			Log:         a.log,
 		})
 		go a.updater.Run(ctx)
+		go store.RunAutomations(ctx)
 	}
 	// A custom state file keeps worktrees beside it so QA runs stay isolated.
 	if a.store != nil && os.Getenv("ORCHESTRA_STATE_FILE") == "" {
@@ -828,4 +829,24 @@ func (a *App) WorkspaceIcons() map[string]string {
 		}
 	}
 	return result
+}
+
+func (a *App) SaveAutomation(automation core.Automation) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.SaveAutomation(automation)
+}
+func (a *App) DeleteAutomation(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.DeleteAutomation(id)
+}
+
+func (a *App) RunAutomation(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.RunAutomation(id)
 }

@@ -103,3 +103,11 @@ If the write is rejected because the revision changed, read again, merge and ret
   focused.
 - Do not guess commands or options. If a command fails as unknown, Orchestra may need to
   be updated.
+
+## Create a session
+
+`orchestra session create --agent codex --prompt "Review this repository" --name "Review"`
+creates a session in your workspace and returns its JSON. `--repository ID` chooses
+another repository in the same workspace. It inherits your account profile and
+saves the initial prompt. The CLI does not start an agent; the user opens the
+session to launch it. Never create sessions unless the user asked for them.

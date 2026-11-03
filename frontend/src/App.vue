@@ -42,6 +42,7 @@ import Icon from './components/Icon.vue'
 import Modal from './components/Modal.vue'
 import EmojiPicker from './components/EmojiPicker.vue'
 import Settings from './components/Settings.vue'
+import Automations from './components/Automations.vue'
 import UsageConsent from './components/UsageConsent.vue'
 import { track } from './shared/telemetry'
 import CommandBar from './components/CommandBar.vue'
@@ -178,14 +179,18 @@ const activeFile = computed(() =>
       workspace.value.sessions.some((s) => s.id === file.sessionID),
   ),
 )
-const currentDestination = computed(() => activeFile.value?.id || destination(workspace.value))
+const globalView = ref('')
+const currentDestination = computed(() => globalView.value || activeFile.value?.id || destination(workspace.value))
 const session = computed(() =>
-  workspace.value?.sessions.find((s) => s.id === (activeFile.value?.sessionID || currentDestination.value)),
+  globalView.value
+    ? undefined
+    : workspace.value?.sessions.find((s) => s.id === (activeFile.value?.sessionID || currentDestination.value)),
 )
 watch(
   () => [appState.value.selectedWorkspaceID, destination(workspace.value)].join(':'),
   () => {
     activeFileID.value = ''
+    globalView.value = ''
   },
   { flush: 'sync' },
 )
@@ -208,6 +213,7 @@ function fileDetail(file, workspace) {
   return [worktreeName(workspace.sessions.find((s) => s.id === file.sessionID)), file.path].filter(Boolean).join(' · ')
 }
 async function selectFile(file) {
+  globalView.value = ''
   if (await action('Select', file.workspaceID, file.sessionID)) activeFileID.value = file.id
 }
 function closeFile(file) {
@@ -403,7 +409,19 @@ function toggleAppearance() {
     appearance: shownPreferences.value.appearance === 'light' ? 'dark' : 'light',
   })
 }
+function automationEditing(open) {
+  if (open) modal.value = 'automation-editor'
+  else if (modal.value === 'automation-editor') modal.value = ''
+}
+function openAutomations() {
+  closeModal()
+  globalView.value = 'automations'
+  activeFileID.value = ''
+  menu.value = null
+  nextTick(() => document.querySelector('.automations-page h1')?.focus())
+}
 function command(kind) {
+  if (kind === 'automations') return openAutomations()
   if (kind === 'previous' || kind === 'next') {
     navigate(kind === 'next' ? 1 : -1)
     return
@@ -553,6 +571,7 @@ function closeModal() {
   })
 }
 async function select(p, dest) {
+  globalView.value = ''
   menu.value = null
   const file = openedFiles.value.find((file) => file.id === dest && file.workspaceID === p.id)
   if (file) return selectFile(file)
@@ -1216,6 +1235,16 @@ onBeforeUnmount(() => {
           <Icon name="sidebar.left" :size="16" />
         </button>
       </div>
+      <nav class="sidebar-global" aria-label="Global navigation">
+        <button
+          class="sidebar-row"
+          :class="{ selected: globalView === 'automations' }"
+          :aria-current="globalView === 'automations' ? 'page' : undefined"
+          @click="openAutomations"
+        >
+          <Icon name="clock" :size="15" /><span>Automations</span>
+        </button>
+      </nav>
       <div v-if="!preferences.arcMode" class="sidebar-heading">
         <strong>Workspaces</strong
         ><button class="icon-button" aria-label="New Workspace" title="New Workspace" @click="openModal('workspace')">
@@ -1433,6 +1462,14 @@ onBeforeUnmount(() => {
       </button>
       <div class="content-body">
         <div v-if="loading" class="empty-state"><span class="spinner" /></div>
+        <Automations
+          v-else-if="globalView === 'automations'"
+          :state="appState"
+          :appearance="shownPreferences.appearance"
+          :editor-visible="modal === 'automation-editor'"
+          @editing="automationEditing"
+          @state="apply"
+        />
         <div v-else-if="!workspace" class="empty-state">
           <Icon name="folder" :size="48" />
           <h2>No Workspace Selected</h2>
@@ -1589,7 +1626,7 @@ onBeforeUnmount(() => {
       v-if="!preferences.hideStatusBar"
       :workspaces="appState.workspaces"
       :runs="appState.runs"
-      :workspace="workspace"
+      :workspace="globalView ? null : workspace"
       :workspace-icon="workspaceIcons[workspace?.id]"
       :session="session"
       :profiles="appState.profiles"

@@ -22,6 +22,7 @@
 - **Work Items, Reviews and diffs:** browse the issues (Work Items) and pull requests
   (Reviews) of every GitHub repository in a workspace, start a session from one, and review
   each session's changes.
+- **Automations:** schedule an agent and prompt once or on selected weekdays from the global Automations menu. Choose a workspace, repository and time; Orchestra must be open. Missed occurrences run once when the app reopens. Every run creates a normal session.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
   repository or worktree, and open files in the sidebar to read syntax-highlighted code
   in the central view.
@@ -124,3 +125,16 @@ every event and how to disable it.
 ## License
 
 [MIT](LICENSE)
+
+### Create sessions from the CLI
+
+From an Orchestra terminal session, create another session in the same workspace:
+
+```sh
+orchestra session create --agent codex --name "Review" --prompt "Review the repository"
+```
+
+`--repository ID` chooses another repository in that workspace. The command returns
+session JSON and saves the prompt without starting an agent. Open the session to
+start it. Automations use the same Store session creation flow and start the
+scheduled session through TerminalSession while the app is open.

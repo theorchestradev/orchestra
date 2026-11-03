@@ -29,6 +29,7 @@ test('command bar lists navigation, creation and app commands for the selected w
     'worktreeSession',
     'terminal',
     'workspace',
+    'automations',
     'settings',
     'statusBar',
     'update',
@@ -44,7 +45,17 @@ test('command bar lists navigation, creation and app commands for the selected w
     false,
   )
   const none = commandItems({ workspaces: [], preferences: {} }).map((c) => c.id)
-  assert.deepEqual(none, ['goto', 'workspace', 'settings', 'statusBar', 'update', 'sidebar', 'appearance', 'theme'])
+  assert.deepEqual(none, [
+    'goto',
+    'workspace',
+    'automations',
+    'settings',
+    'statusBar',
+    'update',
+    'sidebar',
+    'appearance',
+    'theme',
+  ])
 })
 
 test('command labels follow current state', () => {

@@ -29,6 +29,7 @@ const cliHelp = `Orchestra session messaging
 orchestra guide
 orchestra --version
 orchestra session list
+orchestra session create --agent AGENT --prompt TEXT [--name NAME] [--repository ID]
 orchestra session inbox
 orchestra session read SESSION_ID [--before REQUEST_ID]
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -45,6 +46,7 @@ that write --if-revision expects. append adds the text on a new line.
 
 orchestra guide prints a guide for agents and works anywhere. Other commands
 run from an Orchestra terminal session while the app is open.
+session create adds a session in the calling session's workspace without starting an agent.
 Receiving messages never starts an agent or injects terminal input.
 `
 
@@ -130,7 +132,7 @@ func runCLI(args []string, out io.Writer) error {
 		return errors.New("Expected session, run or scratchpad command. Use orchestra help.")
 	}
 	method := args[0] + "." + args[1]
-	valid := map[string]bool{"session.list": true, "session.inbox": true, "session.request": true, "session.read": true, "run.read": true, "run.wait": true, "run.reply": true, "run.cancel": true, "scratchpad.read": true, "scratchpad.write": true, "scratchpad.append": true}
+	valid := map[string]bool{"session.create": true, "session.list": true, "session.inbox": true, "session.request": true, "session.read": true, "run.read": true, "run.wait": true, "run.reply": true, "run.cancel": true, "scratchpad.read": true, "scratchpad.write": true, "scratchpad.append": true}
 	if !valid[method] {
 		return errors.New("Unknown command. Use orchestra help.")
 	}
@@ -157,7 +159,7 @@ func runCLI(args []string, out io.Writer) error {
 	}
 	index := 2
 	scratchpad := args[0] == "scratchpad"
-	if method != "session.list" && method != "session.inbox" && !scratchpad {
+	if method != "session.list" && method != "session.inbox" && method != "session.create" && !scratchpad {
 		if len(args) <= index || strings.HasPrefix(args[index], "--") {
 			return errors.New("A session or request ID is required.")
 		}
@@ -191,6 +193,20 @@ func runCLI(args []string, out io.Writer) error {
 		value := args[index]
 		index++
 		switch flag {
+		case "--agent", "--prompt", "--name", "--repository":
+			if method != "session.create" {
+				return fmt.Errorf("Unknown option %s.", flag)
+			}
+			switch flag {
+			case "--agent":
+				request.Agent = value
+			case "--prompt":
+				request.Text = value
+			case "--name":
+				request.Name = value
+			case "--repository":
+				request.RepositoryID = value
+			}
 		case "--text", "--file":
 			if textSet {
 				return errors.New("Use only one of --text, --file or --stdin.")
@@ -237,6 +253,9 @@ func runCLI(args []string, out io.Writer) error {
 		default:
 			return fmt.Errorf("Unknown option %s.", flag)
 		}
+	}
+	if method == "session.create" && (request.Agent == "" || strings.TrimSpace(request.Text) == "") {
+		return errors.New("Use --agent and --prompt to create a session.")
 	}
 	if (method == "session.request" || method == "run.reply") && !textSet {
 		return errors.New("Use --text or --file to supply a message.")

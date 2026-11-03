@@ -165,6 +165,7 @@ type Preferences struct {
 	KeepAwake bool `json:"keepAwake"`
 }
 type State struct {
+	Automations         []Automation `json:"automations,omitempty"`
 	Version             int          `json:"version"`
 	SelectedWorkspaceID string       `json:"selectedWorkspaceID,omitempty"`
 	Workspaces          []*Workspace `json:"workspaces"`
@@ -181,6 +182,7 @@ type State struct {
 // Store owns app metadata. TerminalSession owns every live PTY, through the session host
 // for sessions that keep running after quitting; Collaboration owns routing.
 type Store struct {
+	shuttingDown  bool
 	mu            sync.Mutex
 	state         State
 	path          string
@@ -1004,7 +1006,7 @@ func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, pro
 	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
-	state, err := s.createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base)
+	state, err := s.createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base, true)
 	s.mu.Unlock()
 	if err == nil && notice {
 		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
@@ -1066,7 +1068,7 @@ func (s *Store) DismissLocalMainNotice(workspaceID string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string) (State, error) {
+func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string, selectSession bool) (State, error) {
 	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
@@ -1128,15 +1130,17 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	previousWorkspaceID, previousSessionID, previousRepositoryID := s.state.SelectedWorkspaceID, p.SelectedSessionID, p.LastRepositoryID
 	previousExpanded, previousGitHub, previousReviews, previousScratchpad := p.IsExpanded, p.ShowsGitHub, p.ShowsReviews, p.ShowsScratchpad
 	p.Sessions = append(p.Sessions, sess)
-	if loginAgent == "" {
+	if loginAgent == "" && selectSession {
 		p.LastRepositoryID = repo.ID
 	}
-	p.SelectedSessionID = sess.ID
-	p.IsExpanded = true
-	p.ShowsGitHub = false
-	p.ShowsReviews = false
-	p.ShowsScratchpad = false
-	s.state.SelectedWorkspaceID = p.ID
+	if selectSession {
+		p.SelectedSessionID = sess.ID
+		p.IsExpanded = true
+		p.ShowsGitHub = false
+		p.ShowsReviews = false
+		p.ShowsScratchpad = false
+		s.state.SelectedWorkspaceID = p.ID
+	}
 	if err = s.saveLocked(); err != nil {
 		p.Sessions = p.Sessions[:len(p.Sessions)-1]
 		p.SelectedSessionID, s.state.SelectedWorkspaceID, p.LastRepositoryID = previousSessionID, previousWorkspaceID, previousRepositoryID
@@ -1240,6 +1244,7 @@ func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 func (s *Store) Shutdown() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.shuttingDown = true
 	keep := s.state.Preferences.KeepSessionsRunning && !s.stopOnQuit
 	kept := map[string]bool{}
 	for id, t := range s.terminals {

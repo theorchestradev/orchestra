@@ -159,6 +159,13 @@ func (t *TerminalSession) terminate() {
 func (s *Store) StartSession(id string, newConversation bool, cols, rows int) (TerminalOutput, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.startSessionLocked(id, newConversation, cols, rows)
+}
+
+func (s *Store) startSessionLocked(id string, newConversation bool, cols, rows int) (TerminalOutput, error) {
+	if s.shuttingDown {
+		return TerminalOutput{}, errors.New("Orchestra is shutting down.")
+	}
 	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		return TerminalOutput{}, err

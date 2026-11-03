@@ -497,6 +497,29 @@ export const backend = {
     p.scratchpadText = text
     return p.scratchpadRevision
   },
+  SaveAutomation: (automation) => {
+    state.automations ||= []
+    const item = {
+      ...structuredClone(automation),
+      id: automation.id || crypto.randomUUID(),
+      nextRun: new Date(Date.now() + 86400000).toISOString(),
+    }
+    const index = state.automations.findIndex((a) => a.id === item.id)
+    if (index < 0) state.automations.push(item)
+    else state.automations[index] = item
+    return changed()
+  },
+  RunAutomation: (id) => {
+    const item = state.automations?.find((a) => a.id === id)
+    if (!item) throw Error('Automation unavailable.')
+    item.lastRun = new Date().toISOString()
+    item.lastError = ''
+    return changed()
+  },
+  DeleteAutomation: (id) => {
+    state.automations = (state.automations || []).filter((a) => a.id !== id)
+    return changed()
+  },
   SetPreferences: (preferences) => {
     state.preferences = structuredClone(preferences)
     return changed()

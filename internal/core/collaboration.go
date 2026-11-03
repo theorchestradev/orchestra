@@ -36,13 +36,16 @@ type Run struct {
 func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "running" }
 
 type WireRequest struct {
-	Method    string `json:"method"`
-	Source    string `json:"source"`
-	Token     string `json:"token"`
-	Target    string `json:"target,omitempty"`
-	Text      string `json:"text,omitempty"`
-	RequestID string `json:"requestID,omitempty"`
-	Before    string `json:"before,omitempty"`
+	Agent        string `json:"agent,omitempty"`
+	Name         string `json:"name,omitempty"`
+	RepositoryID string `json:"repositoryID,omitempty"`
+	Method       string `json:"method"`
+	Source       string `json:"source"`
+	Token        string `json:"token"`
+	Target       string `json:"target,omitempty"`
+	Text         string `json:"text,omitempty"`
+	RequestID    string `json:"requestID,omitempty"`
+	Before       string `json:"before,omitempty"`
 	// Revision is the Scratchpad revision a scratchpad.write expects; nil writes unconditionally.
 	Revision *int `json:"revision,omitempty"`
 }
@@ -493,6 +496,23 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 		return nil, err
 	}
 	switch req.Method {
+	case "session.create":
+		if _, ok := agentSpecs[req.Agent]; !ok || strings.TrimSpace(req.Text) == "" {
+			return nil, errors.New("An agent and prompt are required.")
+		}
+		if len(req.Text) > 256*1024 {
+			return nil, errors.New("Prompt exceeds 256 KB.")
+		}
+		_, source, _ := c.store.sessionLocked(req.Source)
+		repositoryID := req.RepositoryID
+		if repositoryID == "" {
+			repositoryID = source.RepositoryID
+		}
+		_, err := c.store.createSessionLocked(p.ID, repositoryID, req.Agent, req.Name, req.Text, false, nil, "", "", source.ProfileID, "", "", "", false)
+		if err != nil {
+			return nil, err
+		}
+		return p.Sessions[len(p.Sessions)-1], nil
 	case "session.list":
 		sessions := []map[string]string{}
 		for _, sess := range p.Sessions {

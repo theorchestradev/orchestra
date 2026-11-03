@@ -5201,3 +5201,10 @@ h2 {
     max-width: 100%;
   }
 }
+
+/* Global destinations stay above workspace navigation in both sidebar modes. */
+.sidebar-global {
+  flex-shrink: 0;
+  padding: 4px 8px 12px;
+  border-bottom: 1px solid var(--rule);
+}
