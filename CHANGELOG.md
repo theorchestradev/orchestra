@@ -4,6 +4,24 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.19.0 — 2026-11-03
+
+### New
+
+- **Search from the sidebar.** Open Search above Automations to bring up the
+  command bar directly in Go to mode. The entry shows the platform shortcut.
+- **Choose which global entries appear in the sidebar.** Settings → Sidebar
+  lets you show or hide Search and Automations. Both are shown by default.
+
+### Changed
+
+- Window translucency follows the selected opacity setting.
+
+### Fixed
+
+- Cursor CLI installs the Orchestra skill in its global skills folder when no
+  custom skill folder is configured.
+
 ## 0.18.0 — 2026-11-02
 
 ### New
