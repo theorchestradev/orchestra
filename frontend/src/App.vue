@@ -1219,6 +1219,7 @@ onBeforeUnmount(() => {
     :class="{
       'chrome-over-overlay': modal === 'settings' || modal === 'command',
       translucent,
+      'rounded-viewport': preferences.roundedViewport,
       'native-titlebar': !mac,
       'has-usage-consent': !loading && !preferences.telemetryChoiceMade,
     }"

@@ -39,6 +39,7 @@ let state = {
   preferences: {
     appearance: 'dark',
     theme: 'system',
+    roundedViewport: false,
     terminalFontFamily: '',
     terminalFontSize: 14,
     terminalFontSmoothing: true,

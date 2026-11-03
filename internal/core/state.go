@@ -115,6 +115,7 @@ type Preferences struct {
 	HideAutomations bool   `json:"hideAutomations"`
 	Appearance      string `json:"appearance"`
 	Theme           string `json:"theme"`
+	RoundedViewport bool   `json:"roundedViewport"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
 	TerminalFontSize      int     `json:"terminalFontSize"`

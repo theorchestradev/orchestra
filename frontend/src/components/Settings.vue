@@ -478,6 +478,24 @@ if (!mac)
               <li v-for="message in themeErrors" :key="message">{{ message }}</li>
             </ul>
           </div>
+          <hr />
+          <div class="setting-row rounded-viewport-setting">
+            <div>
+              <label for="rounded-viewport">Rounded Viewport</label>
+              <p class="muted caption">Inset main screens with a themed border and rounded corners.</p>
+            </div>
+            <button
+              id="rounded-viewport"
+              class="switch"
+              :class="{ on: preferences.roundedViewport }"
+              role="switch"
+              :aria-checked="!!preferences.roundedViewport"
+              aria-label="Rounded Viewport"
+              @click="choose('roundedViewport', !preferences.roundedViewport)"
+            >
+              <span />
+            </button>
+          </div>
           <template v-if="mac">
             <hr />
             <div class="setting-row translucent-setting">

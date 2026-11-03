@@ -235,6 +235,15 @@ hr {
 .app-shell.translucent :is(.sidebar, .diff-pane, .status-bar) {
   background: var(--sidebar-translucent);
 }
+.app-shell.translucent .content-body {
+  background: transparent;
+}
+.app-shell.translucent.rounded-viewport .content {
+  background: transparent;
+}
+.app-shell.translucent.rounded-viewport .content-body {
+  background: var(--sidebar-translucent);
+}
 .app-shell.translucent .sidebar .sidebar-row.selected {
   background: color-mix(in srgb, var(--selection) var(--sidebar-opacity, 62%), transparent);
 }
@@ -502,12 +511,6 @@ hr {
   height: 52px;
   z-index: 21;
 }
-.app-shell:not(.chrome-over-overlay) .content.modal-open .content-drag {
-  background: rgb(0 0 0 / 0.38);
-}
-.app-shell[data-appearance='light']:not(.chrome-over-overlay) .content.modal-open .content-drag {
-  background: rgb(0 0 0 / 0.16);
-}
 .github-header,
 .detail-toolbar,
 .scratchpad {
@@ -524,6 +527,21 @@ hr {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: 0;
+}
+.content-body > * {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.app-shell.rounded-viewport .content-body {
+  padding: 12px;
+  background: var(--sidebar);
+}
+.app-shell.rounded-viewport .content-body > * {
+  border: 2px solid color-mix(in srgb, var(--accent) 45%, var(--rule));
+  border-radius: 10px;
 }
 .empty-state {
   display: flex;
@@ -723,6 +741,11 @@ input::placeholder {
 }
 .terminal-host .xterm-viewport {
   background: var(--canvas) !important;
+  scrollbar-width: none;
+}
+.terminal-host .xterm-viewport::-webkit-scrollbar,
+.terminal-host .xterm-scrollable-element > .scrollbar {
+  display: none;
 }
 .diff-pane {
   position: relative;
@@ -2473,8 +2496,10 @@ input::placeholder {
   padding-left: 132px;
 }
 .sidebar-hidden .terminal-pane {
-  padding-top: 44px;
   --wails-draggable: drag;
+}
+.app-shell.rounded-viewport .content.sidebar-hidden .content-body {
+  padding-top: 44px;
 }
 /* Outside macOS the window manager draws the title bar, so there are no traffic lights to clear. */
 .native-titlebar .show-sidebar {
@@ -4161,11 +4186,12 @@ h2 {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .open-in {
   position: absolute;
-  top: 2px;
-  right: 6px;
+  top: 8px;
+  right: 14px;
   z-index: 4;
   padding: 8px;
   max-width: calc(100% - 12px);
