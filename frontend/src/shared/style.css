@@ -226,6 +226,7 @@ hr {
 .app-shell.translucent {
   --canvas-translucent: color-mix(in srgb, var(--canvas) var(--canvas-opacity, 78%), transparent);
   --sidebar-translucent: color-mix(in srgb, var(--sidebar) var(--sidebar-opacity, 62%), transparent);
+  --surface-translucent: color-mix(in srgb, var(--surface) var(--canvas-opacity, 78%), transparent);
   background: transparent;
 }
 .app-shell.translucent .content {
@@ -233,6 +234,19 @@ hr {
 }
 .app-shell.translucent :is(.sidebar, .diff-pane, .status-bar) {
   background: var(--sidebar-translucent);
+}
+.app-shell.translucent .sidebar .sidebar-row.selected {
+  background: color-mix(in srgb, var(--selection) var(--sidebar-opacity, 62%), transparent);
+}
+.app-shell.translucent :is(.github-page, .github-detail) .standard-button:not(.primary),
+.app-shell.translucent :is(.github-table-head, .search-field, .status-filter, .label-chip) {
+  background: var(--surface-translucent);
+}
+.app-shell.translucent .search-field input {
+  background: transparent;
+}
+.app-shell.translucent .github-row:hover {
+  background: color-mix(in srgb, var(--selection) var(--canvas-opacity, 78%), transparent);
 }
 .app-shell.translucent .terminal-host,
 .app-shell.translucent .terminal-host .xterm-viewport {

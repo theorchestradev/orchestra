@@ -87,7 +87,7 @@ export function terminalTheme(preferences, translucent = false) {
 // its own diff colors. Line and gutter backgrounds mix these with `canvas` in style.css.
 // Window Opacity applies to the content area. The sidebar, Changes pane and status bar keep the
 // default 62:78 ratio, so they stay more transparent than the content. The range matches Store.
-export const windowOpacityRange = { min: 40, max: 95, default: 78 }
+export const windowOpacityRange = { min: 30, max: 95, default: 78 }
 export function translucencyTokens(opacity) {
   const { min, max } = windowOpacityRange,
     canvas = Math.min(max, Math.max(min, Math.round(Number(opacity) || windowOpacityRange.default)))

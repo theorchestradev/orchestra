@@ -288,14 +288,14 @@ const translucent = ref(false),
 async function applyTranslucency() {
   const wanted = Boolean(preferences.value.translucent)
   try {
-    translucent.value = await call('WindowTranslucency', wanted)
+    translucent.value = await call('WindowTranslucency', wanted, preferences.value.windowOpacity || 78)
     reduceTransparency.value = wanted && !translucent.value
   } catch (e) {
     translucent.value = reduceTransparency.value = false
     console.warn('Could not change window translucency: ' + e)
   }
 }
-watch(() => preferences.value.translucent, applyTranslucency)
+watch(() => [preferences.value.translucent, preferences.value.windowOpacity], applyTranslucency)
 const appearance = computed(() => {
   const colors = palette(shownPreferences.value),
     dark = shownPreferences.value.appearance === 'dark'

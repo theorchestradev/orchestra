@@ -862,8 +862,8 @@ func (s *Store) DeleteScratchpad(id string) (State, error) {
 // The frontend clamps the Changes pane to the same range.
 const minDiffPaneWidth, maxDiffPaneWidth = 280, 900
 
-// The minimum keeps text readable over busy wallpapers; Settings uses the same range.
-const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 40, 95, 78
+// Settings uses the same opacity range.
+const minWindowOpacity, maxWindowOpacity, defaultWindowOpacity = 30, 95, 78
 
 func defaultPreferences() Preferences {
 	return Preferences{Appearance: "system", Theme: "system", TerminalFontSize: 14, TerminalFontSmoothing: true, TerminalPaddingX: 12, TerminalPaddingY: 8, SidebarWidth: 280, DiffPaneWidth: 440, DefaultAgent: "claude", StartupView: "last", ConfirmQuit: true, ConfirmSessionClose: true, WindowOpacity: defaultWindowOpacity}

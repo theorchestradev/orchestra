@@ -277,10 +277,10 @@ test('a translucent terminal keeps theme text and an opaque cursor accent', () =
     assert.deepEqual({ ...translucent, background: opaque.background }, opaque)
   }
 })
-test('window opacity keeps the default look, the sidebar ratio and the readable range', () => {
+test('window opacity keeps the default look, the sidebar ratio and the configured range', () => {
   assert.deepEqual(translucencyTokens(78), { '--canvas-opacity': '78%', '--sidebar-opacity': '62%' })
   assert.deepEqual(translucencyTokens(undefined), translucencyTokens(78))
-  assert.deepEqual(translucencyTokens(10), { '--canvas-opacity': '40%', '--sidebar-opacity': '32%' })
+  assert.deepEqual(translucencyTokens(1), { '--canvas-opacity': '30%', '--sidebar-opacity': '24%' })
   assert.deepEqual(translucencyTokens(100), { '--canvas-opacity': '95%', '--sidebar-opacity': '76%' })
 })
 

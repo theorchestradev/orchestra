@@ -336,7 +336,7 @@ func TestWindowOpacityPreference(t *testing.T) {
 	if got := s.Snapshot().Preferences.WindowOpacity; got != defaultWindowOpacity {
 		t.Fatalf("Window opacity should default to %d, got %d", defaultWindowOpacity, got)
 	}
-	for _, c := range [][2]int{{60, 60}, {minWindowOpacity, minWindowOpacity}, {maxWindowOpacity, maxWindowOpacity}, {10, minWindowOpacity}, {100, maxWindowOpacity}, {-5, minWindowOpacity}, {0, defaultWindowOpacity}} {
+	for _, c := range [][2]int{{60, 60}, {minWindowOpacity, minWindowOpacity}, {maxWindowOpacity, maxWindowOpacity}, {10, minWindowOpacity}, {1, minWindowOpacity}, {100, maxWindowOpacity}, {-5, minWindowOpacity}, {0, defaultWindowOpacity}} {
 		prefs := s.Snapshot().Preferences
 		prefs.WindowOpacity = c[0]
 		if _, err := s.SetPreferences(prefs); err != nil {

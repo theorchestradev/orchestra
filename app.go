@@ -694,7 +694,9 @@ func (a *App) CancelUpdateInstall() {
 
 // WindowTranslucency turns the window's vibrancy on or off and reports whether it is in effect,
 // which it is not while macOS Reduce Transparency is on.
-func (a *App) WindowTranslucency(on bool) bool { return appearance.SetWindowTranslucent(on) }
+func (a *App) WindowTranslucency(on bool, opacity int) bool {
+	return appearance.SetWindowTranslucent(on, opacity)
+}
 
 // themesDirectory is ~/.orchestra/themes. A custom state file uses Themes/ beside it instead,
 // keeping QA runs isolated.
