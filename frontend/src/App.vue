@@ -82,6 +82,8 @@ const appState = ref({
     diffPaneWidth: 440,
     diffPaneOpen: false,
     arcMode: false,
+    hideSearch: false,
+    hideAutomations: false,
     defaultAgent: 'claude',
     startupView: 'last',
     confirmQuit: true,
@@ -1237,8 +1239,13 @@ onBeforeUnmount(() => {
           <Icon name="sidebar.left" :size="16" />
         </button>
       </div>
-      <nav class="sidebar-global" aria-label="Global navigation">
+      <nav
+        v-if="!preferences.hideSearch || !preferences.hideAutomations"
+        class="sidebar-global"
+        aria-label="Global navigation"
+      >
         <button
+          v-if="!preferences.hideSearch"
           class="sidebar-row command-search-row"
           aria-label="Search"
           title="Search"
@@ -1247,6 +1254,7 @@ onBeforeUnmount(() => {
           <Icon name="magnifyingglass" :size="15" /><span>Search</span><kbd>{{ shortcutLabel('⌘K') }}</kbd>
         </button>
         <button
+          v-if="!preferences.hideAutomations"
           class="sidebar-row"
           :class="{ selected: globalView === 'automations' }"
           :aria-current="globalView === 'automations' ? 'page' : undefined"

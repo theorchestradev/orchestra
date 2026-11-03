@@ -64,6 +64,7 @@ const sections = {
   'Source Control': 'arrow.triangle.branch',
   Profiles: 'person.crop.circle',
   Appearance: 'paintpalette',
+  Sidebar: 'sidebar.left',
   'Status Bar': 'list.bullet.rectangle',
   Terminal: 'terminal',
   Shortcuts: 'keyboard',
@@ -545,6 +546,43 @@ if (!mac)
               :aria-checked="!!preferences.arcMode"
               aria-label="Arc Mode"
               @click="choose('arcMode', !preferences.arcMode)"
+            >
+              <span />
+            </button>
+          </div>
+        </div>
+        <div v-else-if="section === 'Sidebar'" class="settings-card general-settings">
+          <div class="setting-row">
+            <div>
+              <label for="show-search">Show Search in Sidebar</label>
+              <p class="muted caption">Show the Search entry above Automations.</p>
+            </div>
+            <button
+              id="show-search"
+              class="switch"
+              :class="{ on: !preferences.hideSearch }"
+              role="switch"
+              :aria-checked="!preferences.hideSearch"
+              aria-label="Show Search in Sidebar"
+              @click="choose('hideSearch', !preferences.hideSearch)"
+            >
+              <span />
+            </button>
+          </div>
+          <hr />
+          <div class="setting-row">
+            <div>
+              <label for="show-automations">Show Automations in Sidebar</label>
+              <p class="muted caption">Show Automations in global navigation.</p>
+            </div>
+            <button
+              id="show-automations"
+              class="switch"
+              :class="{ on: !preferences.hideAutomations }"
+              role="switch"
+              :aria-checked="!preferences.hideAutomations"
+              aria-label="Show Automations in Sidebar"
+              @click="choose('hideAutomations', !preferences.hideAutomations)"
             >
               <span />
             </button>

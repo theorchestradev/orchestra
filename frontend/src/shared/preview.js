@@ -48,6 +48,8 @@ let state = {
     diffPaneWidth: 440,
     diffPaneOpen: false,
     arcMode: false,
+    hideSearch: false,
+    hideAutomations: false,
     defaultAgent: 'claude',
     startupView: 'last',
     confirmQuit: true,

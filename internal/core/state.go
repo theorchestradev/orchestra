@@ -110,8 +110,11 @@ type Preferences struct {
 	TelemetryChoiceMade bool   `json:"telemetryChoiceMade"`
 	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
 	ArcMode             bool   `json:"arcMode"`
-	Appearance          string `json:"appearance"`
-	Theme               string `json:"theme"`
+	// HideSearch and HideAutomations hide their respective global sidebar entries; false shows them.
+	HideSearch      bool   `json:"hideSearch"`
+	HideAutomations bool   `json:"hideAutomations"`
+	Appearance      string `json:"appearance"`
+	Theme           string `json:"theme"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
 	TerminalFontSize      int     `json:"terminalFontSize"`
