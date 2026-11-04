@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"path/filepath"
@@ -37,6 +38,12 @@ func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "runn
 
 type WireRequest struct {
 	Agent        string `json:"agent,omitempty"`
+	Model        string `json:"model,omitempty"`
+	Effort       string `json:"effort,omitempty"`
+	Start        bool   `json:"start,omitempty"`
+	Worktree     bool   `json:"worktree,omitempty"`
+	Branch       string `json:"branch,omitempty"`
+	Base         string `json:"base,omitempty"`
 	Name         string `json:"name,omitempty"`
 	RepositoryID string `json:"repositoryID,omitempty"`
 	Method       string `json:"method"`
@@ -49,6 +56,15 @@ type WireRequest struct {
 	// Revision is the Scratchpad revision a scratchpad.write expects; nil writes unconditionally.
 	Revision *int `json:"revision,omitempty"`
 }
+
+const (
+	// sessionCreateTimeout covers fetching local main and checking out a session worktree.
+	sessionCreateTimeout = 3 * time.Minute
+	// maxAgentStartedSessions bounds the sessions agents keep running in one workspace, so a
+	// chain of agents starting agents stops.
+	maxAgentStartedSessions = 5
+)
+
 type WaitEdge struct {
 	Target  string
 	Expires time.Time
@@ -197,6 +213,12 @@ func (c *Collaboration) serve() {
 					c.store.log.Warn("broker request invalid", "error", err)
 					result = map[string]string{"error": "Invalid request."}
 				} else {
+					if req.Method == "session.create" {
+						_ = conn.SetDeadline(time.Now().Add(sessionCreateTimeout))
+						if req.Worktree {
+							c.updateMainForWorktree(req)
+						}
+					}
 					c.store.mu.Lock()
 					result, err = c.handleLocked(req)
 					if err == nil {
@@ -486,10 +508,110 @@ func (c *Collaboration) waitLocked(source string, run *Run) error {
 	c.waits[source] = WaitEdge{run.ToSessionID, time.Now().Add(15 * time.Second)}
 	return nil
 }
-func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
+func (c *Collaboration) authorizedLocked(req WireRequest) error {
 	token := c.tokens[req.Source]
 	if c.stopping || token == "" || subtle.ConstantTimeCompare([]byte(token), []byte(req.Token)) != 1 {
-		return nil, errors.New("Invalid or expired Orchestra session credentials.")
+		return errors.New("Invalid or expired Orchestra session credentials.")
+	}
+	return nil
+}
+
+// updateMainForWorktree keeps local main up to date before session.create branches from it.
+// Fetching can be slow, so like CreateSession it runs outside the Store lock.
+func (c *Collaboration) updateMainForWorktree(req WireRequest) {
+	directory := ""
+	c.store.mu.Lock()
+	if c.authorizedLocked(req) == nil && c.store.state.Preferences.KeepLocalMainUpdated {
+		if p, source, err := c.store.sessionLocked(req.Source); err == nil {
+			id := req.RepositoryID
+			if id == "" {
+				id = source.RepositoryID
+			}
+			if repo, err := c.store.repositoryLocked(p, id); err == nil {
+				directory = repo.Directory
+			}
+		}
+	}
+	c.store.mu.Unlock()
+	if directory != "" {
+		if branch, err := updateLocalMain(directory); err != nil {
+			c.store.log.Info("local main not updated", "session", req.Source, "branch", branch, "error", err)
+		}
+	}
+}
+
+// createSessionLocked handles session.create. A repeated request ID returns the session it
+// created, so a retry after a timeout never makes a second one.
+func (c *Collaboration) createSessionLocked(p *Workspace, req WireRequest) (*Session, error) {
+	if _, ok := agentSpecs[req.Agent]; !ok {
+		return nil, fmt.Errorf("Unknown agent %q. Use one of: %s.", req.Agent, strings.Join(slices.Sorted(maps.Keys(agentSpecs)), ", "))
+	}
+	if len(req.Text) > 256*1024 {
+		return nil, errors.New("Prompt exceeds 256 KB.")
+	}
+	var sess *Session
+	if req.RequestID != "" {
+		if _, err := uuid.Parse(req.RequestID); err != nil {
+			return nil, errors.New("Invalid request ID.")
+		}
+		if index := slices.IndexFunc(p.Sessions, func(s *Session) bool { return s.CreateRequestID == req.RequestID }); index >= 0 {
+			sess = p.Sessions[index]
+			if sess.Agent != req.Agent || sess.InitialPrompt != req.Text {
+				return nil, errors.New("This request ID already belongs to a different session.")
+			}
+		}
+	}
+	start := req.Start && (sess == nil || !sess.HasLaunched)
+	if start {
+		if !c.store.state.Preferences.AgentsStartSessions {
+			return nil, errors.New("Let Agents Start Sessions is off in Settings. Create the session without --start, and the user can open it.")
+		}
+		running := 0
+		for _, other := range p.Sessions {
+			if other.AgentStarted && other.Running {
+				running++
+			}
+		}
+		if running >= maxAgentStartedSessions {
+			return nil, fmt.Errorf("%d sessions started by agents are already running in this workspace. Ask the user to close one, or create the session without --start.", running)
+		}
+	}
+	if sess == nil {
+		if err := validateModelEffort(req.Agent, req.Model, req.Effort); err != nil {
+			return nil, err
+		}
+		_, source, err := c.store.sessionLocked(req.Source)
+		if err != nil {
+			return nil, err
+		}
+		repositoryID := req.RepositoryID
+		if repositoryID == "" {
+			repositoryID = source.RepositoryID
+		}
+		if _, err = c.store.createSessionLocked(p.ID, repositoryID, req.Agent, req.Name, req.Text, req.Worktree, nil, req.Model, req.Effort, source.ProfileID, "", req.Branch, req.Base, false); err != nil {
+			return nil, err
+		}
+		sess = p.Sessions[len(p.Sessions)-1]
+		if req.RequestID != "" {
+			sess.CreateRequestID = req.RequestID
+			if err = c.store.saveLocked(); err != nil {
+				return nil, fmt.Errorf("Created session %s but could not save it: %w", sess.ID, err)
+			}
+		}
+	}
+	if start {
+		sess.AgentStarted = true
+		if _, err := c.store.startSessionLocked(sess.ID, false, 100, 30); err != nil {
+			sess.AgentStarted = false
+			// The session stays, so name it rather than invite a retry that creates another.
+			return nil, fmt.Errorf("Created session %s but could not start it: %w", sess.ID, err)
+		}
+	}
+	return sess, nil
+}
+func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
+	if err := c.authorizedLocked(req); err != nil {
+		return nil, err
 	}
 	p, _, err := c.store.sessionLocked(req.Source)
 	if err != nil {
@@ -497,22 +619,7 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	}
 	switch req.Method {
 	case "session.create":
-		if _, ok := agentSpecs[req.Agent]; !ok || strings.TrimSpace(req.Text) == "" {
-			return nil, errors.New("An agent and prompt are required.")
-		}
-		if len(req.Text) > 256*1024 {
-			return nil, errors.New("Prompt exceeds 256 KB.")
-		}
-		_, source, _ := c.store.sessionLocked(req.Source)
-		repositoryID := req.RepositoryID
-		if repositoryID == "" {
-			repositoryID = source.RepositoryID
-		}
-		_, err := c.store.createSessionLocked(p.ID, repositoryID, req.Agent, req.Name, req.Text, false, nil, "", "", source.ProfileID, "", "", "", false)
-		if err != nil {
-			return nil, err
-		}
-		return p.Sessions[len(p.Sessions)-1], nil
+		return c.createSessionLocked(p, req)
 	case "session.list":
 		sessions := []map[string]string{}
 		for _, sess := range p.Sessions {
@@ -525,7 +632,11 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 					repository = repo.Name
 				}
 			}
-			sessions = append(sessions, map[string]string{"id": sess.ID, "workspaceID": p.ID, "name": sess.Name, "agent": sess.Agent, "repository": repository})
+			status := "stopped"
+			if sess.Running {
+				status = sess.Activity
+			}
+			sessions = append(sessions, map[string]string{"id": sess.ID, "workspaceID": p.ID, "name": sess.Name, "agent": sess.Agent, "repository": repository, "repositoryID": sess.RepositoryID, "model": sess.Model, "effort": sess.Effort, "status": status})
 		}
 		return sessions, nil
 	case "session.request":

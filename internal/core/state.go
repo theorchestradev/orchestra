@@ -49,6 +49,10 @@ type Session struct {
 	LoginAgent string `json:"loginAgent,omitempty"`
 	// RepositoryID is the workspace repository the session works in, fixed for its whole life.
 	RepositoryID string `json:"repositoryID"`
+	// CreateRequestID is the --request-id the CLI created the session with, so a retry finds it.
+	CreateRequestID string `json:"createRequestID,omitempty"`
+	// AgentStarted marks a session the CLI started, which counts toward the workspace's limit.
+	AgentStarted bool `json:"agentStarted,omitempty"`
 }
 
 // GitHubItem identifies an issue or pull request in the session's repository.
@@ -134,6 +138,8 @@ type Preferences struct {
 	GitHubRefreshInterval int      `json:"gitHubRefreshInterval"`
 	// DeliverRequests lets Store submit queued inbox requests once the recipient agent is free.
 	DeliverRequests bool `json:"deliverRequests"`
+	// AgentsStartSessions lets orchestra session create --start launch the session it creates.
+	AgentsStartSessions bool `json:"agentsStartSessions"`
 	// AttentionSound plays a sound when an agent finishes its turn or asks for permission.
 	AttentionSound bool `json:"attentionSound"`
 	// Translucent shows the desktop through the window with native vibrancy.

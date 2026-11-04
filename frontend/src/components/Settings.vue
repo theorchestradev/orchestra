@@ -373,6 +373,27 @@ if (!mac)
           <hr />
           <div class="setting-row">
             <div>
+              <label for="agentsStartSessions">Let Agents Start Sessions</label>
+              <p class="muted caption">
+                Let an agent start a session it creates with the Orchestra CLI, using its usual permissions, with up to
+                5 running per workspace. When off, new sessions wait until you open them.
+              </p>
+            </div>
+            <button
+              id="agentsStartSessions"
+              class="switch"
+              :class="{ on: preferences.agentsStartSessions }"
+              role="switch"
+              :aria-checked="!!preferences.agentsStartSessions"
+              aria-label="Let Agents Start Sessions"
+              @click="choose('agentsStartSessions', !preferences.agentsStartSessions)"
+            >
+              <span />
+            </button>
+          </div>
+          <hr />
+          <div class="setting-row">
+            <div>
               <label for="attentionSound">Play Sound When an Agent Needs You</label>
               <p class="muted caption">
                 Play a sound when an agent finishes its turn or asks for permission, unless you're already looking at

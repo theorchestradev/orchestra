@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -24,12 +25,28 @@ var cliGuide string
 // main.version, which release builds take from the v* tag.
 var Version = "dev"
 
+// cliOptions lists each command's options, so a misplaced one fails instead of being ignored.
+var cliOptions = map[string][]string{
+	"session.create":    {"--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--name", "--repository", "--worktree", "--branch", "--base", "--request-id", "--start"},
+	"session.list":      nil,
+	"session.inbox":     nil,
+	"session.request":   {"--text", "--file", "--request-id"},
+	"session.read":      {"--before"},
+	"run.read":          nil,
+	"run.wait":          {"--timeout"},
+	"run.reply":         {"--text", "--file"},
+	"run.cancel":        nil,
+	"scratchpad.read":   {"--json"},
+	"scratchpad.write":  {"--text", "--file", "--stdin", "--if-revision"},
+	"scratchpad.append": {"--text", "--file", "--stdin"},
+}
+
 const cliHelp = `Orchestra session messaging
 
 orchestra guide
 orchestra --version
 orchestra session list
-orchestra session create --agent AGENT --prompt TEXT [--name NAME] [--repository ID]
+orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
 orchestra session inbox
 orchestra session read SESSION_ID [--before REQUEST_ID]
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -46,17 +63,23 @@ that write --if-revision expects. append adds the text on a new line.
 
 orchestra guide prints a guide for agents and works anywhere. Other commands
 run from an Orchestra terminal session while the app is open.
-session create adds a session in the calling session's workspace without starting an agent.
+session create adds a session in the calling session's workspace. It starts the agent only
+with --start, which needs Let Agents Start Sessions turned on in Settings. --worktree gives
+the session its own branch and folder, and a repeated --request-id returns the same session.
 Receiving messages never starts an agent or injects terminal input.
 `
 
 func CallBroker(path string, request WireRequest) (json.RawMessage, error) {
+	deadline := 10 * time.Second
+	if request.Method == "session.create" {
+		deadline = sessionCreateTimeout
+	}
 	conn, err := net.DialTimeout("unix", path, 10*time.Second)
 	if err != nil {
 		return nil, errors.New("Could not connect to Orchestra. Keep the app open and start this CLI from an Orchestra session.")
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetDeadline(time.Now().Add(deadline))
 	if err = json.NewEncoder(conn).Encode(request); err != nil {
 		return nil, err
 	}
@@ -78,7 +101,7 @@ func CallBroker(path string, request WireRequest) (json.RawMessage, error) {
 	return json.RawMessage(strings.TrimSpace(string(data))), nil
 }
 func RunCLI(args []string, out, stderr io.Writer) int {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" {
+	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[len(args)-1] == "--help" {
 		fmt.Fprint(out, cliHelp)
 		return 0
 	}
@@ -132,8 +155,8 @@ func runCLI(args []string, out io.Writer) error {
 		return errors.New("Expected session, run or scratchpad command. Use orchestra help.")
 	}
 	method := args[0] + "." + args[1]
-	valid := map[string]bool{"session.create": true, "session.list": true, "session.inbox": true, "session.request": true, "session.read": true, "run.read": true, "run.wait": true, "run.reply": true, "run.cancel": true, "scratchpad.read": true, "scratchpad.write": true, "scratchpad.append": true}
-	if !valid[method] {
+	options, valid := cliOptions[method]
+	if !valid {
 		return errors.New("Unknown command. Use orchestra help.")
 	}
 	env := environmentMap()
@@ -158,8 +181,7 @@ func runCLI(args []string, out io.Writer) error {
 		return errors.New("Could not connect to Orchestra. Keep the app open and start this CLI from an Orchestra session.")
 	}
 	index := 2
-	scratchpad := args[0] == "scratchpad"
-	if method != "session.list" && method != "session.inbox" && method != "session.create" && !scratchpad {
+	if method != "session.list" && method != "session.inbox" && method != "session.create" && args[0] != "scratchpad" {
 		if len(args) <= index || strings.HasPrefix(args[index], "--") {
 			return errors.New("A session or request ID is required.")
 		}
@@ -168,16 +190,31 @@ func runCLI(args []string, out io.Writer) error {
 	}
 	timeout := 120 * time.Second
 	textSet, printJSON := false, false
+	onlyOneText := errors.New("Use only one of --text, --file or --stdin.")
+	if method == "session.create" {
+		onlyOneText = errors.New("Use only one of --prompt, --prompt-file or --stdin.")
+	}
 	for index < len(args) {
 		flag := args[index]
 		index++
-		if flag == "--json" && method == "scratchpad.read" {
+		if !slices.Contains(options, flag) {
+			return fmt.Errorf("Unknown option %s.", flag)
+		}
+		if flag == "--json" {
 			printJSON = true
 			continue
 		}
-		if flag == "--stdin" && scratchpad && method != "scratchpad.read" {
+		if flag == "--start" {
+			request.Start = true
+			continue
+		}
+		if flag == "--worktree" {
+			request.Worktree = true
+			continue
+		}
+		if flag == "--stdin" {
 			if textSet {
-				return errors.New("Use only one of --text, --file or --stdin.")
+				return onlyOneText
 			}
 			textSet = true
 			data, err := readLimited(os.Stdin)
@@ -193,27 +230,27 @@ func runCLI(args []string, out io.Writer) error {
 		value := args[index]
 		index++
 		switch flag {
-		case "--agent", "--prompt", "--name", "--repository":
-			if method != "session.create" {
-				return fmt.Errorf("Unknown option %s.", flag)
-			}
-			switch flag {
-			case "--agent":
-				request.Agent = value
-			case "--prompt":
-				request.Text = value
-			case "--name":
-				request.Name = value
-			case "--repository":
-				request.RepositoryID = value
-			}
-		case "--text", "--file":
+		case "--agent":
+			request.Agent = value
+		case "--model":
+			request.Model = value
+		case "--effort":
+			request.Effort = value
+		case "--name":
+			request.Name = value
+		case "--repository":
+			request.RepositoryID = value
+		case "--branch":
+			request.Branch = value
+		case "--base":
+			request.Base = value
+		case "--text", "--file", "--prompt", "--prompt-file":
 			if textSet {
-				return errors.New("Use only one of --text, --file or --stdin.")
+				return onlyOneText
 			}
 			textSet = true
 			request.Text = value
-			if flag == "--file" {
+			if flag == "--file" || flag == "--prompt-file" {
 				f, err := os.Open(value)
 				if err != nil {
 					return err
@@ -225,9 +262,6 @@ func runCLI(args []string, out io.Writer) error {
 				}
 			}
 		case "--if-revision":
-			if method != "scratchpad.write" {
-				return fmt.Errorf("Unknown option %s.", flag)
-			}
 			revision, err := strconv.Atoi(value)
 			if err != nil || revision < 0 {
 				return errors.New("The revision must be a non-negative number.")
@@ -250,12 +284,16 @@ func runCLI(args []string, out io.Writer) error {
 				return errors.New("Timeout must be between 0 and 24 hours.")
 			}
 			timeout = duration
-		default:
-			return fmt.Errorf("Unknown option %s.", flag)
 		}
 	}
-	if method == "session.create" && (request.Agent == "" || strings.TrimSpace(request.Text) == "") {
-		return errors.New("Use --agent and --prompt to create a session.")
+	if method == "session.create" && request.Agent == "" {
+		return errors.New("Use --agent to create a session.")
+	}
+	if !request.Worktree && (request.Branch != "" || request.Base != "") {
+		return errors.New("--branch and --base need --worktree.")
+	}
+	if method == "session.create" && textSet && strings.TrimSpace(request.Text) == "" {
+		return errors.New("The prompt is empty. Omit it to create a session without one.")
 	}
 	if (method == "session.request" || method == "run.reply") && !textSet {
 		return errors.New("Use --text or --file to supply a message.")

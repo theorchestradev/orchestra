@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"fmt"
 	"maps"
 	"os"
 	"os/exec"
@@ -45,6 +46,20 @@ func validateLaunch(agent, model, effort string) error {
 	}
 	if !effortPattern.MatchString(effort) || spec.Model.Efforts != nil && !slices.Contains(spec.Model.Efforts, effort) {
 		return errors.New("Invalid effort.")
+	}
+	return nil
+}
+
+// validateModelEffort rejects an effort the agent's fixed catalog does not list for the model.
+// validateLaunch also checks saved sessions, so this stricter rule stays out of it.
+func validateModelEffort(agent, model, effort string) error {
+	spec := agentSpecs[agent]
+	if spec == nil || spec.Model == nil || effort == "" {
+		return nil
+	}
+	index := slices.IndexFunc(spec.Model.Catalog, func(m AgentModel) bool { return m.ID == model })
+	if index >= 0 && !slices.Contains(spec.Model.Catalog[index].Efforts, effort) {
+		return fmt.Errorf("%s does not support effort %s.", spec.Model.Catalog[index].Name, effort)
 	}
 	return nil
 }

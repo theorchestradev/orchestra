@@ -90,6 +90,7 @@ const appState = ref({
     confirmSessionClose: true,
     gitHubRefreshInterval: 0,
     deliverRequests: false,
+    agentsStartSessions: false,
     attentionSound: false,
     openInApp: '',
     hideOpenInButton: false,

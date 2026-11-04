@@ -57,6 +57,7 @@ let state = {
     confirmSessionClose: true,
     gitHubRefreshInterval: 0,
     deliverRequests: false,
+    agentsStartSessions: false,
     translucent: false,
     windowOpacity: 78,
     updateChecksOff: false,

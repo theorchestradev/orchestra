@@ -17,7 +17,8 @@ app must stay open while you use the CLI. Outside a session, only `orchestra hel
 Sessions and the inbox:
 
 ```sh
-orchestra session list                      # sessions in this workspace, with their IDs and repositories
+orchestra session list                      # sessions in this workspace, with their IDs, repositories, models and status
+orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
 orchestra session inbox                     # claim the next request sent to you
 orchestra session read SESSION_ID [--before REQUEST_ID]   # request history with a session
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -106,8 +107,30 @@ If the write is rejected because the revision changed, read again, merge and ret
 
 ## Create a session
 
-`orchestra session create --agent codex --prompt "Review this repository" --name "Review"`
-creates a session in your workspace and returns its JSON. `--repository ID` chooses
-another repository in the same workspace. It inherits your account profile and
-saves the initial prompt. The CLI does not start an agent; the user opens the
-session to launch it. Never create sessions unless the user asked for them.
+```sh
+orchestra session create --agent claude --model opus --effort high --prompt-file task.md --name "Review" --worktree
+```
+
+This creates a session in your workspace and returns its JSON. It inherits your account
+profile and saves the initial prompt. Never create sessions unless the user asked for
+them.
+
+- `--model` and `--effort` choose how the agent launches; without them it uses its own
+  defaults. Orchestra checks only their format for most agents, so use an ID the user
+  gave you or one you know exists.
+- `--prompt TEXT`, `--prompt-file PATH` or `--stdin` supply the prompt. It is optional,
+  and some agents refuse one.
+- `--repository ID` chooses another repository in the same workspace. `orchestra session
+  list` shows the `repositoryID` of each session.
+- `--worktree` gives the session its own branch and folder. Use it whenever the session
+  will change files; without it, the session works in the repository's main folder, not
+  in your worktree. `--branch NAME` names the branch. `--base REF` is where it starts, by
+  default the repository's current commit, so pass your branch to build on your work.
+  Only committed changes carry over.
+- `--request-id UUID` makes retrying safe: the same ID returns the session it created.
+  Use it when a create might time out, and retry with the same options.
+- `--start` also starts the agent. It fails unless the user turned on **Let Agents Start
+  Sessions** in Settings, and no session is created then. Without it, the user opens the
+  session to launch it. Use `--start` only when the user asked you to start the session.
+  Agents can keep 5 sessions they started running in a workspace; after that `--start`
+  fails until the user closes one.

@@ -139,10 +139,14 @@ every event and how to disable it.
 From an Orchestra terminal session, create another session in the same workspace:
 
 ```sh
-orchestra session create --agent codex --name "Review" --prompt "Review the repository"
+orchestra session create --agent codex --model gpt-6.1-sol --name "Review" --prompt "Review the repository"
 ```
 
-`--repository ID` chooses another repository in that workspace. The command returns
-session JSON and saves the prompt without starting an agent. Open the session to
-start it. Automations use the same Store session creation flow and start the
-scheduled session through TerminalSession while the app is open.
+`--model` and `--effort` choose how the agent launches, and `--prompt-file PATH` or
+`--stdin` can supply the prompt instead. `--repository ID` chooses another repository in
+that workspace, and `--worktree`, with optional `--branch` and `--base`, gives the
+session its own branch and folder. A repeated `--request-id` returns the same session.
+The command returns session JSON and saves the prompt without starting an agent. Open the
+session to start it, or turn on **Let Agents Start Sessions** in Settings so `--start` can
+start it, with up to 5 such sessions running per workspace. Automations use the same Store session creation flow
+and start the scheduled session through TerminalSession while the app is open.

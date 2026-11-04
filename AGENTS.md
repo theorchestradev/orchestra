@@ -33,7 +33,9 @@ Orchestra is a macOS and Linux app built with Vue 3, Wails 2, Go and xterm.js.
   harness, or automatically injecting terminal input. Only the user's explicit
   Execute Request action, or Store delivery after the user turns on **Deliver Inbox
   Requests Automatically**, may submit through TerminalSession. Views and CLI clients
-  must not start agent processes.
+  must not start agent processes. Store may start a session the CLI creates with
+  `--start` only after the user turns on **Let Agents Start Sessions**, up to
+  `maxAgentStartedSessions` running per workspace.
 - Keep feature UI in `frontend/src/components/` and shared appearance in
   `frontend/src/shared/` and `internal/appearance/`.
 - The website lives in the separate `theorchestradev/site` repository. Its product
