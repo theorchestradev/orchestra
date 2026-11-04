@@ -4,6 +4,18 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.20.0 — 2026-11-03
+
+### New
+
+- **Rounded Viewport.** Enable it in Settings → Appearance to inset main screens
+  with a themed border and rounded corners. It is off by default.
+
+### Changed
+
+- Terminal scrollbars are hidden, and terminal action buttons have more space
+  from the edge of the viewport.
+
 ## 0.19.0 — 2026-11-03
 
 ### New
