@@ -1254,7 +1254,7 @@ input::placeholder {
   position: relative;
 }
 .settings-rail {
-  width: 180px;
+  width: 240px;
   flex-shrink: 0;
   background: var(--sidebar);
   border-right: 1px solid var(--rule);
@@ -1262,6 +1262,7 @@ input::placeholder {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  overflow-y: auto;
 }
 .settings-rail button {
   display: flex;
@@ -1276,6 +1277,16 @@ input::placeholder {
 .settings-rail button.selected {
   background: var(--selection);
   color: var(--text);
+}
+.settings-rail .settings-search {
+  flex: 0 0 auto;
+  margin-bottom: 8px;
+}
+.settings-search-results button {
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 .settings-main {
   display: flex;
@@ -2337,7 +2348,7 @@ input::placeholder {
 }
 @media (max-width: 800px) {
   .settings-rail {
-    width: 160px;
+    width: 210px;
     padding: 12px;
   }
   .settings-main {

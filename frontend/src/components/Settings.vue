@@ -9,6 +9,7 @@ import {
   effectiveAppearance,
 } from '../shared/appearance'
 import Icon from './Icon.vue'
+import { searchSettings } from '../shared/settingsSearch'
 import { statusBarLayout, statusBarItemVisible, statusBarItemChange, moveStatusBarItem } from '../shared/statusBar'
 import Modal from './Modal.vue'
 import AgentUsage from './AgentUsage.vue'
@@ -70,6 +71,16 @@ const sections = {
   Shortcuts: 'keyboard',
   Usage: 'circle.dotted',
   Privacy: 'shield',
+}
+const search = ref('')
+const sectionHeading = ref(null)
+const searchResults = computed(() => searchSettings(search.value))
+async function openSearchResult(item) {
+  section.value = item.section
+  await nextTick()
+  const target = document.getElementById(item.target) || sectionHeading.value
+  target?.scrollIntoView({ block: 'center' })
+  target?.focus({ preventScroll: true })
 }
 const shortcutGroups = [...new Set(shortcuts.map((s) => s.group))].map((name) => ({
   name,
@@ -155,19 +166,43 @@ if (!mac)
 <template>
   <div class="settings-dialog">
     <nav class="settings-rail" aria-label="Settings sections">
-      <button
-        v-for="(icon, name) in sections"
-        :key="name"
-        :class="{ selected: section === name }"
-        :aria-pressed="section === name"
-        @click="section = name"
-      >
-        <Icon :name="icon" :size="14" />{{ name }}
-      </button>
+      <div class="search-field settings-search">
+        <Icon name="magnifyingglass" :size="14" />
+        <input
+          v-model="search"
+          type="search"
+          placeholder="Search settings"
+          aria-label="Search settings"
+          spellcheck="false"
+          autocapitalize="off"
+          autocorrect="off"
+          @keydown.esc.stop="search = ''"
+        />
+      </div>
+      <div v-if="search.trim()" class="settings-search-results">
+        <button v-for="item in searchResults" :key="item.section + item.label" @click="openSearchResult(item)">
+          <span>{{ item.label }}</span>
+          <small class="muted">{{ item.section }}</small>
+        </button>
+        <p class="muted caption" role="status">
+          {{ searchResults.length ? `${searchResults.length} results` : 'No settings found.' }}
+        </p>
+      </div>
+      <template v-else>
+        <button
+          v-for="(icon, name) in sections"
+          :key="name"
+          :class="{ selected: section === name }"
+          :aria-pressed="section === name"
+          @click="section = name"
+        >
+          <Icon :name="icon" :size="14" />{{ name }}
+        </button>
+      </template>
     </nav>
     <main class="settings-main">
       <div class="settings-content">
-        <h2>{{ section }}</h2>
+        <h2 ref="sectionHeading" tabindex="-1">{{ section }}</h2>
         <div v-if="section === 'General'" class="settings-card general-settings">
           <div class="setting-row">
             <div>
@@ -321,7 +356,9 @@ if (!mac)
             </button>
           </div>
           <div class="theme-actions">
-            <button class="standard-button" @click="emit('check-updates')">Check for Updates…</button>
+            <button id="check-updates" class="standard-button" @click="emit('check-updates')">
+              Check for Updates…
+            </button>
           </div>
           <template v-if="about">
             <hr />
@@ -445,7 +482,7 @@ if (!mac)
               <span>Mode</span>
               <p v-if="!mac" class="muted caption">System uses Dark on Linux.</p>
             </div>
-            <div class="mode-switch appearance-mode" role="group" aria-label="Mode">
+            <div id="settings-mode" class="mode-switch appearance-mode" role="group" aria-label="Mode" tabindex="-1">
               <button
                 v-for="mode in modes"
                 :key="mode.id"
@@ -488,7 +525,8 @@ if (!mac)
             </div>
           </div>
           <div class="theme-actions">
-            <button class="standard-button" @click="openDuplicate">Duplicate as Custom Theme…</button
+            <button id="duplicate-theme" class="standard-button" @click="openDuplicate">
+              Duplicate as Custom Theme…</button
             ><button v-if="selectedTheme.custom" class="standard-button" @click="reveal(selectedTheme.id)">
               {{ revealLabel }}
             </button>
@@ -721,6 +759,7 @@ if (!mac)
             </div>
           </section>
           <button
+            id="restore-status-layout"
             class="text-link"
             @click="
               emit('change', { ...preferences, statusBarLayout: [], hiddenStatusBarItems: [], hideUsageStatus: false })
@@ -864,7 +903,13 @@ if (!mac)
           >
             <h3 :id="'shortcut-group-' + i">{{ group.name }}</h3>
             <dl>
-              <div v-for="entry in group.entries" :key="entry.id" class="shortcut-row">
+              <div
+                v-for="entry in group.entries"
+                :id="'shortcut-' + entry.id"
+                :key="entry.id"
+                class="shortcut-row"
+                tabindex="-1"
+              >
                 <dt>{{ entry.name }}</dt>
                 <dd>
                   <span v-for="key in shortcutKeys(entry)" :key="key.label" class="shortcut-keys"
