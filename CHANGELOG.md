@@ -4,6 +4,35 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.21.0 — 2026-11-03
+
+### New
+
+- **Choose how agents create sessions.** `orchestra session create` accepts
+  `--model` and `--effort`, reads the prompt from `--prompt-file` or `--stdin`,
+  and can give the session its own branch and folder with `--worktree`,
+  `--branch` and `--base`. A repeated `--request-id` returns the same session
+  instead of creating another.
+- **Let Agents Start Sessions.** Turn this on in Settings so an agent can start a
+  session it creates with `orchestra session create --start`. It is off by
+  default, and up to 5 such sessions can run per workspace.
+
+### Changed
+
+- `orchestra session list` also reports each session's repository ID, model,
+  effort and status.
+- CLI commands reject options they do not use instead of ignoring them. This
+  removes the undocumented `--text` and `--file` from `session create`; use
+  `--prompt` or `--prompt-file`.
+- `orchestra session create` no longer requires a prompt, and an unknown agent's
+  error lists the available agents.
+
+### Fixed
+
+- Aider, Amp and Kimi sessions can be created from the CLI. These agents do not
+  accept an initial prompt, which the CLI used to require.
+- `--help` at the end of a CLI command shows the help.
+
 ## 0.20.0 — 2026-11-03
 
 ### New
