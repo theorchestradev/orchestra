@@ -4,6 +4,24 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.22.0 — 2026-11-04
+
+### New
+
+- **Search individual settings.** Find controls by name in Settings and jump
+  directly to them, including status bar items and keyboard shortcuts.
+
+### Changed
+
+- **Changes compares against the branch's merge base by default.** It includes
+  committed, staged, unstaged and untracked changes, using an open pull request's
+  base branch when available or the local default-branch reference otherwise.
+  The comparison selector still offers the original session baseline.
+- Changes refreshes automatically while visible, and the status bar follows the
+  actual checked-out branch, including detached HEAD.
+- Settings has a wider sidebar, and work item and review pages use styling
+  consistent with Automations.
+
 ## 0.21.0 — 2026-11-03
 
 ### New
