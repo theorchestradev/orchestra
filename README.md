@@ -21,7 +21,7 @@
   unless you choose to.
 - **Work Items, Reviews and diffs:** browse the issues (Work Items) and pull requests
   (Reviews) of every GitHub repository in a workspace, start a session from one, and review
-  each session's changes.
+  each session's [branch changes](docs/changes.md), including uncommitted edits.
 - **Automations:** schedule an agent and prompt once or on selected weekdays from the global Automations menu. Choose a workspace, repository and time; Orchestra must be open. Missed occurrences run once when the app reopens. Every run creates a normal session.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
   repository or worktree, and open files in the sidebar to read syntax-highlighted code

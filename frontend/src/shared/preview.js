@@ -822,6 +822,11 @@ export const backend = {
             : '<template>\n  <main>Orchestra</main>\n</template>\n',
         }
   },
+  SessionBranch: (target) => session(target).worktreeBranch || 'main',
+  SessionComparison: (target, sinceStart) => ({
+    ...backend.SessionDiff(target),
+    reference: sinceStart ? '' : 'origin/main',
+  }),
   SessionDiff: (target) => {
     const s = session(target)
     if (s.agent === 'terminal')

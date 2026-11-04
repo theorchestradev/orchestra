@@ -211,3 +211,151 @@ func TestSessionDiffTruncation(t *testing.T) {
 		t.Fatalf("file count limit: %d %v", len(diff.Files), err)
 	}
 }
+
+// Upstream commits must never become branch changes after integration.
+func TestSessionDiffBranchIntegration(t *testing.T) {
+	for _, integration := range []string{"rebase", "merge"} {
+		t.Run(integration, func(t *testing.T) {
+			s := fixtureStore(t)
+			p := repositoryFixture(t, s)
+			root := p.Repositories[0].Directory
+			writeFixture(t, filepath.Join(root, "one.txt"), "old one\n")
+			writeFixture(t, filepath.Join(root, "two.txt"), "old two\n")
+			commitFixture(t, root, "Before feature")
+			start := gitWorktreeFixture(t, root, "rev-parse", "HEAD")
+			work := filepath.Join(t.TempDir(), "work")
+			gitWorktreeFixture(t, root, "worktree", "add", "-b", "feature", work)
+			writeFixture(t, filepath.Join(work, "one.txt"), "one\ntwo\nthree\n")
+			writeFixture(t, filepath.Join(work, "two.txt"), "one\ntwo\nthree\n")
+			commitFixture(t, work, "Feature")
+			writeFixture(t, filepath.Join(root, "unrelated.txt"), "upstream\n")
+			commitFixture(t, root, "Upstream")
+			gitWorktreeFixture(t, root, "update-ref", "refs/remotes/origin/main", "HEAD")
+			gitWorktreeFixture(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+			gitWorktreeFixture(t, work, "-c", "user.name=Fixture", "-c", "user.email=fixture@example.invalid", integration, "main")
+			read := func(refs ...string) SessionDiff {
+				t.Helper()
+				d, err := readSessionDiff("claude", root, work, start, refs...)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return d
+			}
+			diff := read()
+			if len(diff.Files) != 2 || diff.Additions != 6 || diff.Deletions != 2 || diff.Reference != "origin/main" || diff.Branch != "feature" {
+				t.Fatalf("branch: %+v", diff)
+			}
+			if old := read("start"); len(old.Files) != 3 || old.Reference != "" {
+				t.Fatalf("start: %+v", old)
+			}
+			// Staged, unstaged, untracked and rename all participate in the same comparison.
+			gitWorktreeFixture(t, work, "mv", "rename-me.txt", "renamed.txt")
+			writeFixture(t, filepath.Join(work, "one.txt"), "one\ntwo\nthree\nstaged\n")
+			gitWorktreeFixture(t, work, "add", "one.txt")
+			writeFixture(t, filepath.Join(work, "one.txt"), "one\ntwo\nthree\nstaged\nunstaged\n")
+			writeFixture(t, filepath.Join(work, "new.txt"), "new\n")
+			indexPath := gitWorktreeFixture(t, work, "rev-parse", "--git-path", "index")
+			before, err := os.ReadFile(indexPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			diff = read()
+			after, err := os.ReadFile(indexPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(before) != string(after) {
+				t.Fatal("comparison wrote the index")
+			}
+			if f := diffFile(t, diff, "one.txt"); f.Additions != 5 {
+				t.Fatalf("working file: %+v", f)
+			}
+			if f := diffFile(t, diff, "renamed.txt"); f.OldPath != "rename-me.txt" || f.Status != "R" {
+				t.Fatalf("rename: %+v", f)
+			}
+			if f := diffFile(t, diff, "new.txt"); !f.Untracked || f.Additions != 1 {
+				t.Fatalf("untracked: %+v", f)
+			}
+			gitWorktreeFixture(t, work, "checkout", "--detach")
+			if d := read(); !strings.HasPrefix(d.Branch, "Detached HEAD") || d.Reference != "origin/main" {
+				t.Fatalf("detached: %+v", d)
+			}
+			gitWorktreeFixture(t, root, "update-ref", "-d", "refs/remotes/origin/main")
+			if d := read(); d.Reference != "" || d.Base != start {
+				t.Fatalf("fallback: %+v", d)
+			}
+		})
+	}
+}
+
+func TestSessionDiffOpenPRBaseChanges(t *testing.T) {
+	s := fixtureStore(t)
+	p := repositoryFixture(t, s)
+	root := p.Repositories[0].Directory
+	gitWorktreeFixture(t, root, "update-ref", "refs/remotes/origin/main", "HEAD")
+	gitWorktreeFixture(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	writeFixture(t, filepath.Join(root, "parent.txt"), "parent\n")
+	commitFixture(t, root, "Parent PR")
+	gitWorktreeFixture(t, root, "update-ref", "refs/remotes/origin/parent", "HEAD")
+	state, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := state.Workspaces[0].Sessions[0]
+	writeFixture(t, filepath.Join(sess.WorktreeDirectory, "child.txt"), "child\n")
+	commitFixture(t, sess.WorktreeDirectory, "Child PR")
+	s.mu.Lock()
+	stored, _ := s.workspaceLocked(p.ID)
+	stored.Repositories[0].GitHub = "fixture/repository"
+	s.mu.Unlock()
+	_, respond := pullRequestFixture(t)
+	for _, base := range []string{"parent", "main", "parent"} {
+		respond("list", fmt.Sprintf(`[{"headRefName":%q,"baseRefName":%q}]`, sess.WorktreeBranch, base))
+		d, err := s.SessionDiff(sess.ID)
+		count := 1
+		if base == "main" {
+			count = 2
+		}
+		if err != nil || d.Reference != "origin/"+base || len(d.Files) != count {
+			t.Fatalf("%s: %+v, %v", base, d, err)
+		}
+	}
+	// Once a PR is closed/squashed, default to origin/HEAD and retain merge-base semantics.
+	respond("list", `[]`)
+	d, err := s.SessionDiff(sess.ID)
+	if err != nil || d.Reference != "origin/main" || len(d.Files) != 2 {
+		t.Fatalf("closed PR: %+v, %v", d, err)
+	}
+	gitWorktreeFixture(t, sess.WorktreeDirectory, "checkout", "-b", "switched")
+	if branch, err := s.SessionBranch(sess.ID); err != nil || branch != "switched" {
+		t.Fatalf("branch: %q %v", branch, err)
+	}
+}
+
+func TestSessionDiffUnrelatedBaseAndSquash(t *testing.T) {
+	s := fixtureStore(t)
+	p := repositoryFixture(t, s)
+	root := p.Repositories[0].Directory
+	start := gitWorktreeFixture(t, root, "rev-parse", "HEAD")
+	work := filepath.Join(t.TempDir(), "work")
+	gitWorktreeFixture(t, root, "worktree", "add", "-b", "feature", work)
+	writeFixture(t, filepath.Join(work, "feature.txt"), "feature\n")
+	commitFixture(t, work, "Feature")
+	// A squash produces the same files on main without sharing the feature commit.
+	writeFixture(t, filepath.Join(root, "feature.txt"), "feature\n")
+	commitFixture(t, root, "Squash feature")
+	gitWorktreeFixture(t, root, "update-ref", "refs/remotes/origin/main", "HEAD")
+	gitWorktreeFixture(t, root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main")
+	d, err := readSessionDiff("claude", root, work, start)
+	if err != nil || len(d.Files) != 1 || d.Base != start || d.Reference != "origin/main" {
+		t.Fatalf("squash: %+v, %v", d, err)
+	}
+	// An existing but unrelated default branch must fall back to the saved baseline.
+	gitWorktreeFixture(t, root, "checkout", "--orphan", "unrelated")
+	commitFixture(t, root, "Unrelated root")
+	gitWorktreeFixture(t, root, "update-ref", "refs/remotes/origin/main", "HEAD")
+	d, err = readSessionDiff("claude", root, work, start)
+	if err != nil || d.Reference != "" || d.Base != start || len(d.Files) != 1 {
+		t.Fatalf("no merge base: %+v, %v", d, err)
+	}
+}

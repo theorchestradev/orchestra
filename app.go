@@ -852,3 +852,17 @@ func (a *App) RunAutomation(id string) (core.State, error) {
 	}
 	return a.store.RunAutomation(id)
 }
+
+// SessionComparison selects the branch comparison or the original worktree baseline.
+func (a *App) SessionComparison(id string, sinceStart bool) (core.SessionDiff, error) {
+	if err := a.ready(); err != nil {
+		return core.SessionDiff{}, err
+	}
+	return a.store.SessionComparison(id, sinceStart)
+}
+func (a *App) SessionBranch(id string) (string, error) {
+	if err := a.ready(); err != nil {
+		return "", err
+	}
+	return a.store.SessionBranch(id)
+}

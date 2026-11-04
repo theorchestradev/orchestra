@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted, onBeforeUnmount } from 'vue'
 import { agents, agentIcon, activityLabel, statusSessions, statusSummary, isTerminal } from '../shared/appearance'
 import { findProfile, profileName, profileSymbol } from '../shared/profiles'
 import { repositories, sessionRepository } from '../shared/workspace'
@@ -18,6 +18,36 @@ const props = defineProps({
   preferences: Object,
   update: Object,
   updateReady: Boolean,
+})
+const branch = ref(props.session?.worktreeBranch || '')
+let branchRequest = 0
+async function refreshBranch() {
+  const id = props.session?.id,
+    request = ++branchRequest
+  if (!id) return
+  try {
+    const { call } = await import('../shared/api')
+    const value = await call('SessionBranch', id)
+    if (request === branchRequest) branch.value = value
+  } catch {
+    if (request === branchRequest) branch.value = ''
+  }
+}
+watch(
+  () => props.session?.id,
+  () => {
+    branch.value = props.session?.worktreeBranch || ''
+    refreshBranch()
+  },
+)
+let branchTimer
+onMounted(() => {
+  refreshBranch()
+  branchTimer = setInterval(refreshBranch, 3000)
+})
+onBeforeUnmount(() => {
+  clearInterval(branchTimer)
+  branchRequest++
 })
 const emit = defineEmits(['inbox', 'update', 'settings', 'change'])
 const summary = computed(() => statusSummary(props.workspaces, props.runs))
@@ -133,12 +163,12 @@ const inbox = computed(() =>
               v-if="session"
               class="status-item truncate"
               :title="
-                session.worktreeBranch
-                  ? session.worktreeBranch + ' · ' + session.worktreeDirectory
+                branch
+                  ? branch + ' · ' + (session.worktreeDirectory || repository?.directory || '')
                   : 'Runs in the ' + (repository?.name || 'repository') + ' folder'
               "
               ><Icon name="arrow.triangle.branch" :size="12" /><span class="truncate">{{
-                session.worktreeBranch || 'Repository folder'
+                branch || 'Repository folder'
               }}</span></span
             ></template
           >

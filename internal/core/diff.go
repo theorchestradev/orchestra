@@ -2,6 +2,8 @@ package core
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Limits keep a huge diff from freezing the Changes pane. Files over a limit keep their
@@ -39,6 +42,8 @@ type DiffFile struct {
 // SessionDiff is what a session changed. Scope is "worktree" or "folder"; without a scope,
 // Message explains why there is nothing to compare.
 type SessionDiff struct {
+	Reference string     `json:"reference,omitempty"`
+	Branch    string     `json:"branch,omitempty"`
 	Scope     string     `json:"scope,omitempty"`
 	Message   string     `json:"message,omitempty"`
 	Directory string     `json:"directory,omitempty"`
@@ -78,18 +83,28 @@ func (s *Store) SessionFolder(id string) (string, error) {
 
 // SessionDiff only reads Git. It never starts, stops or writes to a session's process.
 func (s *Store) SessionDiff(id string) (SessionDiff, error) {
+	return s.SessionComparison(id, false)
+}
+
+func (s *Store) SessionComparison(id string, sinceStart bool) (SessionDiff, error) {
 	s.mu.Lock()
 	_, sess, repo, err := s.sessionRepositoryLocked(id)
 	if err != nil {
 		s.mu.Unlock()
 		return SessionDiff{}, err
 	}
-	agent, repositoryDirectory, worktreeDirectory, base := sess.Agent, repo.Directory, sess.WorktreeDirectory, sess.WorktreeBase
+	agent, repositoryDirectory, worktreeDirectory, base, github := sess.Agent, repo.Directory, sess.WorktreeDirectory, sess.WorktreeBase, repo.GitHub
 	s.mu.Unlock()
-	return readSessionDiff(agent, repositoryDirectory, worktreeDirectory, base)
+	reference := ""
+	if sinceStart {
+		reference = "start"
+	} else if directory, e := sessionFolder(repositoryDirectory, worktreeDirectory); e == nil && repoRE.MatchString(github) {
+		reference = openPullRequestBase(directory, github)
+	}
+	return readSessionDiff(agent, repositoryDirectory, worktreeDirectory, base, reference)
 }
 
-func readSessionDiff(agent, repositoryDirectory, worktreeDirectory, savedBase string) (SessionDiff, error) {
+func readSessionDiff(agent, repositoryDirectory, worktreeDirectory, savedBase string, references ...string) (SessionDiff, error) {
 	result := SessionDiff{Files: []DiffFile{}}
 	if agent == terminalAgent {
 		result.Message = "Terminal sessions don’t track changes. Agent sessions show what they changed here."
@@ -110,7 +125,31 @@ func readSessionDiff(agent, repositoryDirectory, worktreeDirectory, savedBase st
 		result.Message = "This folder isn’t a Git repository, so there are no changes to show."
 		return result, nil
 	}
-	base, err := diffBase(directory, repositoryDirectory, savedBase, scope)
+	reference := ""
+	if len(references) > 0 {
+		reference = references[0]
+	}
+	base := ""
+	if reference != "start" {
+		candidates := []string{reference}
+		if data, e := runCommand(directory, "git", "symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"); e == nil {
+			candidates = append(candidates, strings.TrimSpace(string(data)))
+		}
+		for _, candidate := range candidates {
+			if candidate == "" {
+				continue
+			}
+			if data, e := runCommand(directory, "git", "merge-base", "HEAD", "refs/remotes/"+candidate); e == nil {
+				base = strings.TrimSpace(string(data))
+				result.Reference = candidate
+				break
+			}
+		}
+	}
+	if base == "" {
+		base, err = diffBase(directory, repositoryDirectory, savedBase, scope)
+	}
+	result.Branch = currentBranch(directory)
 	if err != nil {
 		return SessionDiff{}, err
 	}
@@ -305,4 +344,49 @@ func readUntracked(directory string, f *DiffFile, budget int) {
 		patch.WriteString("\\ No newline at end of file\n")
 	}
 	f.Patch = patch.String()
+}
+
+// No fetch: comparisons use local remote-tracking refs and never write Git state.
+// Query every refresh so changing a PR's base or switching branches takes effect.
+func openPullRequestBase(directory, repository string) string {
+	branch, _ := sessionBranch(directory)
+	if branch == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	data, err := runCommandContext(ctx, directory, "gh", nil, "pr", "list", "--repo", repository, "--head", branch, "--state", "open", "--limit", "10", "--json", "headRefName,baseRefName,isCrossRepository")
+	if err != nil {
+		return ""
+	}
+	var prs []ghPullRequest
+	if json.Unmarshal(data, &prs) != nil {
+		return ""
+	}
+	for _, pr := range prs {
+		if pr.HeadRefName == branch && !pr.IsCrossRepository && pr.BaseRefName != "" {
+			return "origin/" + pr.BaseRefName
+		}
+	}
+	return ""
+}
+
+func currentBranch(directory string) string {
+	data, err := runCommand(directory, "git", "symbolic-ref", "--quiet", "--short", "HEAD")
+	if err == nil {
+		return strings.TrimSpace(string(data))
+	}
+	data, err = runCommand(directory, "git", "rev-parse", "--short", "HEAD")
+	if err == nil {
+		return "Detached HEAD · " + strings.TrimSpace(string(data))
+	}
+	return ""
+}
+
+func (s *Store) SessionBranch(id string) (string, error) {
+	directory, err := s.SessionFolder(id)
+	if err != nil {
+		return "", err
+	}
+	return currentBranch(directory), nil
 }

@@ -118,6 +118,7 @@ function clickTab(tab) {
   if (!ignoreTabClick) activeTab.value = tab
 }
 const markers = { add: '+', del: '-', context: ' ', note: '' }
+const sinceStart = ref(false)
 const diff = ref(null),
   error = ref(''),
   loading = ref(false),
@@ -132,14 +133,15 @@ const files = computed(() =>
   })),
 )
 const scopeLabel = computed(() =>
-  diff.value?.scope === 'worktree'
-    ? 'Since the worktree started' + (props.session.worktreeBranch ? ' · ' + props.session.worktreeBranch : '')
-    : 'Uncommitted changes in the repository folder',
+  diff.value?.reference
+    ? `Compared to ${diff.value.reference}`
+    : diff.value?.scope === 'worktree'
+      ? 'Since the worktree started'
+      : 'Uncommitted changes in the repository folder',
 )
-const scopeDetail = computed(() =>
-  diff.value?.scope === 'worktree'
-    ? `Commits and uncommitted changes in ${diff.value.directory}, compared with ${diff.value.base.slice(0, 12)}.`
-    : `Changes in ${diff.value?.directory} compared with HEAD. Other sessions in this folder share these changes.`,
+const scopeDetail = computed(
+  () =>
+    `Commits and uncommitted changes on ${diff.value?.branch || 'HEAD'} in ${diff.value?.directory}, compared with ${diff.value?.base?.slice(0, 12)}. Remote references are local; refresh them outside Orchestra when needed.`,
 )
 function remembered(id = props.session.id) {
   if (!memory.has(id)) memory.set(id, { scroll: 0, collapsed: new Map() })
@@ -152,13 +154,14 @@ function toggle(file, value = !collapsed(file)) {
   remembered().collapsed = overrides.value
 }
 let request = 0,
-  activityTimer
+  activityTimer,
+  comparisonTimer
 async function refresh() {
   const id = props.session.id,
     current = ++request
   loading.value = true
   try {
-    const result = await call('SessionDiff', id)
+    const result = await call('SessionComparison', id, sinceStart.value)
     if (current !== request) return
     const scroll = diff.value ? scroller.value?.scrollTop : remembered(id).scroll
     const paths = new Set((result.files || []).map((f) => f.path))
@@ -258,10 +261,14 @@ watch([() => props.session.activity, () => props.session.running], () => {
 onMounted(() => {
   overrides.value = remembered().collapsed
   refresh()
+  comparisonTimer = setInterval(() => {
+    if (!loading.value && activeTab.value === 'Changes') refresh()
+  }, 15000)
 })
 onBeforeUnmount(() => {
   saveScroll()
   clearTimeout(activityTimer)
+  clearInterval(comparisonTimer)
   dragCleanup?.()
 })
 </script>
@@ -334,6 +341,15 @@ onBeforeUnmount(() => {
       <p v-if="activeTab === 'Changes' && diff?.scope" class="muted caption truncate" :title="scopeDetail">
         {{ scopeLabel }}
       </p>
+      <div v-if="activeTab === 'Changes' && diff?.scope" class="theme-select general-select">
+        <select v-model="sinceStart" aria-label="Changes comparison" @change="refresh">
+          <option :value="false">Branch changes</option>
+          <option :value="true">
+            {{ session.worktreeDirectory ? 'Since the worktree started' : 'Uncommitted changes' }}
+          </option>
+        </select>
+        <Icon name="chevron.up.chevron.down" :size="10" />
+      </div>
       <p v-if="activeTab === 'Changes' && diff?.scope" class="diff-totals caption" aria-live="polite">
         {{ files.length }} {{ files.length === 1 ? 'file' : 'files' }}
         <span class="diff-additions">+{{ diff.additions }}</span>
@@ -383,11 +399,7 @@ onBeforeUnmount(() => {
       <div v-else-if="!files.length" class="diff-empty">
         <Icon name="checkmark.circle" :size="28" />
         <p>
-          {{
-            diff.scope === 'worktree'
-              ? 'No changes since the worktree started.'
-              : 'No uncommitted changes in the repository folder.'
-          }}
+          {{ 'No changes in this comparison.' }}
         </p>
       </div>
       <div v-else ref="scroller" class="diff-scroller" @keydown="navigate" @scroll.passive="saveScroll()">
