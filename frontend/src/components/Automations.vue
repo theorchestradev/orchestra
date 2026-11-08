@@ -245,7 +245,7 @@ function schedule(item) {
     <p v-if="notice" class="automation-notice" role="status">{{ notice }}</p>
     <div class="automation-list" :aria-busy="busy">
       <div v-if="!state.automations?.length" class="automation-empty">
-        <Icon name="clock" :size="36" />
+        <Icon name="bot" :size="36" />
         <h2>No automations yet</h2>
         <p>
           {{

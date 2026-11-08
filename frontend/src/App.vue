@@ -1262,7 +1262,7 @@ onBeforeUnmount(() => {
           :aria-current="globalView === 'automations' ? 'page' : undefined"
           @click="openAutomations"
         >
-          <Icon name="clock" :size="15" /><span>Automations</span>
+          <Icon name="bot" :size="15" /><span>Automations</span>
         </button>
       </nav>
       <div v-if="!preferences.arcMode" class="sidebar-heading">

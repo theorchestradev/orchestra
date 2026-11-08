@@ -77,7 +77,7 @@ export function commandItems({
     },
     workspace && { id: 'terminal', group: 'Create', name: 'New Terminal', icon: 'terminal' },
     { id: 'workspace', group: 'Create', name: 'New Workspace…', icon: 'folder', shortcut: shortcut('workspace') },
-    { id: 'automations', group: 'App', name: 'Automations…', icon: 'clock' },
+    { id: 'automations', group: 'App', name: 'Automations…', icon: 'bot' },
     { id: 'settings', group: 'App', name: 'Settings…', icon: 'gearshape', shortcut: shortcut('settings') },
     {
       id: 'statusBar',
