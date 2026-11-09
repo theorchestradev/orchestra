@@ -134,17 +134,20 @@ every event and how to disable it.
 
 [MIT](LICENSE)
 
-### Create sessions from the CLI
+### Manage sessions from the CLI
 
-From an Orchestra terminal session, create another session in the same workspace:
+From an Orchestra terminal session, create, rename or close a session:
 
 ```sh
 orchestra session create --agent codex --model gpt-6.1-sol --name "Review" --prompt "Review the repository"
+orchestra session rename SESSION_ID --name "Code review" [--workspace ID_OR_NAME]
+orchestra session close SESSION_ID [--workspace ID_OR_NAME]
 ```
 
 `--workspace ID_OR_NAME` selects another workspace by ID or exact, case-sensitive
-name. Ambiguous names require an ID; unknown workspaces fail. This option only applies
-to session creation; inbox, requests, session list and Scratchpad keep their original scope.
+name. Ambiguous names require an ID; unknown workspaces fail. This option applies
+to session creation, renaming and closing; inbox, requests, session list and Scratchpad keep their original scope.
+`session close` stops the process and removes the session, preserving its worktree.
 Without `--repository`, the same workspace inherits the calling session's repository;
 another workspace uses the last New Session repository, or the first available.
 

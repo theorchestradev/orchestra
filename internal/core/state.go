@@ -594,6 +594,10 @@ func (s *Store) RemoveWorkspace(id string) (State, error) {
 func (s *Store) Rename(id, name string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.renameLocked(id, name)
+}
+
+func (s *Store) renameLocked(id, name string) (State, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return State{}, errors.New("Enter a name.")
@@ -1173,6 +1177,10 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 func (s *Store) CloseSession(id string, removeWorktree bool) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.closeSessionLocked(id, removeWorktree)
+}
+
+func (s *Store) closeSessionLocked(id string, removeWorktree bool) (State, error) {
 	p, sess, err := s.sessionLocked(id)
 	if err != nil {
 		return State{}, err

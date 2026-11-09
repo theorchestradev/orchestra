@@ -19,6 +19,8 @@ Sessions and the inbox:
 ```sh
 orchestra session list                      # sessions in this workspace, with their IDs, repositories, models and status
 orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--workspace ID_OR_NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
+orchestra session rename SESSION_ID --name NAME [--workspace ID_OR_NAME]
+orchestra session close SESSION_ID [--workspace ID_OR_NAME] # stop and remove a session; keep its worktree
 orchestra session inbox                     # claim the next request sent to you
 orchestra session read SESSION_ID [--before REQUEST_ID]   # request history with a session
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -122,7 +124,7 @@ them.
   and some agents refuse one.
 - `--workspace ID_OR_NAME` selects a workspace by ID or exact, case-sensitive name.
   Duplicate names are rejected; use an ID to disambiguate. Unknown workspaces fail.
-  This option applies only to creation: inbox, session list, requests and Scratchpad
+  This option also applies to session rename and close: inbox, session list, requests and Scratchpad
   remain scoped to your calling workspace.
 - `--repository ID` must belong to the target workspace. Without it, creation in your
   own workspace inherits your session's repository; in another workspace it uses the

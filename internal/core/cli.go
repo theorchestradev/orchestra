@@ -29,6 +29,8 @@ var Version = "dev"
 var cliOptions = map[string][]string{
 	"session.create":    {"--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--name", "--workspace", "--repository", "--worktree", "--branch", "--base", "--request-id", "--start"},
 	"session.list":      nil,
+	"session.rename":    {"--name", "--workspace"},
+	"session.close":     {"--workspace"},
 	"session.inbox":     nil,
 	"session.request":   {"--text", "--file", "--request-id"},
 	"session.read":      {"--before"},
@@ -47,6 +49,8 @@ orchestra guide
 orchestra --version
 orchestra session list
 orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--workspace ID_OR_NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
+orchestra session rename SESSION_ID --name NAME [--workspace ID_OR_NAME]
+orchestra session close SESSION_ID [--workspace ID_OR_NAME]
 orchestra session inbox
 orchestra session read SESSION_ID [--before REQUEST_ID]
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -65,8 +69,9 @@ orchestra guide prints a guide for agents and works anywhere. Other commands
 run from an Orchestra terminal session while the app is open.
 session create defaults to the calling session's workspace. --workspace selects a workspace
 by ID or exact name; ambiguous names need an ID. --repository must belong to that workspace.
-Other commands stay in the calling workspace. It starts the agent only
-with --start, which needs Let Agents Start Sessions turned on in Settings. --worktree gives
+session rename and session close also accept --workspace; other commands stay in the calling
+workspace. session close stops the process and removes the session, keeping its worktree.
+session create starts the agent only with --start, which needs Let Agents Start Sessions turned on in Settings. --worktree gives
 the session its own branch and folder, and a repeated --request-id returns the same session.
 Receiving messages never starts an agent or injects terminal input.
 `
@@ -292,6 +297,9 @@ func runCLI(args []string, out io.Writer) error {
 			}
 			timeout = duration
 		}
+	}
+	if method == "session.rename" && strings.TrimSpace(request.Name) == "" {
+		return errors.New("Use --name with a non-empty session name.")
 	}
 	if method == "session.create" && request.Agent == "" {
 		return errors.New("Use --agent to create a session.")

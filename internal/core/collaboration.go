@@ -517,7 +517,7 @@ func (c *Collaboration) authorizedLocked(req WireRequest) error {
 	return nil
 }
 
-// createWorkspaceLocked resolves only session.create's destination. IDs take precedence.
+// createWorkspaceLocked resolves the workspace selected by session commands. IDs take precedence.
 func (c *Collaboration) createWorkspaceLocked(p *Workspace, selector string) (*Workspace, error) {
 	if selector == "" {
 		return p, nil
@@ -655,8 +655,8 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	if req.Workspace != "" && req.Method != "session.create" {
-		return nil, errors.New("Workspace selection is only supported by session create.")
+	if req.Workspace != "" && req.Method != "session.create" && req.Method != "session.rename" && req.Method != "session.close" {
+		return nil, errors.New("Workspace selection is only supported by session create, rename and close.")
 	}
 	switch req.Method {
 	case "session.create":
@@ -665,6 +665,21 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 			return nil, err
 		}
 		return c.createSessionLocked(p, req)
+	case "session.rename", "session.close":
+		p, err = c.createWorkspaceLocked(p, req.Workspace)
+		if err != nil {
+			return nil, err
+		}
+		q, _, err := c.store.sessionLocked(req.Target)
+		if err != nil || p != q {
+			return nil, errors.New("Session unavailable in this workspace.")
+		}
+		if req.Method == "session.rename" {
+			_, err = c.store.renameLocked(req.Target, req.Name)
+		} else {
+			_, err = c.store.closeSessionLocked(req.Target, false)
+		}
+		return map[string]any{"ok": err == nil, "id": req.Target}, err
 	case "session.list":
 		sessions := []map[string]string{}
 		for _, sess := range p.Sessions {
