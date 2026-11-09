@@ -18,7 +18,7 @@ Sessions and the inbox:
 
 ```sh
 orchestra session list                      # sessions in this workspace, with their IDs, repositories, models and status
-orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
+orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--workspace ID_OR_NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
 orchestra session inbox                     # claim the next request sent to you
 orchestra session read SESSION_ID [--before REQUEST_ID]   # request history with a session
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -111,7 +111,7 @@ If the write is rejected because the revision changed, read again, merge and ret
 orchestra session create --agent claude --model opus --effort high --prompt-file task.md --name "Review" --worktree
 ```
 
-This creates a session in your workspace and returns its JSON. It inherits your account
+This creates a session in your workspace by default and returns its JSON. It inherits your account
 profile and saves the initial prompt. Never create sessions unless the user asked for
 them.
 
@@ -120,8 +120,14 @@ them.
   gave you or one you know exists.
 - `--prompt TEXT`, `--prompt-file PATH` or `--stdin` supply the prompt. It is optional,
   and some agents refuse one.
-- `--repository ID` chooses another repository in the same workspace. `orchestra session
-  list` shows the `repositoryID` of each session.
+- `--workspace ID_OR_NAME` selects a workspace by ID or exact, case-sensitive name.
+  Duplicate names are rejected; use an ID to disambiguate. Unknown workspaces fail.
+  This option applies only to creation: inbox, session list, requests and Scratchpad
+  remain scoped to your calling workspace.
+- `--repository ID` must belong to the target workspace. Without it, creation in your
+  own workspace inherits your session's repository; in another workspace it uses the
+  last repository chosen in New Session, or the first repository if none is available.
+  `orchestra session list` shows repository IDs only in your calling workspace.
 - `--worktree` gives the session its own branch and folder. Use it whenever the session
   will change files; without it, the session works in the repository's main folder, not
   in your worktree. `--branch NAME` names the branch. `--base REF` is where it starts, by

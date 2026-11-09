@@ -142,6 +142,12 @@ From an Orchestra terminal session, create another session in the same workspace
 orchestra session create --agent codex --model gpt-6.1-sol --name "Review" --prompt "Review the repository"
 ```
 
+`--workspace ID_OR_NAME` selects another workspace by ID or exact, case-sensitive
+name. Ambiguous names require an ID; unknown workspaces fail. This option only applies
+to session creation; inbox, requests, session list and Scratchpad keep their original scope.
+Without `--repository`, the same workspace inherits the calling session's repository;
+another workspace uses the last New Session repository, or the first available.
+
 `--model` and `--effort` choose how the agent launches, and `--prompt-file PATH` or
 `--stdin` can supply the prompt instead. `--repository ID` chooses another repository in
 that workspace, and `--worktree`, with optional `--branch` and `--base`, gives the

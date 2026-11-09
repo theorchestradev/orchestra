@@ -27,7 +27,7 @@ var Version = "dev"
 
 // cliOptions lists each command's options, so a misplaced one fails instead of being ignored.
 var cliOptions = map[string][]string{
-	"session.create":    {"--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--name", "--repository", "--worktree", "--branch", "--base", "--request-id", "--start"},
+	"session.create":    {"--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--name", "--workspace", "--repository", "--worktree", "--branch", "--base", "--request-id", "--start"},
 	"session.list":      nil,
 	"session.inbox":     nil,
 	"session.request":   {"--text", "--file", "--request-id"},
@@ -46,7 +46,7 @@ const cliHelp = `Orchestra session messaging
 orchestra guide
 orchestra --version
 orchestra session list
-orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
+orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--workspace ID_OR_NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
 orchestra session inbox
 orchestra session read SESSION_ID [--before REQUEST_ID]
 orchestra session request SESSION_ID --text TEXT [--request-id UUID]
@@ -63,7 +63,9 @@ that write --if-revision expects. append adds the text on a new line.
 
 orchestra guide prints a guide for agents and works anywhere. Other commands
 run from an Orchestra terminal session while the app is open.
-session create adds a session in the calling session's workspace. It starts the agent only
+session create defaults to the calling session's workspace. --workspace selects a workspace
+by ID or exact name; ambiguous names need an ID. --repository must belong to that workspace.
+Other commands stay in the calling workspace. It starts the agent only
 with --start, which needs Let Agents Start Sessions turned on in Settings. --worktree gives
 the session its own branch and folder, and a repeated --request-id returns the same session.
 Receiving messages never starts an agent or injects terminal input.
@@ -238,6 +240,11 @@ func runCLI(args []string, out io.Writer) error {
 			request.Effort = value
 		case "--name":
 			request.Name = value
+		case "--workspace":
+			if value == "" {
+				return errors.New("The workspace must be an ID or exact name.")
+			}
+			request.Workspace = value
 		case "--repository":
 			request.RepositoryID = value
 		case "--branch":

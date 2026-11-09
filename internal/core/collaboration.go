@@ -37,6 +37,7 @@ type Run struct {
 func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "running" }
 
 type WireRequest struct {
+	Workspace    string `json:"workspace,omitempty"`
 	Agent        string `json:"agent,omitempty"`
 	Model        string `json:"model,omitempty"`
 	Effort       string `json:"effort,omitempty"`
@@ -516,6 +517,42 @@ func (c *Collaboration) authorizedLocked(req WireRequest) error {
 	return nil
 }
 
+// createWorkspaceLocked resolves only session.create's destination. IDs take precedence.
+func (c *Collaboration) createWorkspaceLocked(p *Workspace, selector string) (*Workspace, error) {
+	if selector == "" {
+		return p, nil
+	}
+	if target, err := c.store.workspaceLocked(selector); err == nil {
+		return target, nil
+	}
+	var target *Workspace
+	for _, workspace := range c.store.state.Workspaces {
+		if workspace.Name == selector {
+			if target != nil {
+				return nil, fmt.Errorf("Workspace name %q is ambiguous. Use --workspace with a workspace ID.", selector)
+			}
+			target = workspace
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("Workspace %q does not exist. Use a workspace ID or exact name.", selector)
+	}
+	return target, nil
+}
+
+// Inherit the source repository only when creating in the same workspace.
+func createRepositoryID(p *Workspace, source *Session, req WireRequest) string {
+	if req.RepositoryID != "" {
+		return req.RepositoryID
+	}
+	for _, session := range p.Sessions {
+		if session.ID == source.ID {
+			return source.RepositoryID
+		}
+	}
+	return ""
+}
+
 // updateMainForWorktree keeps local main up to date before session.create branches from it.
 // Fetching can be slow, so like CreateSession it runs outside the Store lock.
 func (c *Collaboration) updateMainForWorktree(req WireRequest) {
@@ -523,12 +560,11 @@ func (c *Collaboration) updateMainForWorktree(req WireRequest) {
 	c.store.mu.Lock()
 	if c.authorizedLocked(req) == nil && c.store.state.Preferences.KeepLocalMainUpdated {
 		if p, source, err := c.store.sessionLocked(req.Source); err == nil {
-			id := req.RepositoryID
-			if id == "" {
-				id = source.RepositoryID
-			}
-			if repo, err := c.store.repositoryLocked(p, id); err == nil {
-				directory = repo.Directory
+			p, err = c.createWorkspaceLocked(p, req.Workspace)
+			if err == nil {
+				if repo, err := c.store.newSessionRepositoryLocked(p, createRepositoryID(p, source, req)); err == nil {
+					directory = repo.Directory
+				}
 			}
 		}
 	}
@@ -543,6 +579,11 @@ func (c *Collaboration) updateMainForWorktree(req WireRequest) {
 // createSessionLocked handles session.create. A repeated request ID returns the session it
 // created, so a retry after a timeout never makes a second one.
 func (c *Collaboration) createSessionLocked(p *Workspace, req WireRequest) (*Session, error) {
+	if req.RepositoryID != "" {
+		if _, err := c.store.repositoryLocked(p, req.RepositoryID); err != nil {
+			return nil, err
+		}
+	}
 	if _, ok := agentSpecs[req.Agent]; !ok {
 		return nil, fmt.Errorf("Unknown agent %q. Use one of: %s.", req.Agent, strings.Join(slices.Sorted(maps.Keys(agentSpecs)), ", "))
 	}
@@ -584,10 +625,7 @@ func (c *Collaboration) createSessionLocked(p *Workspace, req WireRequest) (*Ses
 		if err != nil {
 			return nil, err
 		}
-		repositoryID := req.RepositoryID
-		if repositoryID == "" {
-			repositoryID = source.RepositoryID
-		}
+		repositoryID := createRepositoryID(p, source, req)
 		if _, err = c.store.createSessionLocked(p.ID, repositoryID, req.Agent, req.Name, req.Text, req.Worktree, nil, req.Model, req.Effort, source.ProfileID, "", req.Branch, req.Base, false); err != nil {
 			return nil, err
 		}
@@ -617,8 +655,15 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if req.Workspace != "" && req.Method != "session.create" {
+		return nil, errors.New("Workspace selection is only supported by session create.")
+	}
 	switch req.Method {
 	case "session.create":
+		p, err = c.createWorkspaceLocked(p, req.Workspace)
+		if err != nil {
+			return nil, err
+		}
 		return c.createSessionLocked(p, req)
 	case "session.list":
 		sessions := []map[string]string{}
