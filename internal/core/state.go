@@ -110,6 +110,8 @@ type Workspace struct {
 	Sessions                 []*Session `json:"sessions"`
 }
 type Preferences struct {
+	// ManualErrorDismiss keeps error toasts visible until dismissed; the zero value expires them after five seconds.
+	ManualErrorDismiss  bool   `json:"manualErrorDismiss"`
 	TelemetryEnabled    bool   `json:"telemetryEnabled"`
 	TelemetryChoiceMade bool   `json:"telemetryChoiceMade"`
 	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`

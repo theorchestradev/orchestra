@@ -4,6 +4,7 @@ import { statusBarGroups } from './statusBar.js'
 // Search destinations for controls in Settings. Keep labels aligned with the visible controls.
 export const settingsSearchItems = [
   ['General', 'Startup View', 'startup-view'],
+  ['General', 'Dismiss Errors Manually', 'manualErrorDismiss'],
   ['General', 'Keep Sessions Running After Quitting', 'keepSessionsRunning'],
   ['General', 'Keep Computer Awake While Sessions Run', 'keepAwake'],
   ['General', 'GitHub Auto Refresh', 'github-refresh'],

@@ -98,6 +98,7 @@ const appState = ref({
     usageDetailed: false,
     keepLocalMainUpdated: false,
     keepSessionsRunning: false,
+    manualErrorDismiss: false,
     keepAwake: false,
   },
 })
@@ -258,6 +259,18 @@ async function chooseTelemetry(enabled) {
 watch(error, (value) => {
   if (value) track('error_shown', { code: 'operation_failed' })
 })
+// Restart the timeout for each error and cancel it when manual dismissal is enabled.
+watch(
+  [error, () => appState.value.error, () => preferences.value.manualErrorDismiss],
+  ([localError, stateError, manual], _, onCleanup) => {
+    if (manual || !(localError || stateError)) return
+    const timer = setTimeout(() => {
+      error.value = ''
+      appState.value.error = ''
+    }, 5000)
+    onCleanup(() => clearTimeout(timer))
+  },
+)
 // Custom themes are read again whenever a theme picker opens or the window gains focus.
 const themeErrors = ref([]),
   themeDirectory = ref(''),

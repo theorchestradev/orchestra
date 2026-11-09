@@ -66,6 +66,7 @@ let state = {
     usageDetailed: false,
     keepLocalMainUpdated: false,
     keepSessionsRunning: false,
+    manualErrorDismiss: false,
     keepAwake: false,
     betaUpdates: false,
   },

@@ -228,6 +228,11 @@ if (!mac)
           <div
             v-for="setting in [
               {
+                key: 'manualErrorDismiss',
+                label: 'Dismiss Errors Manually',
+                description: 'Keep error messages visible until you close them. Off: dismiss after 5 seconds.',
+              },
+              {
                 key: 'confirmQuit',
                 label: 'Confirm Before Quitting',
                 description: 'Ask before quitting while sessions are running.',
