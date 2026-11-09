@@ -4,6 +4,23 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.23.0 — 2026-11-09
+
+### New
+
+- **Manage sessions from the CLI.** Rename a session with `orchestra session
+  rename SESSION_ID --name NAME`, or stop and remove it with `orchestra session
+  close SESSION_ID`. Closing a session preserves its worktree.
+- **Choose a workspace from the CLI.** Session creation, renaming and closing
+  accept `--workspace ID_OR_NAME`, using a workspace ID or exact name. Ambiguous
+  names require an ID. Creating a session in another workspace uses that
+  workspace's last New Session repository, or its first available repository,
+  unless `--repository` is supplied.
+
+### Changed
+
+- Automations uses a robot icon in the sidebar, page header and command bar.
+
 ## 0.22.0 — 2026-11-04
 
 ### New
