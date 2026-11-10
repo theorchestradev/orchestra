@@ -758,6 +758,14 @@ input::placeholder {
   z-index: 6;
   --wails-draggable: no-drag;
 }
+.sidebar-resizer:hover,
+.diff-resizer:hover {
+  background: linear-gradient(
+      color-mix(in srgb, var(--muted) 45%, transparent),
+      color-mix(in srgb, var(--muted) 45%, transparent)
+    )
+    center / 1px 100% no-repeat;
+}
 .diff-resizer:focus-visible {
   outline: none;
   background: var(--accent);
