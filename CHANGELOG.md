@@ -4,6 +4,24 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.24.0 — 2026-11-09
+
+### New
+
+- **Start automations from templates.** Choose from six ready-made schedules for
+  repository reviews, bug finding, test coverage, weekly changelogs, documentation
+  checks and dependency health. Customize the prompt and schedule before saving.
+- **Keep errors visible when needed.** Enable Dismiss Errors Manually in Settings
+  to keep error messages open until you close them.
+
+### Changed
+
+- Error messages dismiss automatically after five seconds by default.
+- Automation editor controls now match Settings, and the empty state provides
+  templates alongside the option to create an automation from scratch.
+- Window resize borders have clearer hover highlights.
+- Updated Vite to 6.4.5.
+
 ## 0.23.0 — 2026-11-09
 
 ### New
