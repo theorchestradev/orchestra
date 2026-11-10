@@ -111,6 +111,71 @@ watch(
     if (!visible) draft.value = null
   },
 )
+const templates = [
+  {
+    name: 'Morning repository review',
+    icon: 'sun.max',
+    description: 'Start the day with recent changes, risks and next steps.',
+    days: [1, 2, 3, 4, 5],
+    time: '09:00',
+    prompt:
+      'Review repository activity from the last day. Summarize the main changes, flag potential regressions and suggest the most useful next steps. Include file references where relevant. Do not modify files.',
+  },
+  {
+    name: 'Find potential bugs',
+    icon: 'magnifyingglass',
+    description: 'Look through recent changes for bugs worth investigating.',
+    days: [1, 2, 3, 4, 5],
+    time: '10:00',
+    prompt:
+      'Inspect recent commits for concrete bugs and regressions. Trace the affected code paths and report actionable findings with file references, impact and suggested fixes. Prioritize evidence over speculation. Do not modify files.',
+  },
+  {
+    name: 'Review test coverage',
+    icon: 'checkmark.circle',
+    description: 'Spot important behaviors that need better tests.',
+    days: [1],
+    time: '09:00',
+    prompt:
+      'Review recent code changes and their tests. Identify important behaviors and edge cases that are not covered. Suggest a short prioritized list of meaningful tests, explaining what each would catch. Do not modify files.',
+  },
+  {
+    name: 'Weekly changelog',
+    icon: 'note.text',
+    description: 'Turn this week’s commits into a readable release summary.',
+    days: [5],
+    time: '16:00',
+    prompt:
+      'Summarize the last seven days of commits as a draft changelog. Group user-visible changes into features, improvements and fixes, and link to relevant commits. Call out breaking changes if any. Do not modify files or publish anything.',
+  },
+  {
+    name: 'Documentation check',
+    icon: 'book',
+    description: 'Find documentation that no longer matches the code.',
+    days: [3],
+    time: '09:00',
+    prompt:
+      'Compare recent code changes with the repository documentation. Find outdated instructions, missing configuration details and examples that no longer match the implementation. Report specific documentation updates with file references. Do not modify files.',
+  },
+  {
+    name: 'Dependency health check',
+    icon: 'shield',
+    description: 'Review dependencies for maintenance and security concerns.',
+    days: [1],
+    time: '10:00',
+    prompt:
+      'Review dependency manifests and lockfiles for maintenance and security concerns. Use available audit tools without installing or updating dependencies. Report confirmed issues, evidence and practical next steps, and clearly note anything you could not verify. Do not modify files.',
+  },
+]
+function useTemplate(template) {
+  edit()
+  Object.assign(draft.value, {
+    name: template.name,
+    prompt: template.prompt,
+    days: [...template.days],
+    time: template.time,
+  })
+}
 const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const frequency = ref('weekly')
 const workspace = computed(() => props.state.workspaces.find((p) => p.id === draft.value?.workspaceID))
@@ -224,7 +289,7 @@ function schedule(item) {
         <Icon name="plus" :size="13" />New Automation
       </button>
     </header>
-    <div class="automations-toolbar">
+    <div v-if="state.automations?.length" class="automations-toolbar">
       <label class="automation-search"
         ><Icon name="magnifyingglass" :size="14" /><input
           v-model="query"
@@ -235,26 +300,45 @@ function schedule(item) {
           autocapitalize="off"
           spellcheck="false"
       /></label>
-      <select v-model="filter" aria-label="Filter automations">
-        <option value="all">All automations</option>
-        <option value="enabled">Enabled</option>
-        <option value="disabled">Disabled</option>
-      </select>
+      <div class="theme-select general-select">
+        <select v-model="filter" aria-label="Filter automations">
+          <option value="all">All automations</option>
+          <option value="enabled">Enabled</option>
+          <option value="disabled">Disabled</option></select
+        ><Icon name="chevron.up.chevron.down" :size="10" />
+      </div>
     </div>
     <p v-if="error && !draft" class="error" role="alert">{{ error }}</p>
     <p v-if="notice" class="automation-notice" role="status">{{ notice }}</p>
-    <div class="automation-list" :aria-busy="busy">
+    <div class="automation-list" :class="{ 'is-empty': !state.automations?.length }" :aria-busy="busy">
       <div v-if="!state.automations?.length" class="automation-empty">
         <Icon name="bot" :size="36" />
         <h2>No automations yet</h2>
         <p>
           {{
             state.workspaces.length
-              ? 'Choose an agent, write a prompt and schedule its next run.'
+              ? 'Put recurring work on autopilot. Start with a template or create your own.'
               : 'Add a workspace to create your first automation.'
           }}
         </p>
-        <button class="standard-button" :disabled="!state.workspaces.length" @click="edit()">Create Automation</button>
+        <button class="standard-button" :disabled="!state.workspaces.length || busy" @click="edit()">
+          Create from Scratch
+        </button>
+        <div class="automation-template-heading">Templates</div>
+        <div class="automation-templates" aria-label="Automation templates">
+          <button
+            v-for="template in templates"
+            :key="template.name"
+            class="automation-template"
+            :disabled="!state.workspaces.length || busy"
+            @click="useTemplate(template)"
+          >
+            <Icon :name="template.icon" :size="19" />
+            <span class="automation-template-name">{{ template.name }}</span>
+            <span class="automation-template-description">{{ template.description }}</span>
+            <span class="automation-template-schedule"><Icon name="clock" :size="12" />{{ schedule(template) }}</span>
+          </button>
+        </div>
       </div>
       <div v-else-if="!filtered.length" class="automation-empty">
         <Icon name="magnifyingglass" :size="30" />
@@ -344,11 +428,13 @@ function schedule(item) {
               <div class="automation-trigger-card">
                 <div class="automation-trigger-line">
                   <Icon name="clock" :size="18" />
-                  <select v-model="frequency" aria-label="Schedule" class="automation-token">
-                    <option value="once">Once</option>
-                    <option value="daily">Every day</option>
-                    <option value="weekly">Selected weekdays</option>
-                  </select>
+                  <div class="theme-select general-select automation-schedule-picker">
+                    <select v-model="frequency" aria-label="Schedule">
+                      <option value="once">Once</option>
+                      <option value="daily">Every day</option>
+                      <option value="weekly">Selected weekdays</option></select
+                    ><Icon name="chevron.up.chevron.down" :size="10" />
+                  </div>
                   <span>at</span
                   ><input v-model="draft.time" type="time" aria-label="Time" class="automation-token" required />
                 </div>
@@ -370,25 +456,32 @@ function schedule(item) {
               <div class="automation-action-card">
                 <label
                   >Agent
-                  <div class="automation-agent-picker">
+                  <div class="theme-select automation-agent-picker">
                     <img :src="agentIcon(draft.agent, appearance)" alt="" /><select v-model="draft.agent" required>
-                      <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option>
-                    </select>
-                  </div></label
-                >
+                      <option v-for="agent in agents" :key="agent.id" :value="agent.id">
+                        {{ agent.name }}
+                      </option></select
+                    ><Icon name="chevron.up.chevron.down" :size="10" /></div
+                ></label>
                 <div class="automation-context-fields">
                   <label
-                    >Workspace<select v-model="draft.workspaceID" required @change="chooseRepository">
-                      <option v-for="p in state.workspaces" :key="p.id" :value="p.id">{{ workspaceTitle(p) }}</option>
-                    </select></label
-                  >
+                    >Workspace
+                    <div class="theme-select general-select">
+                      <select v-model="draft.workspaceID" required @change="chooseRepository">
+                        <option v-for="p in state.workspaces" :key="p.id" :value="p.id">
+                          {{ workspaceTitle(p) }}
+                        </option></select
+                      ><Icon name="chevron.up.chevron.down" :size="10" /></div
+                  ></label>
                   <label
-                    >Repository<select v-model="draft.repositoryID" required>
-                      <option v-for="repo in repositories(workspace)" :key="repo.id" :value="repo.id">
-                        {{ repo.name || repo.directory }}
-                      </option>
-                    </select></label
-                  >
+                    >Repository
+                    <div class="theme-select general-select">
+                      <select v-model="draft.repositoryID" required>
+                        <option v-for="repo in repositories(workspace)" :key="repo.id" :value="repo.id">
+                          {{ repo.name || repo.directory }}
+                        </option></select
+                      ><Icon name="chevron.up.chevron.down" :size="10" /></div
+                  ></label>
                 </div>
                 <label
                   >Prompt<textarea
@@ -404,7 +497,21 @@ function schedule(item) {
                 <p class="automation-step-help">Creates a new session using the workspace profile.</p>
               </div>
             </fieldset>
-            <label class="enabled"><input v-model="draft.enabled" type="checkbox" />Enabled</label>
+            <div class="automation-enabled">
+              <label for="automation-enabled">Enabled</label>
+              <button
+                id="automation-enabled"
+                type="button"
+                class="switch"
+                :class="{ on: draft.enabled }"
+                role="switch"
+                :aria-checked="!!draft.enabled"
+                aria-label="Enabled"
+                @click="draft.enabled = !draft.enabled"
+              >
+                <span />
+              </button>
+            </div>
           </fieldset>
           <footer>
             <button type="button" class="standard-button" :disabled="busy" @click="cancel">Cancel</button>
@@ -484,16 +591,68 @@ function schedule(item) {
   width: 100%;
   min-width: 0;
 }
-.automations-toolbar select {
-  width: auto;
-  max-width: 100%;
-  padding: 7px 10px;
-}
 .automation-list {
   flex: 1;
   min-height: 0;
   overflow: auto;
   border-top: 1px solid var(--rule);
+}
+.automation-list.is-empty {
+  border-top: 0;
+}
+.automation-templates {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0;
+}
+.automation-template-heading {
+  width: 100%;
+  max-width: 1080px;
+  margin-top: 28px;
+  text-align: left;
+  color: var(--muted);
+  font-size: 12px;
+}
+.automation-template {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.automation-template:not(:disabled):hover {
+  border-color: var(--accent);
+  background: var(--selection);
+}
+.automation-template:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.automation-template-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.automation-template-description,
+.automation-template-schedule {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.automation-template-schedule {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: auto;
+  padding-top: 4px;
 }
 .automation-row {
   display: grid;
@@ -652,19 +811,25 @@ function schedule(item) {
   color: var(--muted);
   flex-shrink: 0;
 }
+.automation-editor .theme-select {
+  width: 100%;
+  min-width: 0;
+}
+.automation-trigger-line .automation-schedule-picker {
+  width: 190px;
+  max-width: 100%;
+  flex-shrink: 1;
+}
 .automation-trigger-line .automation-token {
   width: auto;
-  max-width: 100%;
   min-width: 0;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
-  border-color: transparent;
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-weight: 500;
-}
-.automation-token:hover:not(:disabled) {
-  border-color: var(--accent);
+  max-width: 100%;
+  color: var(--text);
+  background: var(--canvas);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font: inherit;
 }
 .automation-action-card {
   display: grid;
@@ -675,15 +840,14 @@ function schedule(item) {
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
 }
-.automation-agent-picker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .automation-agent-picker img {
-  width: 22px;
-  height: 22px;
+  width: 18px;
+  height: 18px;
   flex-shrink: 0;
+  pointer-events: none;
+}
+.automation-agent-picker select {
+  padding-left: 36px;
 }
 .automation-date {
   max-width: 240px;
@@ -716,8 +880,13 @@ function schedule(item) {
   margin-top: 20px;
   flex-wrap: wrap;
 }
-.automation-editor .weekdays label,
-.automation-editor .enabled {
+.automation-enabled {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.automation-editor .weekdays label {
   flex-direction: row;
 }
 .weekdays legend {
@@ -729,7 +898,6 @@ fieldset {
   margin: 0;
   min-width: 0;
 }
-select,
 textarea {
   width: 100%;
   background: var(--surface);
@@ -746,14 +914,12 @@ textarea {
   flex-wrap: wrap;
   gap: 10px;
 }
-.weekdays label,
-.enabled {
+.weekdays label {
   display: flex;
   align-items: center;
   gap: 5px;
 }
-.weekdays input,
-.enabled input {
+.weekdays input {
   width: auto;
   margin: 0;
 }

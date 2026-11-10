@@ -56,6 +56,23 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     app.mount('#root')
     const flush = () => new Promise((resolve) => setImmediate(resolve))
     const button = (name) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name)
+    assert.equal(document.querySelector('[aria-label="Search automations"]'), null)
+    const templates = [...document.querySelectorAll('.automation-template')]
+    assert.equal(templates.length, 6)
+    for (const template of templates) {
+      template.click()
+      await flush()
+      assert.equal(
+        document.querySelector('form input:not([type])').value,
+        template.querySelector('.automation-template-name').textContent,
+      )
+      assert.ok(document.querySelector('textarea').value.length > 50)
+      assert.equal(document.querySelector('.automation-agent-picker select').value, 'codex')
+      assert.equal(document.querySelector('.automation-context-fields select').value, 'workspace')
+      assert.equal(calls.length, 0, 'Choosing a template must not save or run it')
+      button('Cancel').click()
+      await flush()
+    }
     button('New Automation').click()
     await flush()
     const fill = (selector, value) => {
@@ -63,10 +80,21 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
       el.value = value
       el.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
     }
+    for (const select of document.querySelectorAll('form select')) {
+      assert.ok(select.closest('.theme-select'), 'Automation dropdowns use the shared Settings control')
+      assert.ok(select.parentElement.querySelector('select'), 'Keep native selects for keyboard interaction')
+    }
     assert.deepEqual(
       [...document.querySelectorAll('.automation-step > legend')].map((el) => el.textContent),
       ['Trigger', 'Action'],
     )
+    const enabled = document.querySelector('[role="switch"][aria-label="Enabled"]')
+    assert.equal(enabled.getAttribute('aria-checked'), 'true')
+    assert.equal(enabled.type, 'button')
+    enabled.click()
+    await flush()
+    assert.equal(enabled.getAttribute('aria-checked'), 'false')
+    assert.equal(calls.length, 0, 'Toggling the draft must not submit the form')
     fill('input:not([type])', 'Review')
     fill('textarea', 'Review the code')
     assert.equal(
@@ -78,6 +106,9 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     assert.equal(calls[0].method, 'SaveAutomation')
     assert.deepEqual(calls[0].value.days, [1, 2, 3, 4, 5])
     assert.equal(calls[0].value.repositoryID, 'repo')
+    assert.equal(calls[0].value.enabled, false)
+    state.value.automations[0].enabled = true
+    await flush()
     assert.equal(document.querySelector('.automation-schedule').textContent.trim(), 'Weekdays · 09:00')
     document.querySelector('.automation-actions button').click()
     await flush()
@@ -172,6 +203,7 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     state.value = { ...state.value, workspaces: [], automations: [] }
     await flush()
     assert.equal(button('New Automation').disabled, true)
+    assert.ok([...document.querySelectorAll('.automation-template')].every((button) => button.disabled))
     assert.match(document.querySelector('.automation-empty').textContent, /Add a workspace/)
   } finally {
     app?.unmount()
