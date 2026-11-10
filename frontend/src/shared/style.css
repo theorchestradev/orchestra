@@ -1018,10 +1018,6 @@ input::placeholder {
 .modal.sheet {
   overflow-y: auto;
 }
-.modal.settings {
-  width: min(1000px, 100%);
-  height: min(720px, 100%);
-}
 .modal.command {
   width: min(620px, 100%);
 }
@@ -1257,20 +1253,35 @@ input::placeholder {
   overflow: hidden;
 }
 .settings-dialog {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
+  min-height: 0;
   height: 100%;
   display: flex;
   position: relative;
 }
+/* Keep native window dragging available above the settings navigation. */
+.settings-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 44px;
+  --wails-draggable: drag;
+}
 .settings-rail {
-  width: 240px;
+  width: var(--sidebar-width);
   flex-shrink: 0;
   background: var(--sidebar);
-  border-right: 1px solid var(--rule);
-  padding: 16px;
+  padding: 52px 16px 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   overflow-y: auto;
+}
+.settings-resizer {
+  left: calc(var(--sidebar-width) - 3px);
+  right: auto;
 }
 .settings-rail button {
   display: flex;
@@ -1290,6 +1301,9 @@ input::placeholder {
   flex: 0 0 auto;
   margin-bottom: 8px;
 }
+.settings-rail .settings-back {
+  margin-bottom: 12px;
+}
 .settings-search-results button {
   flex-direction: column;
   align-items: flex-start;
@@ -1302,9 +1316,9 @@ input::placeholder {
   align-items: center;
   flex: 1;
   min-width: 0;
-  padding: 24px;
+  padding: 60px 32px 32px;
   overflow: auto;
-  background: var(--surface);
+  background: var(--canvas);
 }
 .settings-main h2 {
   margin-bottom: 20px;
@@ -1318,6 +1332,70 @@ input::placeholder {
   background: var(--surface);
   max-width: 760px;
   font-size: 13px;
+  border-radius: 14px;
+}
+.settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.settings-groups .settings-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-group {
+  min-width: 0;
+}
+.settings-group-title {
+  margin: 0 10px 10px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.settings-groups.general-settings,
+.settings-groups.terminal-settings {
+  gap: 28px;
+}
+.settings-groups .settings-card > .setting-row + .setting-row {
+  border-top: 1px solid var(--rule);
+  padding-top: 16px;
+}
+.shortcut-settings .settings-card {
+  display: block;
+  margin: 0;
+}
+.shortcut-group .settings-group-title {
+  margin-bottom: 10px;
+}
+.settings-content .status-bar-group {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+}
+.settings-content .status-bar-group-heading {
+  padding: 0 10px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+}
+.settings-content .status-bar-group .settings-card {
+  gap: 0;
+}
+.settings-content .status-bar-group .status-bar-setting {
+  padding: 12px 0;
+}
+.settings-content .profile-list {
+  padding: 0;
+  background: transparent;
+}
+.settings-content .profile-row,
+.settings-content .usage-provider {
+  padding: 16px;
+  background: var(--surface);
+  border: 0;
+  border-radius: 14px;
 }
 .setting-row {
   display: flex;
@@ -1457,15 +1535,6 @@ input::placeholder {
 .switch.on span {
   background: var(--canvas);
   transform: translateX(14px);
-}
-.settings-close {
-  position: absolute;
-  right: 12px;
-  top: 12px;
-  width: 28px;
-  height: 28px;
-  color: var(--muted);
-  border-radius: 50%;
 }
 .command-search {
   display: flex;
@@ -2356,11 +2425,10 @@ input::placeholder {
 }
 @media (max-width: 800px) {
   .settings-rail {
-    width: 210px;
-    padding: 12px;
+    padding: 52px 12px 12px;
   }
   .settings-main {
-    padding: 24px 20px;
+    padding: 60px 20px 24px;
   }
   .settings-card .setting-row {
     gap: 12px;

@@ -53,7 +53,7 @@ const statusBarExamples = {
 }
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
-const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login'])
+const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login', 'resize'])
 const section = ref(props.initialSection || 'General')
 watch(
   () => props.initialSection,
@@ -155,7 +155,10 @@ const fontOptions = computed(() => {
   const list = terminalFonts.value || []
   return savedFont.value && !list.includes(savedFont.value) ? [savedFont.value, ...list] : list
 })
-onMounted(() => props.initialFocus && document.getElementById(props.initialFocus)?.focus())
+onMounted(() => {
+  const target = props.initialFocus && document.getElementById(props.initialFocus)
+  ;(target || document.querySelector('.settings-search input'))?.focus()
+})
 // macOS shows build details in its About panel; elsewhere General lists them.
 const about = ref('')
 if (!mac)
@@ -166,6 +169,7 @@ if (!mac)
 <template>
   <div class="settings-dialog">
     <nav class="settings-rail" aria-label="Settings sections">
+      <button class="settings-back" @click="emit('close')"><Icon name="chevron.left" :size="14" />Back</button>
       <div class="search-field settings-search">
         <Icon name="magnifyingglass" :size="14" />
         <input
@@ -200,499 +204,572 @@ if (!mac)
         </button>
       </template>
     </nav>
+    <div class="sidebar-resizer settings-resizer" @pointerdown.prevent="emit('resize', $event)" />
     <main class="settings-main">
       <div class="settings-content">
         <h2 ref="sectionHeading" tabindex="-1">{{ section }}</h2>
-        <div v-if="section === 'General'" class="settings-card general-settings">
-          <div class="setting-row">
-            <div>
-              <label for="startup-view">Startup View</label>
-              <p class="muted caption">
-                Open this view in the last selected workspace. Sessions stay stopped until you resume them.
-              </p>
-            </div>
-            <div class="theme-select general-select">
-              <select
-                id="startup-view"
-                :value="preferences.startupView"
-                @change="choose('startupView', $event.target.value)"
-              >
-                <option value="last">Last selection</option>
-                <option value="scratchpad">Scratchpad</option>
-                <option value="github">Work Items, if available</option>
-                <option value="reviews">Reviews, if available</option></select
-              ><Icon name="chevron.up.chevron.down" :size="10" />
-            </div>
-          </div>
-          <hr />
-          <div
-            v-for="setting in [
-              {
-                key: 'manualErrorDismiss',
-                label: 'Dismiss Errors Manually',
-                description: 'Keep error messages visible until you close them. Off: dismiss after 5 seconds.',
-              },
-              {
-                key: 'confirmQuit',
-                label: 'Confirm Before Quitting',
-                description: 'Ask before quitting while sessions are running.',
-              },
-              {
-                key: 'confirmSessionClose',
-                label: 'Confirm Before Closing a Session',
-                description: 'Ask before stopping and removing a session.',
-              },
-            ]"
-            :key="setting.key"
-            class="setting-row confirmation-setting"
-          >
-            <div>
-              <label :for="setting.key">{{ setting.label }}</label>
-              <p class="muted caption">{{ setting.description }}</p>
-            </div>
-            <button
-              :id="setting.key"
-              class="switch"
-              :class="{ on: preferences[setting.key] }"
-              role="switch"
-              :aria-checked="!!preferences[setting.key]"
-              :aria-label="setting.label"
-              @click="choose(setting.key, !preferences[setting.key])"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="keepSessionsRunning">Keep Sessions Running After Quitting</label>
-              <p class="muted caption">
-                Sessions started while this is on keep running in the background when you quit Orchestra and reconnect
-                when you open it again. While Orchestra is closed, Inbox requests are not delivered and the orchestra
-                CLI is unavailable.
-              </p>
-            </div>
-            <button
-              id="keepSessionsRunning"
-              class="switch"
-              :class="{ on: preferences.keepSessionsRunning }"
-              role="switch"
-              :aria-checked="!!preferences.keepSessionsRunning"
-              aria-label="Keep Sessions Running After Quitting"
-              @click="choose('keepSessionsRunning', !preferences.keepSessionsRunning)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="keepAwake">Keep Computer Awake While Sessions Run</label>
-              <p class="muted caption">
-                Keep the computer from sleeping while Orchestra is open and a session is running. The display can still
-                turn off.
-              </p>
-            </div>
-            <button
-              id="keepAwake"
-              class="switch"
-              :class="{ on: preferences.keepAwake }"
-              role="switch"
-              :aria-checked="!!preferences.keepAwake"
-              aria-label="Keep Computer Awake While Sessions Run"
-              @click="choose('keepAwake', !preferences.keepAwake)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="github-refresh">GitHub Auto Refresh</label>
-              <p class="muted caption">Refresh issues and pull requests while this page is visible.</p>
-            </div>
-            <div class="theme-select general-select">
-              <select
-                id="github-refresh"
-                :value="preferences.gitHubRefreshInterval"
-                @change="choose('gitHubRefreshInterval', Number($event.target.value))"
-              >
-                <option :value="0">Manual</option>
-                <option :value="30">Every 30 seconds</option>
-                <option :value="60">Every minute</option>
-                <option :value="300">Every 5 minutes</option></select
-              ><Icon name="chevron.up.chevron.down" :size="10" />
-            </div>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="updateChecks">Check for Updates Automatically</label>
-              <p class="muted caption">Look for a new version at startup and once a day.</p>
-            </div>
-            <button
-              id="updateChecks"
-              class="switch"
-              :class="{ on: !preferences.updateChecksOff }"
-              role="switch"
-              :aria-checked="!preferences.updateChecksOff"
-              aria-label="Check for Updates Automatically"
-              @click="choose('updateChecksOff', !preferences.updateChecksOff)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="betaUpdates">Include Beta Versions</label>
-              <p class="muted caption">Offer pre-release versions as well as stable releases.</p>
-            </div>
-            <button
-              id="betaUpdates"
-              class="switch"
-              :class="{ on: preferences.betaUpdates }"
-              role="switch"
-              :aria-checked="!!preferences.betaUpdates"
-              aria-label="Include Beta Versions"
-              @click="choose('betaUpdates', !preferences.betaUpdates)"
-            >
-              <span />
-            </button>
-          </div>
-          <div class="theme-actions">
-            <button id="check-updates" class="standard-button" @click="emit('check-updates')">
-              Check for Updates…
-            </button>
-          </div>
-          <template v-if="about">
-            <hr />
-            <div class="setting-row">
-              <div>
-                <h3 class="about-heading">About Orchestra</h3>
-                <p class="muted caption about-info">{{ about }}</p>
-              </div>
-            </div>
-          </template>
-        </div>
-        <div v-else-if="section === 'Agents'" class="settings-card general-settings">
-          <div class="setting-row">
-            <div>
-              <label for="default-agent">Default Agent</label>
-              <p class="muted caption">Preselect this agent when creating a session.</p>
-            </div>
-            <div class="theme-select general-select">
-              <select
-                id="default-agent"
-                :value="preferences.defaultAgent"
-                @change="choose('defaultAgent', $event.target.value)"
-              >
-                <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select
-              ><Icon name="chevron.up.chevron.down" :size="10" />
-            </div>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="deliverRequests">Deliver Inbox Requests Automatically</label>
-              <p class="muted caption">
-                Submit queued requests from other sessions once the recipient agent finishes its turn, oldest first.
-                Requests wait while you type in its terminal.
-              </p>
-            </div>
-            <button
-              id="deliverRequests"
-              class="switch"
-              :class="{ on: preferences.deliverRequests }"
-              role="switch"
-              :aria-checked="!!preferences.deliverRequests"
-              aria-label="Deliver Inbox Requests Automatically"
-              @click="choose('deliverRequests', !preferences.deliverRequests)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="agentsStartSessions">Let Agents Start Sessions</label>
-              <p class="muted caption">
-                Let an agent start a session it creates with the Orchestra CLI, using its usual permissions, with up to
-                5 running per workspace. When off, new sessions wait until you open them.
-              </p>
-            </div>
-            <button
-              id="agentsStartSessions"
-              class="switch"
-              :class="{ on: preferences.agentsStartSessions }"
-              role="switch"
-              :aria-checked="!!preferences.agentsStartSessions"
-              aria-label="Let Agents Start Sessions"
-              @click="choose('agentsStartSessions', !preferences.agentsStartSessions)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="attentionSound">Play Sound When an Agent Needs You</label>
-              <p class="muted caption">
-                Play a sound when an agent finishes its turn or asks for permission, unless you're already looking at
-                that session.
-              </p>
-            </div>
-            <button
-              id="attentionSound"
-              class="switch"
-              :class="{ on: preferences.attentionSound }"
-              role="switch"
-              :aria-checked="!!preferences.attentionSound"
-              aria-label="Play Sound When an Agent Needs You"
-              @click="choose('attentionSound', !preferences.attentionSound)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <AgentSkill :appearance="shownAppearance" />
-        </div>
-        <div v-else-if="section === 'Source Control'" class="settings-card general-settings">
-          <div class="setting-row">
-            <div>
-              <label for="keepLocalMainUpdated">Keep Local Main Up to Date</label>
-              <p class="muted caption">
-                When you create a session worktree, Orchestra fetches the remote base and safely fast-forwards your
-                matching local branch, such as <code>main</code> or <code>master</code>. This keeps commands like
-                <code>git diff main...HEAD</code> from comparing against stale history. Orchestra skips the update if
-                that branch has uncommitted changes or local-only commits.
-              </p>
-            </div>
-            <button
-              id="keepLocalMainUpdated"
-              class="switch"
-              :class="{ on: preferences.keepLocalMainUpdated }"
-              role="switch"
-              :aria-checked="!!preferences.keepLocalMainUpdated"
-              aria-label="Keep Local Main Up to Date"
-              @click="choose('keepLocalMainUpdated', !preferences.keepLocalMainUpdated)"
-            >
-              <span />
-            </button>
-          </div>
-        </div>
-        <div v-else-if="section === 'Appearance'" class="settings-card appearance-controls">
-          <div class="setting-row">
-            <div>
-              <span>Mode</span>
-              <p v-if="!mac" class="muted caption">System uses Dark on Linux.</p>
-            </div>
-            <div id="settings-mode" class="mode-switch appearance-mode" role="group" aria-label="Mode" tabindex="-1">
-              <button
-                v-for="mode in modes"
-                :key="mode.id"
-                :aria-pressed="preferences.appearance === mode.id"
-                :class="{ selected: preferences.appearance === mode.id }"
-                @click="choose('appearance', mode.id)"
-              >
-                <Icon :name="mode.icon" :size="14" />{{ mode.name }}
-              </button>
-            </div>
-          </div>
-          <hr />
-          <div class="setting-row theme-setting">
-            <div>
-              <label for="theme">Theme</label>
-              <p v-if="themeDirectory" class="muted caption">
-                Add custom themes in <code>{{ themeDirectory }}</code
-                >.
-              </p>
-            </div>
-            <div class="theme-select">
-              <i class="theme-dot" /><select
-                id="theme"
-                aria-label="Theme"
-                :value="preferences.theme"
-                @change="choose('theme', $event.target.value)"
-              >
-                <template v-if="customThemes.length">
-                  <optgroup label="Built-in">
-                    <option v-for="theme in builtInThemes" :value="theme.id" :key="theme.id">{{ theme.name }}</option>
-                  </optgroup>
-                  <optgroup label="Custom">
-                    <option v-for="theme in customThemes" :value="theme.id" :key="theme.id">{{ theme.name }}</option>
-                  </optgroup>
-                </template>
-                <template v-else>
-                  <option v-for="theme in builtInThemes" :value="theme.id" :key="theme.id">{{ theme.name }}</option>
-                </template></select
-              ><Icon name="chevron.up.chevron.down" :size="10" />
-            </div>
-          </div>
-          <div class="theme-actions">
-            <button id="duplicate-theme" class="standard-button" @click="openDuplicate">
-              Duplicate as Custom Theme…</button
-            ><button v-if="selectedTheme.custom" class="standard-button" @click="reveal(selectedTheme.id)">
-              {{ revealLabel }}
-            </button>
-          </div>
-          <div v-if="themeErrors?.length" class="theme-errors" role="status">
-            <p>Some custom themes were skipped:</p>
-            <ul>
-              <li v-for="message in themeErrors" :key="message">{{ message }}</li>
-            </ul>
-          </div>
-          <hr />
-          <div class="setting-row rounded-viewport-setting">
-            <div>
-              <label for="rounded-viewport">Rounded Viewport</label>
-              <p class="muted caption">Inset main screens with a themed border and rounded corners.</p>
-            </div>
-            <button
-              id="rounded-viewport"
-              class="switch"
-              :class="{ on: preferences.roundedViewport }"
-              role="switch"
-              :aria-checked="!!preferences.roundedViewport"
-              aria-label="Rounded Viewport"
-              @click="choose('roundedViewport', !preferences.roundedViewport)"
-            >
-              <span />
-            </button>
-          </div>
-          <template v-if="mac">
-            <hr />
-            <div class="setting-row translucent-setting">
-              <div>
-                <label for="translucent">Translucent Window</label>
-                <p class="muted caption">
-                  {{
-                    reduceTransparency
-                      ? 'Reduce Transparency is on in macOS Accessibility settings, so the window stays opaque.'
-                      : 'Show the desktop through the window with a blur. Dialogs and menus stay opaque.'
-                  }}
-                </p>
-              </div>
-              <button
-                id="translucent"
-                class="switch"
-                :class="{ on: preferences.translucent }"
-                role="switch"
-                :aria-checked="!!preferences.translucent"
-                aria-label="Translucent Window"
-                @click="choose('translucent', !preferences.translucent)"
-              >
-                <span />
-              </button>
-            </div>
-            <div class="window-opacity-setting" :class="{ disabled: !opacityEnabled }">
+        <div v-if="section === 'General'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="Startup">
+            <h3 class="settings-group-title">Startup</h3>
+            <div class="settings-card">
               <div class="setting-row">
-                <label for="window-opacity">Opacity</label><span class="muted">{{ windowOpacity }}%</span>
-              </div>
-              <div class="font-slider">
-                <input
-                  id="window-opacity"
-                  type="range"
-                  :min="windowOpacityRange.min"
-                  :max="windowOpacityRange.max"
-                  step="1"
-                  aria-label="Window Opacity"
-                  :aria-valuetext="windowOpacity + '%'"
-                  :disabled="!opacityEnabled"
-                  @pointerdown="$event.currentTarget.focus()"
-                  :style="{
-                    '--slider-progress':
-                      ((windowOpacity - windowOpacityRange.min) / (windowOpacityRange.max - windowOpacityRange.min)) *
-                        100 +
-                      '%',
-                  }"
-                  :value="windowOpacity"
-                  @input="choose('windowOpacity', Number($event.target.value))"
-                />
+                <div>
+                  <label for="startup-view">Startup View</label>
+                  <p class="muted caption">
+                    Open this view in the last selected workspace. Sessions stay stopped until you resume them.
+                  </p>
+                </div>
+                <div class="theme-select general-select">
+                  <select
+                    id="startup-view"
+                    :value="preferences.startupView"
+                    @change="choose('startupView', $event.target.value)"
+                  >
+                    <option value="last">Last selection</option>
+                    <option value="scratchpad">Scratchpad</option>
+                    <option value="github">Work Items, if available</option>
+                    <option value="reviews">Reviews, if available</option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
               </div>
             </div>
-          </template>
-          <hr />
-          <div class="setting-row arc-mode-setting">
-            <div>
-              <label for="arc-mode">Arc Mode</label>
+          </section>
+          <section class="settings-group" aria-label="Errors and Confirmations">
+            <h3 class="settings-group-title">Errors and Confirmations</h3>
+            <div class="settings-card">
+              <div
+                v-for="setting in [
+                  {
+                    key: 'manualErrorDismiss',
+                    label: 'Dismiss Errors Manually',
+                    description: 'Keep error messages visible until you close them. Off: dismiss after 5 seconds.',
+                  },
+                  {
+                    key: 'confirmQuit',
+                    label: 'Confirm Before Quitting',
+                    description: 'Ask before quitting while sessions are running.',
+                  },
+                  {
+                    key: 'confirmSessionClose',
+                    label: 'Confirm Before Closing a Session',
+                    description: 'Ask before stopping and removing a session.',
+                  },
+                ]"
+                :key="setting.key"
+                class="setting-row confirmation-setting"
+              >
+                <div>
+                  <label :for="setting.key">{{ setting.label }}</label>
+                  <p class="muted caption">{{ setting.description }}</p>
+                </div>
+                <button
+                  :id="setting.key"
+                  class="switch"
+                  :class="{ on: preferences[setting.key] }"
+                  role="switch"
+                  :aria-checked="!!preferences[setting.key]"
+                  :aria-label="setting.label"
+                  @click="choose(setting.key, !preferences[setting.key])"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Sessions">
+            <h3 class="settings-group-title">Sessions</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="keepSessionsRunning">Keep Sessions Running After Quitting</label>
+                  <p class="muted caption">
+                    Sessions started while this is on keep running in the background when you quit Orchestra and
+                    reconnect when you open it again. While Orchestra is closed, Inbox requests are not delivered and
+                    the orchestra CLI is unavailable.
+                  </p>
+                </div>
+                <button
+                  id="keepSessionsRunning"
+                  class="switch"
+                  :class="{ on: preferences.keepSessionsRunning }"
+                  role="switch"
+                  :aria-checked="!!preferences.keepSessionsRunning"
+                  aria-label="Keep Sessions Running After Quitting"
+                  @click="choose('keepSessionsRunning', !preferences.keepSessionsRunning)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
+                  <label for="keepAwake">Keep Computer Awake While Sessions Run</label>
+                  <p class="muted caption">
+                    Keep the computer from sleeping while Orchestra is open and a session is running. The display can
+                    still turn off.
+                  </p>
+                </div>
+                <button
+                  id="keepAwake"
+                  class="switch"
+                  :class="{ on: preferences.keepAwake }"
+                  role="switch"
+                  :aria-checked="!!preferences.keepAwake"
+                  aria-label="Keep Computer Awake While Sessions Run"
+                  @click="choose('keepAwake', !preferences.keepAwake)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="GitHub">
+            <h3 class="settings-group-title">GitHub</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="github-refresh">GitHub Auto Refresh</label>
+                  <p class="muted caption">Refresh issues and pull requests while this page is visible.</p>
+                </div>
+                <div class="theme-select general-select">
+                  <select
+                    id="github-refresh"
+                    :value="preferences.gitHubRefreshInterval"
+                    @change="choose('gitHubRefreshInterval', Number($event.target.value))"
+                  >
+                    <option :value="0">Manual</option>
+                    <option :value="30">Every 30 seconds</option>
+                    <option :value="60">Every minute</option>
+                    <option :value="300">Every 5 minutes</option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Updates">
+            <h3 class="settings-group-title">Updates</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="updateChecks">Check for Updates Automatically</label>
+                  <p class="muted caption">Look for a new version at startup and once a day.</p>
+                </div>
+                <button
+                  id="updateChecks"
+                  class="switch"
+                  :class="{ on: !preferences.updateChecksOff }"
+                  role="switch"
+                  :aria-checked="!preferences.updateChecksOff"
+                  aria-label="Check for Updates Automatically"
+                  @click="choose('updateChecksOff', !preferences.updateChecksOff)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
+                  <label for="betaUpdates">Include Beta Versions</label>
+                  <p class="muted caption">Offer pre-release versions as well as stable releases.</p>
+                </div>
+                <button
+                  id="betaUpdates"
+                  class="switch"
+                  :class="{ on: preferences.betaUpdates }"
+                  role="switch"
+                  :aria-checked="!!preferences.betaUpdates"
+                  aria-label="Include Beta Versions"
+                  @click="choose('betaUpdates', !preferences.betaUpdates)"
+                >
+                  <span />
+                </button>
+              </div>
+              <div class="theme-actions">
+                <button id="check-updates" class="standard-button" @click="emit('check-updates')">
+                  Check for Updates…
+                </button>
+              </div>
+            </div>
+          </section>
+          <section v-if="about" class="settings-group" aria-label="About Orchestra">
+            <h3 class="settings-group-title">About Orchestra</h3>
+            <div class="settings-card">
+              <p class="muted caption about-info">{{ about }}</p>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="section === 'Agents'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="New Sessions">
+            <h3 class="settings-group-title">New Sessions</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="default-agent">Default Agent</label>
+                  <p class="muted caption">Preselect this agent when creating a session.</p>
+                </div>
+                <div class="theme-select general-select">
+                  <select
+                    id="default-agent"
+                    :value="preferences.defaultAgent"
+                    @change="choose('defaultAgent', $event.target.value)"
+                  >
+                    <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Collaboration">
+            <h3 class="settings-group-title">Collaboration</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="deliverRequests">Deliver Inbox Requests Automatically</label>
+                  <p class="muted caption">
+                    Submit queued requests from other sessions once the recipient agent finishes its turn, oldest first.
+                    Requests wait while you type in its terminal.
+                  </p>
+                </div>
+                <button
+                  id="deliverRequests"
+                  class="switch"
+                  :class="{ on: preferences.deliverRequests }"
+                  role="switch"
+                  :aria-checked="!!preferences.deliverRequests"
+                  aria-label="Deliver Inbox Requests Automatically"
+                  @click="choose('deliverRequests', !preferences.deliverRequests)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
+                  <label for="agentsStartSessions">Let Agents Start Sessions</label>
+                  <p class="muted caption">
+                    Let an agent start a session it creates with the Orchestra CLI, using its usual permissions, with up
+                    to 5 running per workspace. When off, new sessions wait until you open them.
+                  </p>
+                </div>
+                <button
+                  id="agentsStartSessions"
+                  class="switch"
+                  :class="{ on: preferences.agentsStartSessions }"
+                  role="switch"
+                  :aria-checked="!!preferences.agentsStartSessions"
+                  aria-label="Let Agents Start Sessions"
+                  @click="choose('agentsStartSessions', !preferences.agentsStartSessions)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Notifications">
+            <h3 class="settings-group-title">Notifications</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="attentionSound">Play Sound When an Agent Needs You</label>
+                  <p class="muted caption">
+                    Play a sound when an agent finishes its turn or asks for permission, unless you're already looking
+                    at that session.
+                  </p>
+                </div>
+                <button
+                  id="attentionSound"
+                  class="switch"
+                  :class="{ on: preferences.attentionSound }"
+                  role="switch"
+                  :aria-checked="!!preferences.attentionSound"
+                  aria-label="Play Sound When an Agent Needs You"
+                  @click="choose('attentionSound', !preferences.attentionSound)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Agent Skill">
+            <h3 class="settings-group-title">Agent Skill</h3>
+            <div class="settings-card"><AgentSkill :appearance="shownAppearance" /></div>
+          </section>
+        </div>
+        <div v-else-if="section === 'Source Control'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="Worktrees">
+            <h3 class="settings-group-title">Worktrees</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="keepLocalMainUpdated">Keep Local Main Up to Date</label>
+                  <p class="muted caption">
+                    When you create a session worktree, Orchestra fetches the remote base and safely fast-forwards your
+                    matching local branch, such as <code>main</code> or <code>master</code>. This keeps commands like
+                    <code>git diff main...HEAD</code> from comparing against stale history. Orchestra skips the update
+                    if that branch has uncommitted changes or local-only commits.
+                  </p>
+                </div>
+                <button
+                  id="keepLocalMainUpdated"
+                  class="switch"
+                  :class="{ on: preferences.keepLocalMainUpdated }"
+                  role="switch"
+                  :aria-checked="!!preferences.keepLocalMainUpdated"
+                  aria-label="Keep Local Main Up to Date"
+                  @click="choose('keepLocalMainUpdated', !preferences.keepLocalMainUpdated)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="section === 'Appearance'" class="settings-groups appearance-controls">
+          <section class="settings-group" aria-label="Color Scheme">
+            <h3 class="settings-group-title">Color Scheme</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <span>Mode</span>
+                  <p v-if="!mac" class="muted caption">System uses Dark on Linux.</p>
+                </div>
+                <div
+                  id="settings-mode"
+                  class="mode-switch appearance-mode"
+                  role="group"
+                  aria-label="Mode"
+                  tabindex="-1"
+                >
+                  <button
+                    v-for="mode in modes"
+                    :key="mode.id"
+                    :aria-pressed="preferences.appearance === mode.id"
+                    :class="{ selected: preferences.appearance === mode.id }"
+                    @click="choose('appearance', mode.id)"
+                  >
+                    <Icon :name="mode.icon" :size="14" />{{ mode.name }}
+                  </button>
+                </div>
+              </div>
+              <hr />
+              <div class="setting-row theme-setting">
+                <div>
+                  <label for="theme">Theme</label>
+                  <p v-if="themeDirectory" class="muted caption">
+                    Add custom themes in <code>{{ themeDirectory }}</code
+                    >.
+                  </p>
+                </div>
+                <div class="theme-select">
+                  <i class="theme-dot" /><select
+                    id="theme"
+                    aria-label="Theme"
+                    :value="preferences.theme"
+                    @change="choose('theme', $event.target.value)"
+                  >
+                    <template v-if="customThemes.length">
+                      <optgroup label="Built-in">
+                        <option v-for="theme in builtInThemes" :value="theme.id" :key="theme.id">
+                          {{ theme.name }}
+                        </option>
+                      </optgroup>
+                      <optgroup label="Custom">
+                        <option v-for="theme in customThemes" :value="theme.id" :key="theme.id">
+                          {{ theme.name }}
+                        </option>
+                      </optgroup>
+                    </template>
+                    <template v-else>
+                      <option v-for="theme in builtInThemes" :value="theme.id" :key="theme.id">{{ theme.name }}</option>
+                    </template></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+              <div class="theme-actions">
+                <button id="duplicate-theme" class="standard-button" @click="openDuplicate">
+                  Duplicate as Custom Theme…</button
+                ><button v-if="selectedTheme.custom" class="standard-button" @click="reveal(selectedTheme.id)">
+                  {{ revealLabel }}
+                </button>
+              </div>
+              <div v-if="themeErrors?.length" class="theme-errors" role="status">
+                <p>Some custom themes were skipped:</p>
+                <ul>
+                  <li v-for="message in themeErrors" :key="message">{{ message }}</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Window">
+            <h3 class="settings-group-title">Window</h3>
+            <div class="settings-card">
+              <div class="setting-row rounded-viewport-setting">
+                <div>
+                  <label for="rounded-viewport">Rounded Viewport</label>
+                  <p class="muted caption">Inset main screens with a themed border and rounded corners.</p>
+                </div>
+                <button
+                  id="rounded-viewport"
+                  class="switch"
+                  :class="{ on: preferences.roundedViewport }"
+                  role="switch"
+                  :aria-checked="!!preferences.roundedViewport"
+                  aria-label="Rounded Viewport"
+                  @click="choose('roundedViewport', !preferences.roundedViewport)"
+                >
+                  <span />
+                </button>
+              </div>
+              <template v-if="mac">
+                <hr />
+                <div class="setting-row translucent-setting">
+                  <div>
+                    <label for="translucent">Translucent Window</label>
+                    <p class="muted caption">
+                      {{
+                        reduceTransparency
+                          ? 'Reduce Transparency is on in macOS Accessibility settings, so the window stays opaque.'
+                          : 'Show the desktop through the window with a blur. Dialogs and menus stay opaque.'
+                      }}
+                    </p>
+                  </div>
+                  <button
+                    id="translucent"
+                    class="switch"
+                    :class="{ on: preferences.translucent }"
+                    role="switch"
+                    :aria-checked="!!preferences.translucent"
+                    aria-label="Translucent Window"
+                    @click="choose('translucent', !preferences.translucent)"
+                  >
+                    <span />
+                  </button>
+                </div>
+                <div class="window-opacity-setting" :class="{ disabled: !opacityEnabled }">
+                  <div class="setting-row">
+                    <label for="window-opacity">Opacity</label><span class="muted">{{ windowOpacity }}%</span>
+                  </div>
+                  <div class="font-slider">
+                    <input
+                      id="window-opacity"
+                      type="range"
+                      :min="windowOpacityRange.min"
+                      :max="windowOpacityRange.max"
+                      step="1"
+                      aria-label="Window Opacity"
+                      :aria-valuetext="windowOpacity + '%'"
+                      :disabled="!opacityEnabled"
+                      @pointerdown="$event.currentTarget.focus()"
+                      :style="{
+                        '--slider-progress':
+                          ((windowOpacity - windowOpacityRange.min) /
+                            (windowOpacityRange.max - windowOpacityRange.min)) *
+                            100 +
+                          '%',
+                      }"
+                      :value="windowOpacity"
+                      @input="choose('windowOpacity', Number($event.target.value))"
+                    />
+                  </div>
+                </div>
+              </template>
+            </div>
+          </section>
+          <section class="settings-group" aria-label="Workspace Navigation">
+            <h3 class="settings-group-title">Workspace Navigation</h3>
+            <div class="settings-card">
+              <div class="setting-row arc-mode-setting">
+                <div>
+                  <label for="arc-mode">Arc Mode</label>
+                  <p class="muted caption">
+                    Show one workspace at a time, with workspace icons at the bottom of the sidebar.
+                  </p>
+                </div>
+                <button
+                  id="arc-mode"
+                  class="switch"
+                  :class="{ on: preferences.arcMode }"
+                  role="switch"
+                  :aria-checked="!!preferences.arcMode"
+                  aria-label="Arc Mode"
+                  @click="choose('arcMode', !preferences.arcMode)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="section === 'Sidebar'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="Navigation">
+            <h3 class="settings-group-title">Navigation</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="show-search">Show Search in Sidebar</label>
+                  <p class="muted caption">Show the Search entry above Automations.</p>
+                </div>
+                <button
+                  id="show-search"
+                  class="switch"
+                  :class="{ on: !preferences.hideSearch }"
+                  role="switch"
+                  :aria-checked="!preferences.hideSearch"
+                  aria-label="Show Search in Sidebar"
+                  @click="choose('hideSearch', !preferences.hideSearch)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
+                  <label for="show-automations">Show Automations in Sidebar</label>
+                  <p class="muted caption">Show Automations in global navigation.</p>
+                </div>
+                <button
+                  id="show-automations"
+                  class="switch"
+                  :class="{ on: !preferences.hideAutomations }"
+                  role="switch"
+                  :aria-checked="!preferences.hideAutomations"
+                  aria-label="Show Automations in Sidebar"
+                  @click="choose('hideAutomations', !preferences.hideAutomations)"
+                >
+                  <span />
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div v-else-if="section === 'Status Bar'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="Visibility">
+            <h3 class="settings-group-title">Visibility</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <label for="show-status-bar">Show Status Bar</label>
+                <button
+                  id="show-status-bar"
+                  class="switch"
+                  :class="{ on: !preferences.hideStatusBar }"
+                  role="switch"
+                  :aria-checked="!preferences.hideStatusBar"
+                  aria-label="Show Status Bar"
+                  @click="choose('hideStatusBar', !preferences.hideStatusBar)"
+                >
+                  <span />
+                </button>
+              </div>
               <p class="muted caption">
-                Show one workspace at a time, with workspace icons at the bottom of the sidebar.
+                Choose which indicators appear, move them between sides, and change their order. Examples show how each
+                indicator appears.
               </p>
             </div>
-            <button
-              id="arc-mode"
-              class="switch"
-              :class="{ on: preferences.arcMode }"
-              role="switch"
-              :aria-checked="!!preferences.arcMode"
-              aria-label="Arc Mode"
-              @click="choose('arcMode', !preferences.arcMode)"
-            >
-              <span />
-            </button>
-          </div>
-        </div>
-        <div v-else-if="section === 'Sidebar'" class="settings-card general-settings">
-          <div class="setting-row">
-            <div>
-              <label for="show-search">Show Search in Sidebar</label>
-              <p class="muted caption">Show the Search entry above Automations.</p>
-            </div>
-            <button
-              id="show-search"
-              class="switch"
-              :class="{ on: !preferences.hideSearch }"
-              role="switch"
-              :aria-checked="!preferences.hideSearch"
-              aria-label="Show Search in Sidebar"
-              @click="choose('hideSearch', !preferences.hideSearch)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="show-automations">Show Automations in Sidebar</label>
-              <p class="muted caption">Show Automations in global navigation.</p>
-            </div>
-            <button
-              id="show-automations"
-              class="switch"
-              :class="{ on: !preferences.hideAutomations }"
-              role="switch"
-              :aria-checked="!preferences.hideAutomations"
-              aria-label="Show Automations in Sidebar"
-              @click="choose('hideAutomations', !preferences.hideAutomations)"
-            >
-              <span />
-            </button>
-          </div>
-        </div>
-        <div v-else-if="section === 'Status Bar'" class="settings-card general-settings">
-          <div class="setting-row">
-            <label for="show-status-bar">Show Status Bar</label>
-            <button
-              id="show-status-bar"
-              class="switch"
-              :class="{ on: !preferences.hideStatusBar }"
-              role="switch"
-              :aria-checked="!preferences.hideStatusBar"
-              aria-label="Show Status Bar"
-              @click="choose('hideStatusBar', !preferences.hideStatusBar)"
-            >
-              <span />
-            </button>
-          </div>
-          <p class="muted caption">
-            Choose which indicators appear, move them between sides, and change their order. Examples show how each
-            indicator appears.
-          </p>
+          </section>
           <section
             v-for="(group, side) in statusBarLayout(preferences)"
             :key="group.name"
-            class="status-bar-group"
+            class="status-bar-group settings-group"
             :aria-labelledby="'status-bar-side-' + side"
           >
             <header class="status-bar-group-heading">
@@ -700,66 +777,68 @@ if (!mac)
               <h3 :id="'status-bar-side-' + side">{{ group.name }} side</h3>
               <span class="muted caption">{{ group.items.length }} items</span>
             </header>
-            <div v-for="([id, label], index) in group.items" :key="id" class="setting-row status-bar-setting">
-              <div class="status-bar-item-description">
-                <label :for="'status-item-' + id">{{ label }}</label>
-                <span
-                  class="status-bar-example"
-                  :title="'Example: ' + statusBarExamples[id].text"
-                  :aria-label="'Example: ' + statusBarExamples[id].text"
-                >
-                  <img
-                    v-if="statusBarExamples[id].agent"
-                    :src="agentIcon(statusBarExamples[id].agent, shownAppearance)"
-                    alt=""
-                  />
-                  <Icon v-else-if="statusBarExamples[id].icon" :name="statusBarExamples[id].icon" :size="12" />
-                  <i
-                    v-else-if="statusBarExamples[id].activity"
-                    class="activity-dot"
-                    :class="statusBarExamples[id].activity"
-                  />
-                  <span class="truncate">{{ statusBarExamples[id].text }}</span>
-                </span>
-              </div>
-              <div class="status-bar-item-actions">
-                <button
-                  class="icon-button"
-                  :disabled="index === 0"
-                  :aria-label="'Move ' + label + ' up'"
-                  :title="'Move ' + label + ' up'"
-                  @click="moveStatusItem(id, side, index - 1)"
-                >
-                  <Icon name="chevron.down" class="status-move-up" :size="12" />
-                </button>
-                <button
-                  class="icon-button"
-                  :disabled="index === group.items.length - 1"
-                  :aria-label="'Move ' + label + ' down'"
-                  :title="'Move ' + label + ' down'"
-                  @click="moveStatusItem(id, side, index + 1)"
-                >
-                  <Icon name="chevron.down" :size="12" />
-                </button>
-                <button
-                  class="icon-button"
-                  :aria-label="'Move ' + label + ' to the ' + (side === 0 ? 'right' : 'left')"
-                  :title="'Move to the ' + (side === 0 ? 'right' : 'left')"
-                  @click="moveStatusItem(id, 1 - side, statusBarLayout(preferences)[1 - side].items.length)"
-                >
-                  <Icon :name="side === 0 ? 'chevron.right' : 'chevron.left'" :size="12" />
-                </button>
-                <button
-                  :id="'status-item-' + id"
-                  class="switch"
-                  :class="{ on: statusBarItemVisible(preferences, id) }"
-                  role="switch"
-                  :aria-checked="statusBarItemVisible(preferences, id)"
-                  :aria-label="label"
-                  @click="emit('change', statusBarItemChange(preferences, id))"
-                >
-                  <span />
-                </button>
+            <div class="settings-card">
+              <div v-for="([id, label], index) in group.items" :key="id" class="setting-row status-bar-setting">
+                <div class="status-bar-item-description">
+                  <label :for="'status-item-' + id">{{ label }}</label>
+                  <span
+                    class="status-bar-example"
+                    :title="'Example: ' + statusBarExamples[id].text"
+                    :aria-label="'Example: ' + statusBarExamples[id].text"
+                  >
+                    <img
+                      v-if="statusBarExamples[id].agent"
+                      :src="agentIcon(statusBarExamples[id].agent, shownAppearance)"
+                      alt=""
+                    />
+                    <Icon v-else-if="statusBarExamples[id].icon" :name="statusBarExamples[id].icon" :size="12" />
+                    <i
+                      v-else-if="statusBarExamples[id].activity"
+                      class="activity-dot"
+                      :class="statusBarExamples[id].activity"
+                    />
+                    <span class="truncate">{{ statusBarExamples[id].text }}</span>
+                  </span>
+                </div>
+                <div class="status-bar-item-actions">
+                  <button
+                    class="icon-button"
+                    :disabled="index === 0"
+                    :aria-label="'Move ' + label + ' up'"
+                    :title="'Move ' + label + ' up'"
+                    @click="moveStatusItem(id, side, index - 1)"
+                  >
+                    <Icon name="chevron.down" class="status-move-up" :size="12" />
+                  </button>
+                  <button
+                    class="icon-button"
+                    :disabled="index === group.items.length - 1"
+                    :aria-label="'Move ' + label + ' down'"
+                    :title="'Move ' + label + ' down'"
+                    @click="moveStatusItem(id, side, index + 1)"
+                  >
+                    <Icon name="chevron.down" :size="12" />
+                  </button>
+                  <button
+                    class="icon-button"
+                    :aria-label="'Move ' + label + ' to the ' + (side === 0 ? 'right' : 'left')"
+                    :title="'Move to the ' + (side === 0 ? 'right' : 'left')"
+                    @click="moveStatusItem(id, 1 - side, statusBarLayout(preferences)[1 - side].items.length)"
+                  >
+                    <Icon :name="side === 0 ? 'chevron.right' : 'chevron.left'" :size="12" />
+                  </button>
+                  <button
+                    :id="'status-item-' + id"
+                    class="switch"
+                    :class="{ on: statusBarItemVisible(preferences, id) }"
+                    role="switch"
+                    :aria-checked="statusBarItemVisible(preferences, id)"
+                    :aria-label="label"
+                    @click="emit('change', statusBarItemChange(preferences, id))"
+                  >
+                    <span />
+                  </button>
+                </div>
               </div>
             </div>
           </section>
@@ -773,127 +852,140 @@ if (!mac)
             Restore Default Layout
           </button>
         </div>
-        <div v-else-if="section === 'Terminal'" class="settings-card terminal-settings">
-          <div class="setting-row font-family-setting">
-            <div>
-              <label for="font-family">Font</label>
-              <p v-if="fontMissing" id="font-family-note" class="muted caption">
-                Not installed. Terminals use System Monospace.
-              </p>
+        <div v-else-if="section === 'Terminal'" class="settings-groups terminal-settings">
+          <section class="settings-group" aria-label="Typography">
+            <h3 class="settings-group-title">Typography</h3>
+            <div class="settings-card">
+              <div class="setting-row font-family-setting">
+                <div>
+                  <label for="font-family">Font</label>
+                  <p v-if="fontMissing" id="font-family-note" class="muted caption">
+                    Not installed. Terminals use System Monospace.
+                  </p>
+                </div>
+                <div class="theme-select general-select">
+                  <select
+                    id="font-family"
+                    :value="savedFont"
+                    :aria-describedby="fontMissing ? 'font-family-note' : undefined"
+                    @change="choose('terminalFontFamily', $event.target.value)"
+                  >
+                    <option value="">System Monospace</option>
+                    <option v-for="font in fontOptions" :key="font" :value="font">
+                      {{ fontMissing && font === savedFont ? font + ' (Not installed)' : font }}
+                    </option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <label for="font-size">Font Size</label><span class="muted">{{ preferences.terminalFontSize }} pt</span>
+              </div>
+              <div class="font-slider">
+                <input
+                  id="font-size"
+                  type="range"
+                  min="10"
+                  max="24"
+                  step="1"
+                  aria-label="Terminal Font Size"
+                  @pointerdown="$event.currentTarget.focus()"
+                  :style="{ '--slider-progress': ((preferences.terminalFontSize - 10) / 14) * 100 + '%' }"
+                  :value="preferences.terminalFontSize"
+                  @input="choose('terminalFontSize', Number($event.target.value))"
+                />
+                <div class="slider-ticks" aria-hidden="true"><i v-for="step in 15" :key="step" /></div>
+              </div>
+              <hr />
+              <div class="setting-row smoothing-row">
+                <div>
+                  <label for="smoothing">Font Smoothing</label>
+                  <p class="muted caption">Use macOS font smoothing for fuller, heavier terminal text.</p>
+                </div>
+                <button
+                  id="smoothing"
+                  class="switch"
+                  :class="{ on: preferences.terminalFontSmoothing }"
+                  role="switch"
+                  :aria-checked="preferences.terminalFontSmoothing"
+                  @click="choose('terminalFontSmoothing', !preferences.terminalFontSmoothing)"
+                >
+                  <span />
+                </button>
+              </div>
             </div>
-            <div class="theme-select general-select">
-              <select
-                id="font-family"
-                :value="savedFont"
-                :aria-describedby="fontMissing ? 'font-family-note' : undefined"
-                @change="choose('terminalFontFamily', $event.target.value)"
-              >
-                <option value="">System Monospace</option>
-                <option v-for="font in fontOptions" :key="font" :value="font">
-                  {{ fontMissing && font === savedFont ? font + ' (Not installed)' : font }}
-                </option></select
-              ><Icon name="chevron.up.chevron.down" :size="10" />
+          </section>
+          <section class="settings-group" aria-label="Spacing">
+            <h3 class="settings-group-title">Spacing</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <label for="padding-x">Horizontal Padding</label
+                ><span class="muted">{{ preferences.terminalPaddingX }} px</span>
+              </div>
+              <div class="font-slider">
+                <input
+                  id="padding-x"
+                  type="range"
+                  min="0"
+                  max="24"
+                  step="2"
+                  aria-label="Terminal Horizontal Padding"
+                  @pointerdown="$event.currentTarget.focus()"
+                  :style="{ '--slider-progress': (preferences.terminalPaddingX / 24) * 100 + '%' }"
+                  :value="preferences.terminalPaddingX"
+                  @input="choose('terminalPaddingX', Number($event.target.value))"
+                />
+                <div class="slider-ticks" aria-hidden="true"><i v-for="step in 13" :key="step" /></div>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <label for="padding-y">Vertical Padding</label
+                ><span class="muted">{{ preferences.terminalPaddingY }} px</span>
+              </div>
+              <div class="font-slider">
+                <input
+                  id="padding-y"
+                  type="range"
+                  min="0"
+                  max="24"
+                  step="2"
+                  aria-label="Terminal Vertical Padding"
+                  @pointerdown="$event.currentTarget.focus()"
+                  :style="{ '--slider-progress': (preferences.terminalPaddingY / 24) * 100 + '%' }"
+                  :value="preferences.terminalPaddingY"
+                  @input="choose('terminalPaddingY', Number($event.target.value))"
+                />
+                <div class="slider-ticks" aria-hidden="true"><i v-for="step in 13" :key="step" /></div>
+              </div>
             </div>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <label for="font-size">Font Size</label><span class="muted">{{ preferences.terminalFontSize }} pt</span>
-          </div>
-          <div class="font-slider">
-            <input
-              id="font-size"
-              type="range"
-              min="10"
-              max="24"
-              step="1"
-              aria-label="Terminal Font Size"
-              @pointerdown="$event.currentTarget.focus()"
-              :style="{ '--slider-progress': ((preferences.terminalFontSize - 10) / 14) * 100 + '%' }"
-              :value="preferences.terminalFontSize"
-              @input="choose('terminalFontSize', Number($event.target.value))"
-            />
-            <div class="slider-ticks" aria-hidden="true"><i v-for="step in 15" :key="step" /></div>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <label for="padding-x">Horizontal Padding</label
-            ><span class="muted">{{ preferences.terminalPaddingX }} px</span>
-          </div>
-          <div class="font-slider">
-            <input
-              id="padding-x"
-              type="range"
-              min="0"
-              max="24"
-              step="2"
-              aria-label="Terminal Horizontal Padding"
-              @pointerdown="$event.currentTarget.focus()"
-              :style="{ '--slider-progress': (preferences.terminalPaddingX / 24) * 100 + '%' }"
-              :value="preferences.terminalPaddingX"
-              @input="choose('terminalPaddingX', Number($event.target.value))"
-            />
-            <div class="slider-ticks" aria-hidden="true"><i v-for="step in 13" :key="step" /></div>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <label for="padding-y">Vertical Padding</label
-            ><span class="muted">{{ preferences.terminalPaddingY }} px</span>
-          </div>
-          <div class="font-slider">
-            <input
-              id="padding-y"
-              type="range"
-              min="0"
-              max="24"
-              step="2"
-              aria-label="Terminal Vertical Padding"
-              @pointerdown="$event.currentTarget.focus()"
-              :style="{ '--slider-progress': (preferences.terminalPaddingY / 24) * 100 + '%' }"
-              :value="preferences.terminalPaddingY"
-              @input="choose('terminalPaddingY', Number($event.target.value))"
-            />
-            <div class="slider-ticks" aria-hidden="true"><i v-for="step in 13" :key="step" /></div>
-          </div>
-          <hr />
-          <div class="setting-row smoothing-row">
-            <div>
-              <label for="smoothing">Font Smoothing</label>
-              <p class="muted caption">Use macOS font smoothing for fuller, heavier terminal text.</p>
+          </section>
+          <section class="settings-group" aria-label="Session Actions">
+            <h3 class="settings-group-title">Session Actions</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="open-in-button">Show Open in Button</label>
+                  <p class="muted caption">
+                    Show a button above sessions that opens their folder in an editor, terminal or Git tool. The session
+                    menu and the command bar keep these actions.
+                  </p>
+                </div>
+                <button
+                  id="open-in-button"
+                  class="switch"
+                  :class="{ on: !preferences.hideOpenInButton }"
+                  role="switch"
+                  :aria-checked="!preferences.hideOpenInButton"
+                  aria-label="Show Open in Button"
+                  @click="choose('hideOpenInButton', !preferences.hideOpenInButton)"
+                >
+                  <span />
+                </button>
+              </div>
             </div>
-            <button
-              id="smoothing"
-              class="switch"
-              :class="{ on: preferences.terminalFontSmoothing }"
-              role="switch"
-              :aria-checked="preferences.terminalFontSmoothing"
-              @click="choose('terminalFontSmoothing', !preferences.terminalFontSmoothing)"
-            >
-              <span />
-            </button>
-          </div>
-          <hr />
-          <div class="setting-row">
-            <div>
-              <label for="open-in-button">Show Open in Button</label>
-              <p class="muted caption">
-                Show a button above sessions that opens their folder in an editor, terminal or Git tool. The session
-                menu and the command bar keep these actions.
-              </p>
-            </div>
-            <button
-              id="open-in-button"
-              class="switch"
-              :class="{ on: !preferences.hideOpenInButton }"
-              role="switch"
-              :aria-checked="!preferences.hideOpenInButton"
-              aria-label="Show Open in Button"
-              @click="choose('hideOpenInButton', !preferences.hideOpenInButton)"
-            >
-              <span />
-            </button>
-          </div>
+          </section>
         </div>
-        <div v-else-if="section === 'Shortcuts'" class="settings-card general-settings shortcut-settings">
+        <div v-else-if="section === 'Shortcuts'" class="settings-groups general-settings shortcut-settings">
           <p class="muted caption">
             The command bar ({{ shortcutLabel('⌘K') }}) lists every command.<template v-if="!mac">
               Inside terminals, app shortcuts and copy and paste add Shift, so Ctrl+B, Ctrl+K and Ctrl+N reach the
@@ -903,11 +995,11 @@ if (!mac)
           <section
             v-for="(group, i) in shortcutGroups"
             :key="group.name"
-            class="shortcut-group"
+            class="shortcut-group settings-group"
             :aria-labelledby="'shortcut-group-' + i"
           >
-            <h3 :id="'shortcut-group-' + i">{{ group.name }}</h3>
-            <dl>
+            <h3 class="settings-group-title" :id="'shortcut-group-' + i">{{ group.name }}</h3>
+            <dl class="settings-card">
               <div
                 v-for="entry in group.entries"
                 :id="'shortcut-' + entry.id"
@@ -927,41 +1019,46 @@ if (!mac)
             </dl>
           </section>
         </div>
-        <div v-else-if="section === 'Privacy'" class="settings-card general-settings">
-          <div class="setting-row">
-            <div>
-              <label for="telemetry-enabled">Share anonymous usage data</label>
-              <p class="muted caption">
-                Share feature usage and approximate city and country with PostHog. IPs are discarded. Prompts, code,
-                terminal content, names and paths are never collected. Off by default.
+        <div v-else-if="section === 'Privacy'" class="settings-groups general-settings">
+          <section class="settings-group" aria-label="Usage Data">
+            <h3 class="settings-group-title">Usage Data</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="telemetry-enabled">Share anonymous usage data</label>
+                  <p class="muted caption">
+                    Share feature usage and approximate city and country with PostHog. IPs are discarded. Prompts, code,
+                    terminal content, names and paths are never collected. Off by default.
+                  </p>
+                </div>
+                <button
+                  id="telemetry-enabled"
+                  class="switch"
+                  :class="{ on: preferences.telemetryEnabled && telemetryStatus?.available }"
+                  role="switch"
+                  :aria-checked="!!preferences.telemetryEnabled && !!telemetryStatus?.available"
+                  aria-label="Share anonymous usage data"
+                  aria-describedby="telemetry-status"
+                  :disabled="!telemetryStatus?.available && !preferences.telemetryEnabled"
+                  :aria-disabled="telemetryBusy"
+                  @click="!telemetryBusy && emit('consent', !preferences.telemetryEnabled)"
+                >
+                  <span />
+                </button>
+              </div>
+              <p id="telemetry-status" class="muted caption" role="status">
+                {{
+                  telemetryStatus?.reason ||
+                  (telemetryStatus?.debug
+                    ? 'Debug mode: events are written to the local log and never sent.'
+                    : 'Turning sharing off discards queued events and deletes the anonymous installation ID.')
+                }}
               </p>
+              <button class="text-link" @click="openURL(privacyURL)">
+                Privacy &amp; usage data: every event and property
+              </button>
             </div>
-            <button
-              id="telemetry-enabled"
-              class="switch"
-              :class="{ on: preferences.telemetryEnabled && telemetryStatus?.available }"
-              role="switch"
-              :aria-checked="!!preferences.telemetryEnabled && !!telemetryStatus?.available"
-              aria-label="Share anonymous usage data"
-              aria-describedby="telemetry-status"
-              :disabled="!telemetryStatus?.available && !preferences.telemetryEnabled"
-              :aria-disabled="telemetryBusy"
-              @click="!telemetryBusy && emit('consent', !preferences.telemetryEnabled)"
-            >
-              <span />
-            </button>
-          </div>
-          <p id="telemetry-status" class="muted caption" role="status">
-            {{
-              telemetryStatus?.reason ||
-              (telemetryStatus?.debug
-                ? 'Debug mode: events are written to the local log and never sent.'
-                : 'Turning sharing off discards queued events and deletes the anonymous installation ID.')
-            }}
-          </p>
-          <button class="text-link" @click="openURL(privacyURL)">
-            Privacy &amp; usage data: every event and property
-          </button>
+          </section>
         </div>
         <Profiles
           v-else-if="section === 'Profiles'"
@@ -997,9 +1094,6 @@ if (!mac)
         /></template>
       </div>
     </main>
-    <button class="settings-close icon-button" aria-label="Close Settings" @click="emit('close')">
-      <Icon name="xmark" :size="11" />
-    </button>
     <Teleport to=".app-shell">
       <Modal v-if="duplicating" label="Duplicate as Custom Theme" @close="!duplicateBusy && (duplicating = false)"
         ><form v-if="!created" class="rename-dialog duplicate-dialog" @submit.prevent="duplicate">

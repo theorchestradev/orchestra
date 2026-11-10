@@ -1156,7 +1156,8 @@ function dragSidebar(event) {
 function keys(event) {
   if (event.key === 'Escape') {
     menu.value = null
-    if (!modal.value) error.value = ''
+    if (modal.value === 'settings') closeModal()
+    else if (!modal.value) error.value = ''
     return
   }
   if (!event.metaKey && !event.ctrlKey) return
@@ -1231,7 +1232,7 @@ onBeforeUnmount(() => {
   <div
     class="app-shell"
     :class="{
-      'chrome-over-overlay': modal === 'settings' || modal === 'command',
+      'chrome-over-overlay': modal === 'command',
       translucent,
       'rounded-viewport': preferences.roundedViewport,
       'native-titlebar': !mac,
@@ -1242,7 +1243,11 @@ onBeforeUnmount(() => {
     :data-theme="preferences.theme"
     @pointerdown="menu = null"
   >
-    <aside v-show="!sidebarHidden" class="sidebar" :class="{ 'arc-sidebar': preferences.arcMode }">
+    <aside
+      v-show="!sidebarHidden && modal !== 'settings'"
+      class="sidebar"
+      :class="{ 'arc-sidebar': preferences.arcMode }"
+    >
       <div class="sidebar-titlebar" data-wails-drag>
         <span v-if="preview" class="preview-label">Visual preview</span
         ><button
@@ -1482,7 +1487,11 @@ onBeforeUnmount(() => {
       </div>
       <div class="sidebar-resizer" @pointerdown.prevent="dragSidebar" />
     </aside>
-    <main class="content" :class="{ 'sidebar-hidden': sidebarHidden, 'modal-open': modal }">
+    <main
+      v-show="modal !== 'settings'"
+      class="content"
+      :class="{ 'sidebar-hidden': sidebarHidden, 'modal-open': modal }"
+    >
       <div class="content-drag" data-wails-drag />
       <button
         v-if="sidebarHidden"
@@ -1656,7 +1665,7 @@ onBeforeUnmount(() => {
       @choose="chooseTelemetry"
     />
     <StatusBar
-      v-if="!preferences.hideStatusBar"
+      v-if="!preferences.hideStatusBar && modal !== 'settings'"
       :workspaces="appState.workspaces"
       :runs="appState.runs"
       :workspace="globalView ? null : workspace"
@@ -1875,28 +1884,29 @@ onBeforeUnmount(() => {
         <Icon name="xmark" :size="12" />
       </button>
     </div>
-    <Modal v-if="modal === 'settings'" kind="settings" label="Settings" @close="closeModal"
-      ><Settings
-        :preferences="preferences"
-        :theme-errors="themeErrors"
-        :theme-directory="themeDirectory"
-        :reduce-transparency="reduceTransparency"
-        :profiles="appState.profiles"
-        :workspace="workspace"
-        :usage-profile-id="(session || workspace)?.profileID || ''"
-        :initial-section="settingsSection"
-        :initial-focus="settingsFocus"
-        @change="changePreferences"
-        @state="apply"
-        @login="loggingIn"
-        :telemetry-status="telemetryStatus"
-        :telemetry-busy="telemetryBusy"
-        @consent="chooseTelemetry"
-        @duplicated="selectDuplicatedTheme"
-        @check-updates="checkForUpdates"
-        @close="closeModal"
-    /></Modal>
-    <Modal v-else-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
+    <Settings
+      v-if="modal === 'settings'"
+      @resize="dragSidebar"
+      :preferences="preferences"
+      :theme-errors="themeErrors"
+      :theme-directory="themeDirectory"
+      :reduce-transparency="reduceTransparency"
+      :profiles="appState.profiles"
+      :workspace="workspace"
+      :usage-profile-id="(session || workspace)?.profileID || ''"
+      :initial-section="settingsSection"
+      :initial-focus="settingsFocus"
+      @change="changePreferences"
+      @state="apply"
+      @login="loggingIn"
+      :telemetry-status="telemetryStatus"
+      :telemetry-busy="telemetryBusy"
+      @consent="chooseTelemetry"
+      @duplicated="selectDuplicatedTheme"
+      @check-updates="checkForUpdates"
+      @close="closeModal"
+    />
+    <Modal v-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
       ><CommandBar
         :initial-command="commandInitial"
         :preferences="shownPreferences"

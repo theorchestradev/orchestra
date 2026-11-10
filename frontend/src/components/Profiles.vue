@@ -116,8 +116,7 @@ async function remove() {
       dialog can choose another. A session keeps its profile for its whole life.
     </p>
     <div class="settings-card general-settings profile-list">
-      <template v-for="(p, index) in rows" :key="p.id || 'default'"
-        ><hr v-if="index" />
+      <template v-for="p in rows" :key="p.id || 'default'">
         <section class="profile-row" :aria-labelledby="'profile-name-' + (p.id || 'default')">
           <header class="profile-heading">
             <span class="profile-avatar" aria-hidden="true"
