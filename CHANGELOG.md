@@ -4,6 +4,19 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.25.0 — 2026-11-10
+
+### Changed
+
+- **Settings now fills the window.** Settings replaces the workspace sidebar and
+  main content with its own navigation. Use Back or Escape to return without
+  restarting your terminals.
+- Related settings are organized into named sections with separate rounded cards,
+  using the selected theme. Profiles, usage limits, shortcuts and status bar groups
+  follow the same layout.
+- The Settings sidebar shares the workspace sidebar's width and resize behavior.
+  Its divider appears only when hovered.
+
 ## 0.24.0 — 2026-11-09
 
 ### New
