@@ -61,6 +61,7 @@ import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
 // Work Items lists issues and Reviews lists pull requests, both from the workspace's GitHub repositories.
+const gitHubCounts = ref({})
 const gitHubViews = ['github', 'reviews']
 const gitHubViewRows = [
   { id: 'github', name: 'Work Items', icon: 'list.bullet.rectangle' },
@@ -1358,7 +1359,12 @@ onBeforeUnmount(() => {
                     :class="{ selected: workspace?.id === p.id && currentDestination === view.id }"
                     @click="select(p, view.id)"
                   >
-                    <Icon :name="view.icon" :size="15" /><span>{{ view.name }}</span>
+                    <Icon :name="view.icon" :size="15" /><span class="truncate">{{ view.name }}</span>
+                    <span
+                      v-if="preferences.showWorkItemCounts && gitHubCounts[p.id + ':' + view.id] != null"
+                      class="sidebar-item-count"
+                      >{{ gitHubCounts[p.id + ':' + view.id] }}</span
+                    >
                   </button></template
                 ><SidebarList
                   :items="workspaceRows(p)"
@@ -1532,12 +1538,14 @@ onBeforeUnmount(() => {
           <template v-for="p in appState.workspaces" :key="p.id"
             ><template v-for="view in gitHubViews" :key="view"
               ><div
-                v-if="visitedGitHub.has(p.id + ':' + view) && hasWorkItems(p)"
+                v-if="(preferences.showWorkItemCounts || visitedGitHub.has(p.id + ':' + view)) && hasWorkItems(p)"
                 v-show="workspace?.id === p.id && currentDestination === view"
                 class="github-pane"
               >
                 <GitHub
                   :workspace="p"
+                  :counts-enabled="preferences.showWorkItemCounts"
+                  @count="gitHubCounts[p.id + ':' + view] = $event"
                   :kind="view === 'reviews' ? 'reviews' : 'workItems'"
                   :refresh-interval="preferences.gitHubRefreshInterval"
                   :default-agent="workspaceAgent(p, preferences)"

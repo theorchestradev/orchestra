@@ -116,6 +116,8 @@ type Preferences struct {
 	TelemetryChoiceMade bool   `json:"telemetryChoiceMade"`
 	TelemetryInstallID  string `json:"telemetryInstallID,omitempty"`
 	ArcMode             bool   `json:"arcMode"`
+	// ShowWorkItemCounts displays loaded sidebar counts; the zero value keeps them hidden.
+	ShowWorkItemCounts bool `json:"showWorkItemCounts"`
 	// HideSearch and HideAutomations hide their respective global sidebar entries; false shows them.
 	HideSearch      bool   `json:"hideSearch"`
 	HideAutomations bool   `json:"hideAutomations"`

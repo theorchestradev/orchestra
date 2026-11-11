@@ -329,7 +329,9 @@ if (!mac)
               <div class="setting-row">
                 <div>
                   <label for="github-refresh">GitHub Auto Refresh</label>
-                  <p class="muted caption">Refresh issues and pull requests while this page is visible.</p>
+                  <p class="muted caption">
+                    Refresh issues and pull requests while their view or sidebar counts are shown.
+                  </p>
                 </div>
                 <div class="theme-select general-select">
                   <select
@@ -735,6 +737,24 @@ if (!mac)
                   :aria-checked="!preferences.hideAutomations"
                   aria-label="Show Automations in Sidebar"
                   @click="choose('hideAutomations', !preferences.hideAutomations)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
+                  <label for="show-work-item-counts">Show Work Items and Reviews counts</label>
+                  <p class="muted caption">Show loaded list counts in the sidebar.</p>
+                </div>
+                <button
+                  id="show-work-item-counts"
+                  class="switch"
+                  :class="{ on: preferences.showWorkItemCounts }"
+                  role="switch"
+                  :aria-checked="!!preferences.showWorkItemCounts"
+                  aria-label="Show Work Items and Reviews counts"
+                  @click="choose('showWorkItemCounts', !preferences.showWorkItemCounts)"
                 >
                   <span />
                 </button>

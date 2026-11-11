@@ -21,6 +21,7 @@ export const settingsSearchItems = [
   ['Appearance', 'Translucent Window', 'translucent'],
   ['Appearance', 'Opacity', 'window-opacity'],
   ['Appearance', 'Arc Mode', 'arc-mode'],
+  ['Sidebar', 'Show Work Items and Reviews counts', 'show-work-item-counts'],
   ['Sidebar', 'Show Search in Sidebar', 'show-search'],
   ['Sidebar', 'Show Automations in Sidebar', 'show-automations'],
   ['Status Bar', 'Show Status Bar', 'show-status-bar'],

@@ -393,6 +393,12 @@ hr {
 .sidebar-row > span {
   min-width: 0;
 }
+.sidebar-row > .sidebar-item-count {
+  margin-left: auto;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 .command-search-row kbd {
   margin-left: auto;
   color: var(--muted);

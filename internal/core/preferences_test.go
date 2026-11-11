@@ -19,6 +19,10 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			s.state.Workspaces[0].Repositories[0].GitHub = "example/orchestra"
 			s.mu.Unlock()
 			prefs := s.Snapshot().Preferences
+			if prefs.ShowWorkItemCounts {
+				t.Fatal("counts should default to hidden")
+			}
+			prefs.ShowWorkItemCounts = true
 			prefs.DefaultAgent = "pi"
 			prefs.StartupView = view
 			prefs.ConfirmQuit = false

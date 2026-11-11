@@ -30,11 +30,12 @@ const props = defineProps({
   // 'workItems' lists issues; 'reviews' lists pull requests.
   kind: { type: String, default: 'workItems' },
   visible: Boolean,
+  countsEnabled: Boolean,
   refreshInterval: Number,
   defaultAgent: String,
   profiles: Array,
 })
-const emit = defineEmits(['work', 'resolve', 'session', 'error'])
+const emit = defineEmits(['work', 'resolve', 'session', 'error', 'count'])
 const detailElement = ref(null),
   itemMenu = ref(null),
   editing = ref(null),
@@ -71,6 +72,12 @@ const sourceKey = computed(() => sources.value.map((r) => r.id + ':' + r.gitHub)
 const repositoryOf = (item) => sources.value.find((r) => r.id === item?.repositoryID)
 const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
 const visibleItems = computed(() => items.value.filter((item) => matchesWorkItem(item, filters.value)))
+const countAvailable = ref(false)
+watch(
+  () => [countAvailable.value, loading.value, visibleItems.value.length],
+  () => emit('count', countAvailable.value && !loading.value ? visibleItems.value.length : null),
+  { immediate: true },
+)
 const assignees = computed(() => workItemAssignees(items.value))
 // Rows name their source when several repositories are listed.
 const showsSource = computed(() => sources.value.length > 1)
@@ -100,6 +107,7 @@ function linkClick(event) {
 }
 async function load(background = false) {
   const token = ++request
+  countAvailable.value = false
   if (background !== true) {
     loading.value = true
     items.value = []
@@ -122,6 +130,7 @@ async function load(background = false) {
   sourceErrors.value = loaded.length ? failed : []
   if (!loaded.length && failed.length)
     error.value = failed.map((f) => (repositories.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
+  countAvailable.value = !failed.length
   loading.value = false
 }
 async function detail(item, background = false) {
@@ -333,7 +342,7 @@ const date = (value) => {
 let refreshTimer,
   refreshBusy = false
 watch(
-  () => [props.visible, props.refreshInterval],
+  () => [props.visible || props.countsEnabled, props.refreshInterval],
   ([visible, seconds]) => {
     clearInterval(refreshTimer)
     if (visible && seconds > 0)
@@ -349,6 +358,7 @@ watch(
   { immediate: true },
 )
 onBeforeUnmount(() => {
+  request++
   clearInterval(refreshTimer)
   clearTimeout(checksTimer)
   checksRequest++
