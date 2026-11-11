@@ -22,7 +22,8 @@
 - **Work Items, Reviews and diffs:** browse the issues (Work Items) and pull requests
   (Reviews) of every GitHub repository in a workspace, start a session from one, and review
   each session's [branch changes](docs/changes.md), including uncommitted edits.
-- **Automations:** schedule an agent and prompt once or on selected weekdays from the global Automations menu. Choose a workspace, repository and time; Orchestra must be open. Missed occurrences run once when the app reopens. Every run creates a normal session.
+- **Page layout:** Settings, Work Items, Reviews, Automations and Scratchpad use a centered column with Settings-style spacing. Turn on **Settings → Appearance → Full Width Pages** to use the wider layout.
+- **Automations:** schedule an agent and prompt once or on selected weekdays from the global Automations menu. Choose a workspace, repository and time; Orchestra must be open. Missed occurrences run once when the app reopens. Every run creates a normal session. Create or open an automation on its own page, with a breadcrumb back to Automations. Switch between Configuration and Runs to edit its settings, view persistent run history, open a linked session, inspect the original prompt or clear the records without deleting sessions. History records launch results, not agent task completion; deleted sessions leave their run records intact. Earlier versions contribute only the last known run, with its original configuration unavailable.
 - **Files:** switch the right sidebar between Changes and Files, browse the session's
   repository or worktree, and open files in the sidebar to read syntax-highlighted code
   in the central view.

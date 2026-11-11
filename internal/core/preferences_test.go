@@ -25,6 +25,7 @@ func TestGeneralPreferencesPersistence(t *testing.T) {
 			prefs.ShowWorkItemCounts = true
 			prefs.DefaultAgent = "pi"
 			prefs.StartupView = view
+			prefs.FullWidthPages = view != "last"
 			prefs.ConfirmQuit = false
 			prefs.ConfirmSessionClose = false
 			prefs.GitHubRefreshInterval = 60

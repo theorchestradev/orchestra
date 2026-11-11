@@ -2,16 +2,14 @@
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { call } from '../shared/api'
 import { menuKeys } from '../shared/menu'
-import Modal from './Modal.vue'
 import Icon from './Icon.vue'
 import { agents, agentIcon } from '../shared/appearance'
 import { repositories, workspaceTitle } from '../shared/workspace'
 const props = defineProps({
   state: Object,
   appearance: { type: String, default: 'dark' },
-  editorVisible: { type: Boolean, default: true },
 })
-const emit = defineEmits(['state', 'editing'])
+const emit = defineEmits(['state', 'session'])
 const actionMenu = ref(null),
   menuElement = ref(null),
   menuPosition = ref({})
@@ -66,7 +64,8 @@ function menuAction(kind) {
   const item = props.state.automations?.find((item) => item.id === actionMenu.value?.id)
   closeMenu(true)
   if (!item) return
-  if (kind === 'edit') edit(item)
+  if (kind === 'history') showHistory(item)
+  else if (kind === 'edit') edit(item)
   else if (kind === 'run') runNow(item.id)
   else remove(item.id)
 }
@@ -85,7 +84,10 @@ const filtered = computed(() =>
       .includes(query.value.trim().toLowerCase())
   }),
 )
-watch([() => filtered.value.map((item) => item.id).join(':'), () => props.editorVisible], () => closeMenu())
+watch(
+  () => filtered.value.map((item) => item.id).join(':'),
+  () => closeMenu(),
+)
 function clearFilters() {
   query.value = ''
   filter.value = 'all'
@@ -102,15 +104,67 @@ function context(item) {
     .filter(Boolean)
     .join(' · ')
 }
+const tab = ref('configuration'),
+  confirmingClear = ref(false)
+const history = computed(() => props.state.automations?.find((item) => item.id === draft.value?.id))
+const runs = computed(() => [...(history.value?.runs || [])].reverse())
+function showHistory(item) {
+  edit(item)
+  tab.value = 'runs'
+}
+function selectTab(value) {
+  tab.value = value
+  confirmingClear.value = false
+}
+function tabKeys(event) {
+  const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End']
+  if (!keys.includes(event.key) || busy.value) return
+  event.preventDefault()
+  selectTab(
+    event.key === 'Home'
+      ? 'configuration'
+      : event.key === 'End'
+        ? 'runs'
+        : tab.value === 'runs'
+          ? 'configuration'
+          : 'runs',
+  )
+  nextTick(() => document.getElementById('automation-tab-' + tab.value)?.focus())
+}
+function runWorkspace(run) {
+  return props.state.workspaces.find((p) => p.sessions?.some((session) => session.id === run.sessionID))
+}
+function openRun(run) {
+  const workspace = runWorkspace(run)
+  if (!workspace) return
+  cancel()
+  emit('session', { workspace, id: run.sessionID })
+}
+function runStatus(run) {
+  return (
+    {
+      starting: 'Starting session',
+      started: 'Session started',
+      failed: 'Launch failed',
+      unknown: 'Launch result unknown',
+    }[run.status] || 'Launch result unknown'
+  )
+}
+async function clearHistory() {
+  busy.value = true
+  error.value = ''
+  try {
+    emit('state', await call('ClearAutomationHistory', draft.value.id))
+    confirmingClear.value = false
+  } catch (e) {
+    error.value = String(e)
+  } finally {
+    busy.value = false
+  }
+}
 const draft = ref(null),
   error = ref(''),
   busy = ref(false)
-watch(
-  () => props.editorVisible,
-  (visible) => {
-    if (!visible) draft.value = null
-  },
-)
 const templates = [
   {
     name: 'Morning repository review',
@@ -180,7 +234,8 @@ const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const frequency = ref('weekly')
 const workspace = computed(() => props.state.workspaces.find((p) => p.id === draft.value?.workspaceID))
 function edit(item) {
-  emit('editing', true)
+  closeMenu()
+  tab.value = 'configuration'
   error.value = ''
   notice.value = ''
   frequency.value = !item || item.days?.length ? (item?.days?.length === 7 ? 'daily' : 'weekly') : 'once'
@@ -200,29 +255,36 @@ function edit(item) {
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       }
   if (!item) chooseRepository()
+  nextTick(() => document.querySelector('.automation-detail-heading h1')?.focus())
 }
 function cancel() {
-  emit('editing', false)
   draft.value = null
   error.value = ''
+  confirmingClear.value = false
+  nextTick(() => document.querySelector('.automations-heading h1')?.focus())
 }
 function chooseRepository() {
   draft.value.repositoryID = repositories(workspace.value)[0]?.id || ''
+}
+async function submitConfiguration() {
+  selectTab('configuration')
+  await nextTick()
+  document.getElementById('automation-configuration-form')?.requestSubmit()
 }
 async function save() {
   busy.value = true
   error.value = ''
   try {
-    emit(
-      'state',
-      await call('SaveAutomation', {
-        ...draft.value,
-        days:
-          frequency.value === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : frequency.value === 'weekly' ? draft.value.days : [],
-      }),
+    const previousIDs = new Set((props.state.automations || []).map((item) => item.id))
+    const savedState = await call('SaveAutomation', {
+      ...draft.value,
+      days: frequency.value === 'daily' ? [0, 1, 2, 3, 4, 5, 6] : frequency.value === 'weekly' ? draft.value.days : [],
+    })
+    const saved = savedState.automations.find((item) =>
+      draft.value.id ? item.id === draft.value.id : !previousIDs.has(item.id),
     )
-    draft.value = null
-    emit('editing', false)
+    emit('state', savedState)
+    if (saved) draft.value = JSON.parse(JSON.stringify(saved))
     notice.value = 'Automation saved.'
   } catch (e) {
     error.value = String(e)
@@ -280,113 +342,124 @@ function schedule(item) {
 }
 </script>
 <template>
-  <section class="automations-page" aria-label="Automations">
-    <header class="automations-heading">
-      <div>
-        <h1 tabindex="-1">Automations</h1>
-      </div>
-      <button class="standard-button primary" :disabled="!state.workspaces.length || busy" @click="edit()">
-        <Icon name="plus" :size="13" />New Automation
-      </button>
-    </header>
-    <div v-if="state.automations?.length" class="automations-toolbar">
-      <label class="automation-search"
-        ><Icon name="magnifyingglass" :size="14" /><input
-          v-model="query"
-          type="search"
-          aria-label="Search automations"
-          placeholder="Search automations…"
-          autocorrect="off"
-          autocapitalize="off"
-          spellcheck="false"
-      /></label>
-      <div class="theme-select general-select">
-        <select v-model="filter" aria-label="Filter automations">
-          <option value="all">All automations</option>
-          <option value="enabled">Enabled</option>
-          <option value="disabled">Disabled</option></select
-        ><Icon name="chevron.up.chevron.down" :size="10" />
-      </div>
-    </div>
-    <p v-if="error && !draft" class="error" role="alert">{{ error }}</p>
-    <p v-if="notice" class="automation-notice" role="status">{{ notice }}</p>
-    <div class="automation-list" :class="{ 'is-empty': !state.automations?.length }" :aria-busy="busy">
-      <div v-if="!state.automations?.length" class="automation-empty">
-        <Icon name="bot" :size="36" />
-        <h2>No automations yet</h2>
-        <p>
-          {{
-            state.workspaces.length
-              ? 'Put recurring work on autopilot. Start with a template or create your own.'
-              : 'Add a workspace to create your first automation.'
-          }}
-        </p>
-        <button class="standard-button" :disabled="!state.workspaces.length || busy" @click="edit()">
-          Create from Scratch
+  <section class="automations-page content-page" aria-label="Automations">
+    <template v-if="!draft">
+      <header class="automations-heading">
+        <div>
+          <h1 tabindex="-1">Automations</h1>
+        </div>
+        <button class="standard-button primary" :disabled="!state.workspaces.length || busy" @click="edit()">
+          <Icon name="plus" :size="13" />New Automation
         </button>
-        <div class="automation-template-heading">Templates</div>
-        <div class="automation-templates" aria-label="Automation templates">
-          <button
-            v-for="template in templates"
-            :key="template.name"
-            class="automation-template"
-            :disabled="!state.workspaces.length || busy"
-            @click="useTemplate(template)"
-          >
-            <Icon :name="template.icon" :size="19" />
-            <span class="automation-template-name">{{ template.name }}</span>
-            <span class="automation-template-description">{{ template.description }}</span>
-            <span class="automation-template-schedule"><Icon name="clock" :size="12" />{{ schedule(template) }}</span>
-          </button>
+      </header>
+      <div v-if="state.automations?.length" class="automations-toolbar">
+        <label class="automation-search"
+          ><Icon name="magnifyingglass" :size="14" /><input
+            v-model="query"
+            type="search"
+            aria-label="Search automations"
+            placeholder="Search automations…"
+            autocorrect="off"
+            autocapitalize="off"
+            spellcheck="false"
+        /></label>
+        <div class="theme-select general-select">
+          <select v-model="filter" aria-label="Filter automations">
+            <option value="all">All automations</option>
+            <option value="enabled">Enabled</option>
+            <option value="disabled">Disabled</option></select
+          ><Icon name="chevron.up.chevron.down" :size="10" />
         </div>
       </div>
-      <div v-else-if="!filtered.length" class="automation-empty">
-        <Icon name="magnifyingglass" :size="30" />
-        <h2>No matching automations</h2>
-        <p>Try another search or status.</p>
-        <button class="standard-button" @click="clearFilters">Clear Filters</button>
-      </div>
-      <article v-for="item in filtered" :key="item.id" class="automation-row">
-        <div class="automation-identity">
-          <img class="automation-agent" :src="agentIcon(item.agent, appearance)" :alt="agentName(item.agent)" />
-          <div class="automation-details">
-            <div class="automation-title">
-              <h2 :title="item.prompt">{{ item.name }}</h2>
-              <span v-if="!item.enabled" class="automation-status">Disabled</span>
-            </div>
-            <p class="automation-context">{{ agentName(item.agent) }} · {{ context(item) }}</p>
-            <p v-if="item.lastError" class="error" role="alert">{{ item.lastError }}</p>
+      <p v-if="error && !draft" class="error" role="alert">{{ error }}</p>
+      <p v-if="notice" class="automation-notice" role="status">{{ notice }}</p>
+      <div class="automation-list" :class="{ 'is-empty': !state.automations?.length }" :aria-busy="busy">
+        <div v-if="!state.automations?.length" class="automation-empty">
+          <Icon name="bot" :size="36" />
+          <h2>No automations yet</h2>
+          <p>
+            {{
+              state.workspaces.length
+                ? 'Put recurring work on autopilot. Start with a template or create your own.'
+                : 'Add a workspace to create your first automation.'
+            }}
+          </p>
+          <button class="standard-button" :disabled="!state.workspaces.length || busy" @click="edit()">
+            Create from Scratch
+          </button>
+          <div class="automation-template-heading">Templates</div>
+          <div class="automation-templates" aria-label="Automation templates">
+            <button
+              v-for="template in templates"
+              :key="template.name"
+              class="automation-template"
+              :disabled="!state.workspaces.length || busy"
+              @click="useTemplate(template)"
+            >
+              <Icon :name="template.icon" :size="19" />
+              <span class="automation-template-name">{{ template.name }}</span>
+              <span class="automation-template-description">{{ template.description }}</span>
+              <span class="automation-template-schedule"><Icon name="clock" :size="12" />{{ schedule(template) }}</span>
+            </button>
           </div>
         </div>
-        <p class="automation-schedule" :title="'Time zone: ' + item.timeZone">
-          <Icon name="clock" :size="12" />{{ schedule(item) }}
-        </p>
-        <div
-          class="automation-next-run"
-          :title="dateLabel(item.lastRun) ? 'Last started: ' + dateLabel(item.lastRun) : undefined"
-        >
-          <span>Next run</span><time v-if="item.enabled" :datetime="item.nextRun">{{ dateLabel(item.nextRun) }}</time
-          ><span v-else>—</span>
+        <div v-else-if="!filtered.length" class="automation-empty">
+          <Icon name="magnifyingglass" :size="30" />
+          <h2>No matching automations</h2>
+          <p>Try another search or status.</p>
+          <button class="standard-button" @click="clearFilters">Clear Filters</button>
         </div>
-        <div class="automation-actions">
-          <button
-            class="icon-button"
-            :disabled="busy"
-            :aria-label="'Options for ' + item.name"
-            title="Automation options"
-            aria-haspopup="menu"
-            :aria-expanded="actionMenu?.id === item.id"
-            @click.stop="toggleMenu($event, item)"
-            @keydown.down.prevent="toggleMenu($event, item)"
+        <article v-for="item in filtered" :key="item.id" class="automation-row">
+          <div class="automation-identity">
+            <img class="automation-agent" :src="agentIcon(item.agent, appearance)" :alt="agentName(item.agent)" />
+            <div class="automation-details">
+              <div class="automation-title">
+                <h2>
+                  <button
+                    class="automation-title-button"
+                    :title="item.prompt"
+                    :aria-label="'Open ' + item.name"
+                    @click="edit(item)"
+                  >
+                    {{ item.name }}
+                  </button>
+                </h2>
+                <span v-if="!item.enabled" class="automation-status">Disabled</span>
+              </div>
+              <p class="automation-context">{{ agentName(item.agent) }} · {{ context(item) }}</p>
+              <p v-if="item.lastError" class="error" role="alert">{{ item.lastError }}</p>
+            </div>
+          </div>
+          <p class="automation-schedule" :title="'Time zone: ' + item.timeZone">
+            <Icon name="clock" :size="12" />{{ schedule(item) }}
+          </p>
+          <div
+            class="automation-next-run"
+            :title="dateLabel(item.lastRun) ? 'Last started: ' + dateLabel(item.lastRun) : undefined"
           >
-            <Icon name="ellipsis" :size="16" />
-          </button>
-        </div>
-      </article>
-    </div>
-    <p class="automations-footnote">
-      Orchestra must be open to start automations. Missed runs execute once when it reopens.
-    </p>
+            <span>Next run</span><time v-if="item.enabled" :datetime="item.nextRun">{{ dateLabel(item.nextRun) }}</time
+            ><span v-else>—</span>
+          </div>
+          <div class="automation-actions">
+            <button
+              class="icon-button"
+              :disabled="busy"
+              :aria-label="'Options for ' + item.name"
+              title="Automation options"
+              aria-haspopup="menu"
+              :aria-expanded="actionMenu?.id === item.id"
+              @click.stop="toggleMenu($event, item)"
+              @keydown.down.prevent="toggleMenu($event, item)"
+            >
+              <Icon name="ellipsis" :size="16" />
+            </button>
+          </div>
+        </article>
+      </div>
+      <p class="automations-footnote">
+        Orchestra must be open to start automations. Missed runs execute once when it reopens.
+      </p>
+    </template>
     <Teleport to=".app-shell">
       <div
         v-if="actionMenu"
@@ -398,20 +471,138 @@ function schedule(item) {
         @pointerdown.stop
         @keydown="menuKey"
       >
+        <button role="menuitem" @click="menuAction('history')">View Runs</button>
         <button role="menuitem" @click="menuAction('edit')">Edit</button>
         <button role="menuitem" @click="menuAction('run')">Run Now</button>
         <hr role="separator" />
         <button role="menuitem" class="destructive" @click="menuAction('delete')">Delete</button>
       </div>
     </Teleport>
-    <Modal v-if="draft" :label="draft.id ? 'Edit Automation' : 'New Automation'" @close="!busy && cancel()">
-      <div class="automation-editor">
-        <header>
-          <h2>{{ draft.id ? 'Edit Automation' : 'New Automation' }}</h2>
-          <p>Define when it runs and what your agent should do.</p>
-        </header>
-        <p v-if="error" class="error" role="alert">{{ error }}</p>
-        <form @submit.prevent="save">
+    <template v-if="draft">
+      <nav class="automation-breadcrumb" aria-label="Breadcrumb">
+        <ol>
+          <li><button :disabled="busy" @click="cancel">Automations</button></li>
+          <li aria-hidden="true">/</li>
+          <li aria-current="page" :title="history?.name || 'New Automation'">
+            {{ history?.name || 'New Automation' }}
+          </li>
+        </ol>
+      </nav>
+      <header class="automation-detail-heading">
+        <div>
+          <h1 tabindex="-1" :title="history?.name">{{ history?.name || 'New Automation' }}</h1>
+          <div class="automation-heading-meta">
+            <div class="automation-enabled">
+              <label for="automation-enabled">Enabled</label>
+              <button
+                id="automation-enabled"
+                type="button"
+                :disabled="busy"
+                class="switch"
+                :class="{ on: draft.enabled }"
+                role="switch"
+                :aria-checked="!!draft.enabled"
+                aria-label="Enabled"
+                @click="draft.enabled = !draft.enabled"
+              >
+                <span />
+              </button>
+            </div>
+            <span v-if="history" class="automation-history-help">{{ context(history) }}</span>
+          </div>
+        </div>
+        <div class="automation-heading-actions">
+          <button v-if="history" class="standard-button" :disabled="busy" @click="runNow(history.id)">Run Now</button>
+          <button
+            type="button"
+            @click="submitConfiguration"
+            class="standard-button primary"
+            :disabled="busy || (frequency === 'weekly' && !draft.days.length)"
+          >
+            {{ busy ? 'Saving…' : 'Save' }}
+          </button>
+        </div>
+      </header>
+      <div v-if="history" class="automation-tabs" role="tablist" aria-label="Automation sections" @keydown="tabKeys">
+        <button
+          v-for="value in ['configuration', 'runs']"
+          :id="'automation-tab-' + value"
+          :key="value"
+          role="tab"
+          :aria-selected="tab === value"
+          :aria-controls="'automation-panel-' + value"
+          :tabindex="tab === value ? 0 : -1"
+          :disabled="busy"
+          @click="selectTab(value)"
+        >
+          {{ value === 'runs' ? 'Runs' : 'Configuration' }}
+        </button>
+      </div>
+      <p v-if="notice" role="status" class="automation-notice">{{ notice }}</p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <div
+        v-if="history"
+        v-show="tab === 'runs'"
+        id="automation-panel-runs"
+        role="tabpanel"
+        aria-labelledby="automation-tab-runs"
+        tabindex="0"
+        class="automation-history"
+      >
+        <p class="automation-history-help">
+          Records session launches, not whether the agent completed its task. History is kept until you clear it or
+          delete the automation.
+        </p>
+        <p v-if="!runs.length" class="automation-history-help">No runs recorded yet.</p>
+        <ol v-else class="automation-runs">
+          <li v-for="run in runs" :key="run.id">
+            <div class="automation-run-heading">
+              <time :datetime="run.startedAt">{{ dateLabel(run.startedAt) }}</time
+              ><span>{{ runStatus(run) }}</span>
+            </div>
+            <p class="automation-history-help">
+              {{
+                run.trigger === 'scheduled'
+                  ? 'Scheduled'
+                  : run.trigger === 'manual'
+                    ? 'Run now'
+                    : 'Imported last known run · Trigger and original configuration unavailable'
+              }}
+            </p>
+            <p v-if="run.error" class="error">{{ run.error }}</p>
+            <details v-if="run.trigger !== 'legacy'">
+              <summary>{{ run.name }} · {{ agentName(run.agent) }}</summary>
+              <pre>{{ run.prompt }}</pre>
+            </details>
+            <button v-if="runWorkspace(run)" class="standard-button" @click="openRun(run)">Open Session</button>
+            <p v-else-if="run.sessionID" class="automation-history-help">Session deleted</p>
+          </li>
+        </ol>
+        <footer v-if="runs.length">
+          <template v-if="confirmingClear"
+            ><p>Clear all run records? Sessions will be kept.</p>
+            <button class="standard-button" :disabled="busy" @click="confirmingClear = false">Cancel</button
+            ><button class="standard-button destructive" :disabled="busy" @click="clearHistory">
+              Clear History
+            </button></template
+          >
+          <button v-else class="standard-button" @click="confirmingClear = true">Clear History…</button>
+        </footer>
+      </div>
+      <div
+        v-show="tab === 'configuration'"
+        id="automation-panel-configuration"
+        :role="history ? 'tabpanel' : undefined"
+        :aria-labelledby="history ? 'automation-tab-configuration' : undefined"
+        class="automation-editor"
+      >
+        <form
+          id="automation-configuration-form"
+          @submit.prevent="save"
+          @keydown.enter="
+            ($event.metaKey || $event.ctrlKey) && ($event.preventDefault(), $event.currentTarget.requestSubmit())
+          "
+        >
           <fieldset :disabled="busy" class="automation-flow">
             <label class="automation-name"
               >Name<input
@@ -422,9 +613,8 @@ function schedule(item) {
                 autocorrect="off"
                 autocapitalize="off"
             /></label>
-            <fieldset class="automation-step" aria-describedby="automation-trigger-help">
+            <fieldset class="automation-step">
               <legend>Trigger</legend>
-              <p id="automation-trigger-help" class="automation-step-help">When should this automation run?</p>
               <div class="automation-trigger-card">
                 <div class="automation-trigger-line">
                   <Icon name="clock" :size="18" />
@@ -450,9 +640,8 @@ function schedule(item) {
                 <p class="automation-timezone">Time zone: {{ draft.timeZone }}</p>
               </div>
             </fieldset>
-            <fieldset class="automation-step" aria-describedby="automation-action-help">
+            <fieldset class="automation-step">
               <legend>Action</legend>
-              <p id="automation-action-help" class="automation-step-help">What should your agent do?</p>
               <div class="automation-action-card">
                 <label
                   >Agent
@@ -494,38 +683,12 @@ function schedule(item) {
                     spellcheck="false"
                   />
                 </label>
-                <p class="automation-step-help">Creates a new session using the workspace profile.</p>
               </div>
             </fieldset>
-            <div class="automation-enabled">
-              <label for="automation-enabled">Enabled</label>
-              <button
-                id="automation-enabled"
-                type="button"
-                class="switch"
-                :class="{ on: draft.enabled }"
-                role="switch"
-                :aria-checked="!!draft.enabled"
-                aria-label="Enabled"
-                @click="draft.enabled = !draft.enabled"
-              >
-                <span />
-              </button>
-            </div>
           </fieldset>
-          <footer>
-            <button type="button" class="standard-button" :disabled="busy" @click="cancel">Cancel</button>
-            <button
-              type="submit"
-              class="standard-button primary"
-              :disabled="busy || (frequency === 'weekly' && !draft.days.length)"
-            >
-              {{ busy ? 'Saving…' : 'Save Automation' }}
-            </button>
-          </footer>
         </form>
       </div>
-    </Modal>
+    </template>
   </section>
 </template>
 <style scoped>
@@ -540,6 +703,10 @@ function schedule(item) {
   min-width: 0;
   color: var(--text);
   background: var(--canvas);
+  overflow: hidden;
+}
+.automations-page > * {
+  flex-shrink: 0;
 }
 .automations-heading {
   display: flex;
@@ -756,9 +923,9 @@ function schedule(item) {
   line-height: 1.5;
 }
 .automation-editor {
-  width: min(640px, calc(100vw - 48px));
+  width: 100%;
   min-width: 0;
-  padding: 24px;
+  padding: 8px 0 24px;
 }
 .automation-editor header,
 .automation-editor > p {
@@ -770,7 +937,7 @@ function schedule(item) {
 }
 .automation-flow {
   display: grid;
-  gap: 20px;
+  gap: 24px;
 }
 .automation-step {
   position: relative;
@@ -834,6 +1001,9 @@ function schedule(item) {
 .automation-action-card {
   display: grid;
   gap: 16px;
+  border: 0;
+  background: none;
+  padding: 0;
 }
 .automation-context-fields {
   display: grid;
@@ -870,8 +1040,7 @@ function schedule(item) {
   .automation-context-fields {
     grid-template-columns: minmax(0, 1fr);
   }
-  .automation-trigger-card,
-  .automation-action-card {
+  .automation-trigger-card {
     padding: 12px;
   }
 }
@@ -881,10 +1050,16 @@ function schedule(item) {
   flex-wrap: wrap;
 }
 .automation-enabled {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.automation-heading-meta {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+  flex-wrap: wrap;
+  gap: 8px 16px;
 }
 .automation-editor .weekdays label {
   flex-direction: row;
@@ -959,5 +1134,214 @@ textarea {
   .automation-row {
     padding: 14px 0;
   }
+}
+</style>
+
+<style scoped>
+.automation-title-button {
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.automation-title-button:hover {
+  text-decoration: underline;
+}
+.automation-title-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.automation-history {
+  width: 100%;
+  min-width: 0;
+}
+.automation-history header,
+.automation-run-heading,
+.automation-history footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.automation-history header {
+  justify-content: space-between;
+}
+.automation-history h2 {
+  margin: 0;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1;
+}
+.automation-history-help {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.automation-runs {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0;
+}
+.automation-runs li {
+  border-top: 1px solid var(--rule);
+  padding: 16px 0;
+  overflow-wrap: anywhere;
+}
+.automation-run-heading {
+  justify-content: space-between;
+  font-size: 13px;
+}
+.automation-runs details {
+  margin: 12px 0;
+}
+.automation-runs summary {
+  cursor: pointer;
+}
+.automation-runs pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: inherit;
+  font-size: 13px;
+  background: var(--surface);
+  padding: 12px;
+  border-radius: 6px;
+}
+</style>
+
+<style scoped>
+/* Hallmark · pre-emit critique: P4 H4 E4 S4 R5 V3 · existing Orchestra tokens. */
+.automation-breadcrumb ol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.automation-breadcrumb li:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.automation-breadcrumb button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+.automation-breadcrumb button:hover {
+  color: var(--text);
+}
+.automation-breadcrumb button:focus-visible,
+.automation-tabs button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 3px;
+}
+.automation-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.automation-detail-heading > div:first-child {
+  min-width: 0;
+  flex: 1;
+}
+.automation-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.automation-detail-heading h1 {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 2px 0 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.automation-detail-heading h1:focus {
+  outline: none;
+}
+.automation-detail-heading .standard-button {
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.automation-tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--rule);
+}
+.automation-tabs button {
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.automation-tabs button:hover {
+  color: var(--text);
+}
+.automation-tabs button[aria-selected='true'] {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.automation-tabs button:active,
+.automation-breadcrumb button:active {
+  color: var(--accent);
+}
+.automation-tabs button:disabled,
+.automation-breadcrumb button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.automation-editor form label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+.automation-editor .automation-enabled label {
+  display: block;
+}
+.automation-editor footer,
+.automation-history footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+</style>
+
+<style scoped>
+.automations-page > .automation-editor,
+.automations-page > .automation-history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.automation-editor form {
+  max-width: 720px;
+}
+.automation-history > * {
+  max-width: 900px;
 }
 </style>

@@ -11,25 +11,40 @@ import (
 	"github.com/google/uuid"
 )
 
+// AutomationRun records a launch attempt, not the outcome of the agent's task.
+type AutomationRun struct {
+	ID        string    `json:"id"`
+	StartedAt time.Time `json:"startedAt"`
+	Trigger   string    `json:"trigger"` // scheduled, manual, or legacy (unknown).
+	Status    string    `json:"status"`  // starting, started, failed, or unknown.
+	SessionID string    `json:"sessionID,omitempty"`
+	Error     string    `json:"error,omitempty"`
+	Name      string    `json:"name,omitempty"`
+	Agent     string    `json:"agent,omitempty"`
+	Prompt    string    `json:"prompt,omitempty"`
+}
+
 // Automation schedules a fresh agent session. Times use the saved IANA time zone.
 type Automation struct {
-	ID            string    `json:"id"`
-	Name          string    `json:"name"`
-	WorkspaceID   string    `json:"workspaceID"`
-	RepositoryID  string    `json:"repositoryID"`
-	Agent         string    `json:"agent"`
-	Model         string    `json:"model"`
-	Effort        string    `json:"effort"`
-	Prompt        string    `json:"prompt"`
-	Enabled       bool      `json:"enabled"`
-	Days          []int     `json:"days"` // Sunday = 0; empty means a one-time execution.
-	Time          string    `json:"time"`
-	Date          string    `json:"date"`
-	TimeZone      string    `json:"timeZone"`
-	NextRun       time.Time `json:"nextRun"`
-	LastRun       time.Time `json:"lastRun"`
-	LastSessionID string    `json:"lastSessionID"`
-	LastError     string    `json:"lastError"`
+	ID                 string          `json:"id"`
+	Runs               []AutomationRun `json:"runs,omitempty"`
+	HistoryInitialized bool            `json:"historyInitialized,omitempty"`
+	Name               string          `json:"name"`
+	WorkspaceID        string          `json:"workspaceID"`
+	RepositoryID       string          `json:"repositoryID"`
+	Agent              string          `json:"agent"`
+	Model              string          `json:"model"`
+	Effort             string          `json:"effort"`
+	Prompt             string          `json:"prompt"`
+	Enabled            bool            `json:"enabled"`
+	Days               []int           `json:"days"` // Sunday = 0; empty means a one-time execution.
+	Time               string          `json:"time"`
+	Date               string          `json:"date"`
+	TimeZone           string          `json:"timeZone"`
+	NextRun            time.Time       `json:"nextRun"`
+	LastRun            time.Time       `json:"lastRun"`
+	LastSessionID      string          `json:"lastSessionID"`
+	LastError          string          `json:"lastError"`
 }
 
 func (a Automation) next(after time.Time) (time.Time, error) {
@@ -124,12 +139,14 @@ func (s *Store) saveAutomationLocked(a Automation) (State, error) {
 	}
 	a.NextRun = next
 	a.LastRun, a.LastSessionID, a.LastError = time.Time{}, "", ""
+	a.Runs, a.HistoryInitialized = nil, true
 	if index >= 0 {
 		old := s.state.Automations[index]
 		a.LastRun, a.LastSessionID, a.LastError = old.LastRun, old.LastSessionID, old.LastError
 		if a.Enabled == old.Enabled && a.Time == old.Time && a.Date == old.Date && a.TimeZone == old.TimeZone && slices.Equal(a.Days, old.Days) {
 			a.NextRun = old.NextRun
 		}
+		a.Runs, a.HistoryInitialized = old.Runs, old.HistoryInitialized
 	} else {
 		a.ID = uuid.NewString()
 	}
@@ -207,6 +224,7 @@ func (s *Store) runDueAutomations(now time.Time) {
 		} else {
 			a.NextRun = time.Time{}
 		}
+		a.beginRun("scheduled")
 		// Claim the occurrence durably before creating or launching anything. A failed
 		// launch is visible and never retried automatically with a duplicate prompt.
 		if err := s.saveLocked(); err != nil {
@@ -235,6 +253,7 @@ func (s *Store) runAutomationLocked(id string) (State, error) {
 	a := &s.state.Automations[index]
 	previous := *a
 	a.LastRun, a.LastError, a.LastSessionID = time.Now(), "", ""
+	a.beginRun("manual")
 	if err := s.saveLocked(); err != nil {
 		*a = previous
 		return State{}, err
@@ -249,6 +268,7 @@ func (s *Store) launchAutomationLocked(a *Automation) error {
 		_, err = s.createSessionLocked(a.WorkspaceID, a.RepositoryID, a.Agent, a.Name, a.Prompt, false, nil, a.Model, a.Effort, p.ProfileID, "", "", "", false)
 		if err == nil {
 			a.LastSessionID = p.Sessions[len(p.Sessions)-1].ID
+			a.Runs[len(a.Runs)-1].SessionID = a.LastSessionID
 			// Persist the session link before starting the process.
 			if err = s.saveLocked(); err == nil {
 				_, err = s.startSessionLocked(a.LastSessionID, false, 100, 30)
@@ -259,6 +279,11 @@ func (s *Store) launchAutomationLocked(a *Automation) error {
 		a.LastError = fmt.Sprintf("Could not start automation: %v", err)
 		s.log.Warn("automation failed", "automation", a.ID, "error", err)
 	}
+	run := &a.Runs[len(a.Runs)-1]
+	run.Status, run.Error = "started", a.LastError
+	if err != nil {
+		run.Status = "failed"
+	}
 	if saveErr := s.saveLocked(); saveErr != nil {
 		s.log.Warn("automation result save failed", "error", saveErr)
 		if err == nil {
@@ -267,4 +292,55 @@ func (s *Store) launchAutomationLocked(a *Automation) error {
 	}
 	s.changedLocked()
 	return err
+}
+
+func (a *Automation) beginRun(trigger string) {
+	// Allocate a fresh slice so a failed durable claim can restore the previous value.
+	a.Runs = append(slices.Clone(a.Runs), AutomationRun{ID: uuid.NewString(), StartedAt: a.LastRun, Trigger: trigger, Status: "starting", Name: a.Name, Agent: a.Agent, Prompt: a.Prompt})
+	a.HistoryInitialized = true
+}
+
+// Restore only the known legacy launch; older runs and historical prompts are unavailable.
+func (s *Store) restoreAutomationHistoryLocked() bool {
+	changed := false
+	for i := range s.state.Automations {
+		a := &s.state.Automations[i]
+		if !a.HistoryInitialized {
+			changed = true
+			if len(a.Runs) == 0 && !a.LastRun.IsZero() {
+				status := "unknown"
+				if a.LastError != "" {
+					status = "failed"
+				}
+				a.Runs = []AutomationRun{{ID: uuid.NewString(), StartedAt: a.LastRun, Trigger: "legacy", Status: status, SessionID: a.LastSessionID, Error: a.LastError}}
+			}
+			a.HistoryInitialized = true
+		}
+		// A crash between the durable claim and the final save leaves no verified launch result.
+		for j := range a.Runs {
+			if a.Runs[j].Status == "starting" {
+				a.Runs[j].Status = "unknown"
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
+func (s *Store) ClearAutomationHistory(id string) (State, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	index := slices.IndexFunc(s.state.Automations, func(a Automation) bool { return a.ID == id })
+	if index < 0 {
+		return State{}, errors.New("Automation unavailable.")
+	}
+	a := &s.state.Automations[index]
+	previous := *a
+	a.Runs, a.HistoryInitialized = nil, true
+	if err := s.saveLocked(); err != nil {
+		*a = previous
+		return State{}, err
+	}
+	s.changedLocked()
+	return s.snapshotLocked(), nil
 }

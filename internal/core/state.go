@@ -124,6 +124,8 @@ type Preferences struct {
 	Appearance      string `json:"appearance"`
 	Theme           string `json:"theme"`
 	RoundedViewport bool   `json:"roundedViewport"`
+	// FullWidthPages uses the available width for content pages; false keeps the Settings-style inset.
+	FullWidthPages bool `json:"fullWidthPages"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
 	TerminalFontSize      int     `json:"terminalFontSize"`
@@ -336,8 +338,13 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 	} else if !os.IsNotExist(err) {
 		return nil, err
 	}
+	historyRestored := s.restoreAutomationHistoryLocked()
 	s.restoreLocked()
-	if s.canSave && s.ensureProfileAccountsLocked() {
+	accountsChanged := false
+	if s.canSave {
+		accountsChanged = s.ensureProfileAccountsLocked()
+	}
+	if s.canSave && (accountsChanged || historyRestored) {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}

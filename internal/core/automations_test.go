@@ -105,6 +105,9 @@ func TestAutomationStartsFreshSessionOnce(t *testing.T) {
 		t.Fatal("automation changed selected session")
 	}
 	sess := sessionState(s, got.LastSessionID)
+	if len(got.Runs) != 1 || got.Runs[0].SessionID != sess.ID || got.Runs[0].Status != "started" {
+		t.Fatalf("missing session history: %+v", got.Runs)
+	}
 	if !sess.Running || sess.Agent != "claude" || sess.InitialPrompt != a.Prompt {
 		t.Fatalf("wrong session: %+v", sess)
 	}
@@ -537,5 +540,83 @@ func TestAutomationEditCompletedOneTimeSchedule(t *testing.T) {
 	}
 	if !state.Automations[0].NextRun.After(time.Now()) || !state.Automations[0].Enabled {
 		t.Fatal("could not reschedule completed automation")
+	}
+}
+
+func TestAutomationHistorySurvivesEditsReopenAndClear(t *testing.T) {
+	s := fixtureStore(t)
+	p := workspaceFixture(t, s)
+	state, err := s.SaveAutomation(Automation{Name: "Review", WorkspaceID: p.ID, Agent: "codex", Prompt: "Original prompt", Enabled: true, Days: []int{1}, Time: "09:00", TimeZone: "UTC"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := state.Automations[0].ID
+	// Fail without contacting an agent, through both scheduler and manual paths.
+	s.state.Automations[0].WorkspaceID = "missing"
+	s.runDueAutomations(state.Automations[0].NextRun)
+	if _, err = s.RunAutomation(id); err == nil {
+		t.Fatal("expected launch failure")
+	}
+	a := s.Snapshot().Automations[0]
+	if len(a.Runs) != 2 || a.Runs[0].Trigger != "scheduled" || a.Runs[1].Trigger != "manual" || a.Runs[0].ID == a.Runs[1].ID {
+		t.Fatalf("wrong history: %+v", a.Runs)
+	}
+	for _, run := range a.Runs {
+		if run.Status != "failed" || run.Error == "" || run.Prompt != "Original prompt" {
+			t.Fatalf("wrong run: %+v", run)
+		}
+	}
+	a.WorkspaceID, a.Name, a.Prompt = p.ID, "Renamed", "New prompt"
+	// Clients cannot replace authoritative history while saving settings.
+	a.Runs = nil
+	if _, err = s.SaveAutomation(a); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	a = reopened.Snapshot().Automations[0]
+	if len(a.Runs) != 2 || a.Runs[0].Name != "Review" || a.Runs[0].Prompt != "Original prompt" {
+		t.Fatalf("history changed: %+v", a)
+	}
+	path := reopened.path
+	reopened.path = filepath.Join(path, "child")
+	if _, err = reopened.ClearAutomationHistory(id); err == nil || len(reopened.Snapshot().Automations[0].Runs) != 2 {
+		t.Fatal("failed clear must roll back")
+	}
+	reopened.path = path
+	if _, err = reopened.ClearAutomationHistory(id); err != nil {
+		t.Fatal(err)
+	}
+	again, err := NewStore(path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer again.Shutdown()
+	if len(again.Snapshot().Automations[0].Runs) != 0 {
+		t.Fatal("cleared history resurrected")
+	}
+}
+
+func TestAutomationHistoryLegacyAndInterruptedLaunch(t *testing.T) {
+	s := fixtureStore(t)
+	at := time.Now().UTC().Truncate(time.Second)
+	s.state.Automations = []Automation{{ID: "legacy", LastRun: at, LastSessionID: "deleted", Prompt: "Current prompt is not historical"}, {ID: "interrupted", HistoryInitialized: true, Runs: []AutomationRun{{ID: "run", Status: "starting"}}}}
+	if err := s.saveLocked(); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := NewStore(s.path, s.executable, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reopened.Shutdown()
+	a := reopened.Snapshot().Automations
+	if len(a[0].Runs) != 1 || a[0].Runs[0].Trigger != "legacy" || a[0].Runs[0].Prompt != "" || a[0].Runs[0].SessionID != "deleted" || !a[0].Runs[0].StartedAt.Equal(at) {
+		t.Fatalf("bad migration: %+v", a[0])
+	}
+	if a[1].Runs[0].Status != "unknown" {
+		t.Fatal("interrupted launch must not claim success")
 	}
 }

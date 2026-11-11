@@ -40,6 +40,7 @@ let state = {
     appearance: 'dark',
     theme: 'system',
     roundedViewport: false,
+    fullWidthPages: false,
     terminalFontFamily: '',
     terminalFontSize: 14,
     terminalFontSmoothing: true,
@@ -519,6 +520,22 @@ export const backend = {
     if (!item) throw Error('Automation unavailable.')
     item.lastRun = new Date().toISOString()
     item.lastError = ''
+    item.runs ||= []
+    item.runs.push({
+      id: crypto.randomUUID(),
+      startedAt: item.lastRun,
+      trigger: 'manual',
+      status: 'started',
+      name: item.name,
+      agent: item.agent,
+      prompt: item.prompt,
+    })
+    return changed()
+  },
+  ClearAutomationHistory: (id) => {
+    const item = state.automations?.find((a) => a.id === id)
+    if (!item) throw Error('Automation unavailable.')
+    item.runs = []
     return changed()
   },
   DeleteAutomation: (id) => {

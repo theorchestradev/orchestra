@@ -376,7 +376,7 @@ watch(assignees, (logins) => {
 onMounted(() => load())
 </script>
 <template>
-  <section v-if="!selected" class="github-page">
+  <section v-if="!selected" class="github-page content-page">
     <header class="github-header">
       <div class="github-heading">
         <div>
@@ -518,7 +518,7 @@ onMounted(() => load())
       </div>
     </div>
   </section>
-  <section v-else ref="detailElement" class="github-detail">
+  <section v-else ref="detailElement" class="github-detail content-page">
     <header class="detail-toolbar">
       <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />{{ title }}</button
       ><span class="muted">/</span

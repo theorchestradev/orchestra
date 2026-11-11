@@ -1329,14 +1329,14 @@ input::placeholder {
 .settings-main h2 {
   margin-bottom: 20px;
   width: 100%;
-  max-width: 760px;
+  max-width: var(--page-content-width);
 }
 .settings-card {
   width: 100%;
   padding: 16px;
   border: 0;
   background: var(--surface);
-  max-width: 760px;
+  max-width: var(--page-content-width);
   font-size: 13px;
   border-radius: 14px;
 }
@@ -2494,7 +2494,7 @@ input::placeholder {
 /* Measured against the native macOS controls in the isolated reference app. */
 .settings-content {
   width: 100%;
-  max-width: 760px;
+  max-width: var(--page-content-width);
 }
 .settings-rail button {
   font-weight: 500;
@@ -4632,7 +4632,7 @@ h2 {
   flex-direction: column;
   gap: 14px;
   width: 100%;
-  max-width: 760px;
+  max-width: var(--page-content-width);
 }
 .profile-settings > .caption {
   margin: 0;
@@ -5338,4 +5338,53 @@ h2 {
   flex-shrink: 0;
   padding: 4px 8px 12px;
   border-bottom: 1px solid var(--rule);
+}
+
+/* Content pages share Settings' comfortable reading width. Full width preserves their original layout. */
+.app-shell {
+  --page-content-width: 960px;
+  --page-top-space: 40px;
+  --page-bottom-space: 24px;
+  --page-side-space: max(24px, calc((100% - var(--page-content-width)) / 2));
+}
+.settings-content {
+  max-width: var(--page-content-width);
+}
+.settings-main {
+  padding-top: var(--page-top-space);
+  padding-bottom: var(--page-bottom-space);
+}
+.app-shell:not(.full-width-pages) .content-page:is(.github-page, .automations-page) {
+  padding: var(--page-top-space) var(--page-side-space) var(--page-bottom-space);
+}
+.app-shell:not(.full-width-pages) .content-page.github-detail > .detail-toolbar {
+  padding-inline: var(--page-side-space);
+  padding-top: var(--page-top-space);
+  padding-bottom: 16px;
+  flex-shrink: 0;
+}
+.app-shell:not(.full-width-pages) .content-page.github-detail > .github-article {
+  padding-inline: var(--page-side-space);
+  padding-bottom: var(--page-bottom-space);
+}
+.app-shell:not(.full-width-pages) .content-page.scratchpad > :is(textarea, .scratchpad-read) {
+  padding: var(--page-top-space) var(--page-side-space) var(--page-bottom-space);
+}
+.app-shell:not(.full-width-pages) .content-page.scratchpad > .scratchpad-tools {
+  right: var(--page-side-space);
+  top: 24px;
+}
+@media (max-width: 850px) {
+  .app-shell {
+    --page-side-space: 24px;
+    --page-top-space: 32px;
+  }
+}
+
+.app-shell.full-width-pages .settings-main {
+  padding: 24px;
+}
+.app-shell.full-width-pages .settings-content,
+.app-shell.full-width-pages .settings-main :is(h2, .settings-card, .profile-settings) {
+  max-width: none;
 }

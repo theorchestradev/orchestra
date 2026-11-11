@@ -74,6 +74,7 @@ const appState = ref({
   preferences: {
     appearance: 'system',
     theme: 'system',
+    fullWidthPages: false,
     terminalFontFamily: '',
     terminalFontSize: 14,
     terminalFontSmoothing: true,
@@ -428,11 +429,9 @@ function toggleAppearance() {
     appearance: shownPreferences.value.appearance === 'light' ? 'dark' : 'light',
   })
 }
-function automationEditing(open) {
-  if (open) modal.value = 'automation-editor'
-  else if (modal.value === 'automation-editor') modal.value = ''
-}
+const automationsKey = ref(0)
 function openAutomations() {
+  automationsKey.value++
   closeModal()
   globalView.value = 'automations'
   activeFileID.value = ''
@@ -1236,6 +1235,7 @@ onBeforeUnmount(() => {
       'chrome-over-overlay': modal === 'command',
       translucent,
       'rounded-viewport': preferences.roundedViewport,
+      'full-width-pages': preferences.fullWidthPages,
       'native-titlebar': !mac,
       'has-usage-consent': !loading && !preferences.telemetryChoiceMade,
     }"
@@ -1514,8 +1514,8 @@ onBeforeUnmount(() => {
           v-else-if="globalView === 'automations'"
           :state="appState"
           :appearance="shownPreferences.appearance"
-          :editor-visible="modal === 'automation-editor'"
-          @editing="automationEditing"
+          :key="automationsKey"
+          @session="select($event.workspace, $event.id)"
           @state="apply"
         />
         <div v-else-if="!workspace" class="empty-state">

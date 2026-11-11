@@ -17,6 +17,7 @@ export const settingsSearchItems = [
   ['Agents', 'Play Sound When an Agent Needs You', 'attentionSound'],
   ['Source Control', 'Keep Local Main Up to Date', 'keepLocalMainUpdated'],
   ['Appearance', 'Theme', 'theme'],
+  ['Appearance', 'Full Width Pages', 'full-width-pages'],
   ['Appearance', 'Rounded Viewport', 'rounded-viewport'],
   ['Appearance', 'Translucent Window', 'translucent'],
   ['Appearance', 'Opacity', 'window-opacity'],

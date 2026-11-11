@@ -605,6 +605,27 @@ if (!mac)
           <section class="settings-group" aria-label="Window">
             <h3 class="settings-group-title">Window</h3>
             <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="full-width-pages">Full Width Pages</label>
+                  <p class="muted caption">
+                    Use the available width for Settings, Work Items, Reviews, Automations and Scratchpad. Off: use a
+                    centered column with more space around the content.
+                  </p>
+                </div>
+                <button
+                  id="full-width-pages"
+                  class="switch"
+                  :class="{ on: preferences.fullWidthPages }"
+                  role="switch"
+                  :aria-checked="!!preferences.fullWidthPages"
+                  aria-label="Full Width Pages"
+                  @click="choose('fullWidthPages', !preferences.fullWidthPages)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
               <div class="setting-row rounded-viewport-setting">
                 <div>
                   <label for="rounded-viewport">Rounded Viewport</label>

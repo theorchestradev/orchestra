@@ -100,7 +100,7 @@ onBeforeUnmount(() => {
 })
 </script>
 <template>
-  <section class="scratchpad" @keydown="keys">
+  <section class="scratchpad content-page" @keydown="keys">
     <!-- Floats over the page's top-right corner, so the notes fill the view. -->
     <div class="scratchpad-tools">
       <span class="caption">{{ conflict ? 'Not saved' : saving ? 'Saving…' : 'Saved automatically' }}</span>

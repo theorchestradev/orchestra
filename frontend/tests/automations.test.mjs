@@ -13,6 +13,10 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
   globalThis.automationCall = async (method, value) => {
     calls.push({ method, value })
     if (method === 'RunAutomation') return state.value
+    if (method === 'ClearAutomationHistory') {
+      state.value.automations[0].runs = []
+      return state.value
+    }
     return { ...state.value, automations: [{ ...value, id: 'saved' }] }
   }
   const { descriptor } = parse(readFileSync(new URL('../src/components/Automations.vue', import.meta.url), 'utf8'))
@@ -22,10 +26,6 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     dir + '/component.mjs',
     script.content
       .replace(/import \{ call \} from ['"]\.\.\/shared\/api['"]/, 'const call = globalThis.automationCall')
-      .replace(
-        /import Modal from ['"]\.\/Modal.vue['"]/,
-        'const Modal = { setup: (_, { slots }) => () => slots.default?.() }',
-      )
       .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }')
       .replaceAll("'../shared/menu'", JSON.stringify(new URL('../src/shared/menu.js', import.meta.url).href))
       .replaceAll(
@@ -43,24 +43,29 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
       selectedWorkspaceID: 'workspace',
       workspaces: [{ id: 'workspace', name: 'Example', repositories: [{ id: 'repo', name: 'Repository' }] }],
     })
-    const editing = ref(false)
     app = createApp({
       render: () =>
         h(Automations, {
           state: state.value,
-          editorVisible: editing.value,
-          onEditing: (value) => (editing.value = value),
           onState: (value) => (state.value = value),
         }),
     })
     app.mount('#root')
     const flush = () => new Promise((resolve) => setImmediate(resolve))
+    const back = async () => {
+      document.querySelector('.automation-breadcrumb button').click()
+      await flush()
+    }
     const button = (name) => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === name)
     assert.equal(document.querySelector('[aria-label="Search automations"]'), null)
     const templates = [...document.querySelectorAll('.automation-template')]
     assert.equal(templates.length, 6)
     for (const template of templates) {
-      template.click()
+      const name = template.querySelector('.automation-template-name').textContent
+      const currentTemplate = [...document.querySelectorAll('.automation-template')].find(
+        (el) => el.querySelector('.automation-template-name').textContent === name,
+      )
+      currentTemplate.click()
       await flush()
       assert.equal(
         document.querySelector('form input:not([type])').value,
@@ -70,11 +75,13 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
       assert.equal(document.querySelector('.automation-agent-picker select').value, 'codex')
       assert.equal(document.querySelector('.automation-context-fields select').value, 'workspace')
       assert.equal(calls.length, 0, 'Choosing a template must not save or run it')
-      button('Cancel').click()
+      document.querySelector('.automation-breadcrumb button').click()
       await flush()
     }
     button('New Automation').click()
     await flush()
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.equal(document.querySelector('[aria-current="page"]').textContent, 'New Automation')
     const fill = (selector, value) => {
       const el = document.querySelector(selector)
       el.value = value
@@ -107,6 +114,10 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     assert.deepEqual(calls[0].value.days, [1, 2, 3, 4, 5])
     assert.equal(calls[0].value.repositoryID, 'repo')
     assert.equal(calls[0].value.enabled, false)
+    assert.ok(document.querySelector('form'), 'Saving stays on the details page')
+    assert.equal(document.querySelector('[aria-current="page"]').textContent, 'Review')
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim(), 'Configuration')
+    await back()
     state.value.automations[0].enabled = true
     await flush()
     assert.equal(document.querySelector('.automation-schedule').textContent.trim(), 'Weekdays · 09:00')
@@ -124,6 +135,7 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     await flush()
     assert.deepEqual(calls[1].value.days, [])
     assert.equal(calls[1].value.date, '2027-01-01')
+    await back()
     assert.equal(document.querySelector('.automation-schedule').textContent.trim(), '2027-01-01 · 09:00')
     assert.equal(document.querySelector('h1').textContent, 'Automations')
     assert.equal(document.querySelectorAll('.automation-row').length, 1)
@@ -159,6 +171,7 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     document.querySelector('form').dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true }))
     await flush()
     assert.deepEqual(calls[2].value.days, [0, 1, 2, 3, 4, 5, 6])
+    await back()
     assert.equal(document.querySelector('.automation-schedule').textContent.trim(), 'Every day · 09:00')
     const trigger = document.querySelector('.automation-actions button')
     trigger.click()
@@ -171,7 +184,7 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     const menu = document.querySelector('[role="menu"]')
     assert.deepEqual(
       [...menu.querySelectorAll('[role="menuitem"]')].map((el) => el.textContent.trim()),
-      ['Edit', 'Run Now', 'Delete'],
+      ['View Runs', 'Edit', 'Run Now', 'Delete'],
     )
     assert.ok(menu.querySelector('[role="separator"]'))
     menu.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'End', bubbles: true }))
@@ -192,13 +205,63 @@ test('Automations creates weekly and one-time schedules and edits reactive saved
     button('Edit').click()
     await flush()
     assert.equal(document.querySelector('form input:not([type])').value, 'Review updated elsewhere')
-    button('Cancel').click()
+    document.querySelector('.automation-breadcrumb button').click()
     await flush()
     trigger.click()
     await flush()
     document.body.dispatchEvent(new dom.window.Event('pointerdown', { bubbles: true }))
     await flush()
     assert.equal(document.querySelector('[role="menu"]'), null)
+
+    state.value.automations[0].runs = [
+      { id: 'old', startedAt: '2026-11-01T09:00:00Z', trigger: 'legacy', status: 'started', sessionID: 'deleted' },
+      {
+        id: 'new',
+        startedAt: '2026-11-02T09:00:00Z',
+        trigger: 'manual',
+        status: 'failed',
+        name: 'Original name',
+        agent: 'codex',
+        prompt: '<script>original prompt</script>',
+        error: 'Missing workspace',
+      },
+    ]
+    await flush()
+    document.querySelector('.automation-title-button').click()
+    await flush()
+    assert.equal(document.querySelector('[role="dialog"]'), null)
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim(), 'Configuration')
+    fill('textarea', 'Unsaved configuration')
+    button('Runs').click()
+    await flush()
+    assert.equal(document.querySelector('[role="tab"][aria-selected="true"]').textContent.trim(), 'Runs')
+    button('Configuration').click()
+    await flush()
+    assert.equal(
+      document.querySelector('textarea').value,
+      'Unsaved configuration',
+      'Changing tabs preserves unsaved configuration',
+    )
+    document
+      .querySelector('[role="tablist"]')
+      .dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+    await flush()
+    assert.equal(document.activeElement.id, 'automation-tab-runs')
+    const runs = document.querySelectorAll('.automation-runs li')
+    assert.equal(runs.length, 2)
+    assert.match(runs[0].textContent, /Launch failed/)
+    assert.equal(runs[0].querySelector('pre').textContent, '<script>original prompt</script>')
+    assert.equal(runs[0].querySelector('script'), null)
+    assert.match(runs[1].textContent, /Session deleted/)
+    assert.match(runs[1].textContent, /original configuration unavailable/)
+    button('Clear History…').click()
+    await flush()
+    assert.match(document.querySelector('.automation-history').textContent, /Sessions will be kept/)
+    button('Clear History').click()
+    await flush()
+    assert.equal(calls.at(-1).method, 'ClearAutomationHistory')
+    assert.match(document.querySelector('.automation-history').textContent, /No runs recorded yet/)
+    await back()
 
     state.value = { ...state.value, workspaces: [], automations: [] }
     await flush()

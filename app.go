@@ -846,6 +846,13 @@ func (a *App) DeleteAutomation(id string) (core.State, error) {
 	return a.store.DeleteAutomation(id)
 }
 
+func (a *App) ClearAutomationHistory(id string) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.ClearAutomationHistory(id)
+}
+
 func (a *App) RunAutomation(id string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
