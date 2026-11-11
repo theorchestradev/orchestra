@@ -4,6 +4,26 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.26.0 — 2026-11-11
+
+### New
+
+- **Review automation runs.** Each automation now has its own page with
+  Configuration and Runs tabs. Inspect persistent launch history, open linked
+  sessions, read the original prompt or clear records without deleting sessions.
+  Run history tracks session launches, not completion of the agent's task.
+- **Manage automations from the CLI.** Create, list, inspect, update, enable,
+  disable, run and delete automations through the app. New automations are disabled
+  by default; schedules support recurring weekdays and one-time dates.
+- Optionally show Work Items and Reviews counts in the workspace sidebar.
+
+### Changed
+
+- Settings, Work Items, Reviews, Automations and Scratchpad share a centered page
+  layout. Enable **Full Width Pages** in Settings → Appearance for more space.
+- Automation history survives session deletion. Existing automations retain their
+  last known run, without an original configuration snapshot.
+
 ## 0.25.0 — 2026-11-10
 
 ### Changed
