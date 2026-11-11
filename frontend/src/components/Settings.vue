@@ -73,6 +73,11 @@ const sections = {
   Privacy: 'shield',
 }
 const search = ref('')
+function escapeSearch(event) {
+  if (!search.value) return
+  event.stopPropagation()
+  search.value = ''
+}
 const sectionHeading = ref(null)
 const searchResults = computed(() => searchSettings(search.value))
 async function openSearchResult(item) {
@@ -180,7 +185,7 @@ if (!mac)
           spellcheck="false"
           autocapitalize="off"
           autocorrect="off"
-          @keydown.esc.stop="search = ''"
+          @keydown.esc="escapeSearch"
         />
       </div>
       <div v-if="search.trim()" class="settings-search-results">
