@@ -159,3 +159,40 @@ The command returns session JSON and saves the prompt without starting an agent.
 session to start it, or turn on **Let Agents Start Sessions** in Settings so `--start` can
 start it, with up to 5 such sessions running per workspace. Automations use the same Store session creation flow
 and start the scheduled session through TerminalSession while the app is open.
+
+### Manage automations from the CLI
+
+From an Orchestra terminal session with the app open:
+
+```sh
+orchestra automation create --name "Monday review" --agent codex --prompt "Review this repository" --days mon --time 09:00 --timezone America/Sao_Paulo
+orchestra automation list
+orchestra automation show AUTOMATION_ID
+orchestra automation update AUTOMATION_ID --prompt-file ./review.txt --model gpt-6.1-sol
+orchestra automation enable AUTOMATION_ID
+orchestra automation disable AUTOMATION_ID
+orchestra automation run AUTOMATION_ID
+orchestra automation delete AUTOMATION_ID
+```
+
+Automations are global and shared with the app UI. Creation is **disabled by default**;
+add `--enabled` only when scheduling is requested. Agents should create, activate or
+run automations only at the user's request. All commands return JSON through the
+existing authenticated app connection; the CLI never launches an agent directly.
+
+Creation inherits the calling session's workspace and repository. `--workspace ID_OR_NAME`
+selects a workspace by ID or exact, unambiguous name; a different workspace uses its
+default repository. `--repository ID` selects a repository in that workspace.
+`list` returns all automations, optionally filtered by `--workspace`. Other commands
+target stable automation IDs globally. Updates preserve omitted fields, including
+model/effort, and can change the repository within the saved workspace.
+
+Schedules use `--time HH:MM` with `--days daily` or comma-separated weekdays
+(`sun,mon,tue,wed,thu,fri,sat`). One-time schedules use `--date YYYY-MM-DD`;
+when updating a recurring automation, also pass `--days once`. The timezone defaults
+to **UTC**; use `--timezone` with an IANA name to select another zone. Invalid zones,
+times and dates are rejected. Enabling a one-time schedule requires a future time.
+Prompts accept exactly one of `--prompt TEXT`, `--prompt-file PATH` or `--stdin`.
+`update` also accepts `--enabled` or `--disabled`. `run` executes once through the
+app's normal automation path without changing its enabled state or next scheduled run.
+The app owns scheduling, persistence and session processes; it must remain open.

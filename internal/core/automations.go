@@ -18,6 +18,8 @@ type Automation struct {
 	WorkspaceID   string    `json:"workspaceID"`
 	RepositoryID  string    `json:"repositoryID"`
 	Agent         string    `json:"agent"`
+	Model         string    `json:"model"`
+	Effort        string    `json:"effort"`
 	Prompt        string    `json:"prompt"`
 	Enabled       bool      `json:"enabled"`
 	Days          []int     `json:"days"` // Sunday = 0; empty means a one-time execution.
@@ -31,6 +33,9 @@ type Automation struct {
 }
 
 func (a Automation) next(after time.Time) (time.Time, error) {
+	if strings.TrimSpace(a.TimeZone) == "" {
+		return time.Time{}, errors.New("Choose a valid time zone.")
+	}
 	zone, err := time.LoadLocation(a.TimeZone)
 	if err != nil {
 		return time.Time{}, errors.New("Choose a valid time zone.")
@@ -73,6 +78,10 @@ func (a Automation) next(after time.Time) (time.Time, error) {
 func (s *Store) SaveAutomation(a Automation) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.saveAutomationLocked(a)
+}
+
+func (s *Store) saveAutomationLocked(a Automation) (State, error) {
 	a.Name, a.Prompt = strings.TrimSpace(a.Name), strings.TrimSpace(a.Prompt)
 	if len(a.Prompt) > 256*1024 {
 		return State{}, errors.New("Prompt exceeds 256 KB.")
@@ -82,6 +91,9 @@ func (s *Store) SaveAutomation(a Automation) (State, error) {
 	}
 	if _, ok := agentSpecs[a.Agent]; !ok {
 		return State{}, errors.New("Choose an agent.")
+	}
+	if err := validateModelEffort(a.Agent, a.Model, a.Effort); err != nil {
+		return State{}, err
 	}
 	p, err := s.workspaceLocked(a.WorkspaceID)
 	if err != nil {
@@ -115,6 +127,9 @@ func (s *Store) SaveAutomation(a Automation) (State, error) {
 	if index >= 0 {
 		old := s.state.Automations[index]
 		a.LastRun, a.LastSessionID, a.LastError = old.LastRun, old.LastSessionID, old.LastError
+		if a.Enabled == old.Enabled && a.Time == old.Time && a.Date == old.Date && a.TimeZone == old.TimeZone && slices.Equal(a.Days, old.Days) {
+			a.NextRun = old.NextRun
+		}
 	} else {
 		a.ID = uuid.NewString()
 	}
@@ -135,6 +150,10 @@ func (s *Store) SaveAutomation(a Automation) (State, error) {
 func (s *Store) DeleteAutomation(id string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.deleteAutomationLocked(id)
+}
+
+func (s *Store) deleteAutomationLocked(id string) (State, error) {
 	previous := slices.Clone(s.state.Automations)
 	index := slices.IndexFunc(previous, func(a Automation) bool { return a.ID == id })
 	if index < 0 {
@@ -202,6 +221,10 @@ func (s *Store) runDueAutomations(now time.Time) {
 func (s *Store) RunAutomation(id string) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	return s.runAutomationLocked(id)
+}
+
+func (s *Store) runAutomationLocked(id string) (State, error) {
 	if s.shuttingDown {
 		return State{}, errors.New("Orchestra is shutting down.")
 	}
@@ -223,7 +246,7 @@ func (s *Store) RunAutomation(id string) (State, error) {
 func (s *Store) launchAutomationLocked(a *Automation) error {
 	p, err := s.workspaceLocked(a.WorkspaceID)
 	if err == nil {
-		_, err = s.createSessionLocked(a.WorkspaceID, a.RepositoryID, a.Agent, a.Name, a.Prompt, false, nil, "", "", p.ProfileID, "", "", "", false)
+		_, err = s.createSessionLocked(a.WorkspaceID, a.RepositoryID, a.Agent, a.Name, a.Prompt, false, nil, a.Model, a.Effort, p.ProfileID, "", "", "", false)
 		if err == nil {
 			a.LastSessionID = p.Sessions[len(p.Sessions)-1].ID
 			// Persist the session link before starting the process.

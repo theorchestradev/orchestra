@@ -37,23 +37,24 @@ type Run struct {
 func (r *Run) finished() bool { return r.Status != "queued" && r.Status != "running" }
 
 type WireRequest struct {
-	Workspace    string `json:"workspace,omitempty"`
-	Agent        string `json:"agent,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Effort       string `json:"effort,omitempty"`
-	Start        bool   `json:"start,omitempty"`
-	Worktree     bool   `json:"worktree,omitempty"`
-	Branch       string `json:"branch,omitempty"`
-	Base         string `json:"base,omitempty"`
-	Name         string `json:"name,omitempty"`
-	RepositoryID string `json:"repositoryID,omitempty"`
-	Method       string `json:"method"`
-	Source       string `json:"source"`
-	Token        string `json:"token"`
-	Target       string `json:"target,omitempty"`
-	Text         string `json:"text,omitempty"`
-	RequestID    string `json:"requestID,omitempty"`
-	Before       string `json:"before,omitempty"`
+	Automation   *AutomationPatch `json:"automation,omitempty"`
+	Workspace    string           `json:"workspace,omitempty"`
+	Agent        string           `json:"agent,omitempty"`
+	Model        string           `json:"model,omitempty"`
+	Effort       string           `json:"effort,omitempty"`
+	Start        bool             `json:"start,omitempty"`
+	Worktree     bool             `json:"worktree,omitempty"`
+	Branch       string           `json:"branch,omitempty"`
+	Base         string           `json:"base,omitempty"`
+	Name         string           `json:"name,omitempty"`
+	RepositoryID string           `json:"repositoryID,omitempty"`
+	Method       string           `json:"method"`
+	Source       string           `json:"source"`
+	Token        string           `json:"token"`
+	Target       string           `json:"target,omitempty"`
+	Text         string           `json:"text,omitempty"`
+	RequestID    string           `json:"requestID,omitempty"`
+	Before       string           `json:"before,omitempty"`
 	// Revision is the Scratchpad revision a scratchpad.write expects; nil writes unconditionally.
 	Revision *int `json:"revision,omitempty"`
 }
@@ -654,6 +655,9 @@ func (c *Collaboration) handleLocked(req WireRequest) (any, error) {
 	p, _, err := c.store.sessionLocked(req.Source)
 	if err != nil {
 		return nil, err
+	}
+	if strings.HasPrefix(req.Method, "automation.") {
+		return c.automationLocked(p, req)
 	}
 	if req.Workspace != "" && req.Method != "session.create" && req.Method != "session.rename" && req.Method != "session.close" {
 		return nil, errors.New("Workspace selection is only supported by session create, rename and close.")

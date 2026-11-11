@@ -27,6 +27,11 @@ var Version = "dev"
 
 // cliOptions lists each command's options, so a misplaced one fails instead of being ignored.
 var cliOptions = map[string][]string{
+	"automation.list":   {"--workspace"},
+	"automation.show":   nil,
+	"automation.create": {"--name", "--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--repository", "--time", "--date", "--timezone", "--days", "--enabled", "--disabled", "--workspace"},
+	"automation.update": {"--name", "--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--repository", "--time", "--date", "--timezone", "--days", "--enabled", "--disabled"},
+	"automation.enable": nil, "automation.disable": nil, "automation.run": nil, "automation.delete": nil,
 	"session.create":    {"--agent", "--model", "--effort", "--prompt", "--prompt-file", "--stdin", "--name", "--workspace", "--repository", "--worktree", "--branch", "--base", "--request-id", "--start"},
 	"session.list":      nil,
 	"session.rename":    {"--name", "--workspace"},
@@ -43,10 +48,18 @@ var cliOptions = map[string][]string{
 	"scratchpad.append": {"--text", "--file", "--stdin"},
 }
 
-const cliHelp = `Orchestra session messaging
+const cliHelp = `Orchestra CLI
 
 orchestra guide
 orchestra --version
+orchestra automation list [--workspace ID_OR_NAME]
+orchestra automation show AUTOMATION_ID
+orchestra automation create --name NAME --agent AGENT (--prompt TEXT | --prompt-file PATH | --stdin) --time HH:MM (--days daily|mon,wed,... | --date YYYY-MM-DD) [--timezone IANA_ZONE] [--workspace ID_OR_NAME] [--repository ID] [--model MODEL] [--effort EFFORT] [--enabled]
+orchestra automation update AUTOMATION_ID [--name NAME] [--agent AGENT] [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--repository ID] [--time HH:MM] [--days daily|once|mon,wed,...] [--date YYYY-MM-DD] [--timezone IANA_ZONE] [--enabled | --disabled]
+orchestra automation enable AUTOMATION_ID
+orchestra automation disable AUTOMATION_ID
+orchestra automation run AUTOMATION_ID
+orchestra automation delete AUTOMATION_ID
 orchestra session list
 orchestra session create --agent AGENT [--model MODEL] [--effort EFFORT] [--prompt TEXT | --prompt-file PATH | --stdin] [--name NAME] [--workspace ID_OR_NAME] [--repository ID] [--worktree [--branch NAME] [--base REF]] [--request-id UUID] [--start]
 orchestra session rename SESSION_ID --name NAME [--workspace ID_OR_NAME]
@@ -61,6 +74,18 @@ orchestra run cancel REQUEST_ID
 orchestra scratchpad read [--json]
 orchestra scratchpad write (--text TEXT | --file PATH | --stdin) [--if-revision REV]
 orchestra scratchpad append (--text TEXT | --file PATH | --stdin)
+
+Automations are global. list returns all automations unless --workspace filters it.
+Stable IDs target automations globally. create defaults to the calling session's workspace
+and repository; --workspace selects by ID or exact name, and --repository must belong to it.
+A different workspace uses its default repository. update preserves omitted fields and cannot
+move workspaces. --repository changes the repository inside the saved workspace.
+Creation is disabled unless --enabled is supplied. Timezone defaults to UTC; --timezone
+accepts an IANA zone such as America/Sao_Paulo. --days accepts daily, once or comma-separated
+sun,mon,tue,wed,thu,fri,sat. once requires --date. All triggers require --time.
+run uses the existing app execution path without changing enabled state or next run.
+Agents must create, activate or run automations only when the user requests it.
+Automation commands return JSON and require the authenticated session connection.
 
 The Scratchpad belongs to the session's workspace. read --json includes the revision
 that write --if-revision expects. append adds the text on a new line.
@@ -159,7 +184,7 @@ func saveAgentID(in io.Reader, path string) error {
 }
 func runCLI(args []string, out io.Writer) error {
 	if len(args) < 2 {
-		return errors.New("Expected session, run or scratchpad command. Use orchestra help.")
+		return errors.New("Expected session, run, automation or scratchpad command. Use orchestra help.")
 	}
 	method := args[0] + "." + args[1]
 	options, valid := cliOptions[method]
@@ -188,9 +213,9 @@ func runCLI(args []string, out io.Writer) error {
 		return errors.New("Could not connect to Orchestra. Keep the app open and start this CLI from an Orchestra session.")
 	}
 	index := 2
-	if method != "session.list" && method != "session.inbox" && method != "session.create" && args[0] != "scratchpad" {
+	if method != "session.list" && method != "session.inbox" && method != "session.create" && method != "automation.create" && method != "automation.list" && args[0] != "scratchpad" {
 		if len(args) <= index || strings.HasPrefix(args[index], "--") {
-			return errors.New("A session or request ID is required.")
+			return errors.New("A session, request or automation ID is required.")
 		}
 		request.Target = args[index]
 		index++
@@ -198,14 +223,27 @@ func runCLI(args []string, out io.Writer) error {
 	timeout := 120 * time.Second
 	textSet, printJSON := false, false
 	onlyOneText := errors.New("Use only one of --text, --file or --stdin.")
-	if method == "session.create" {
+	if method == "session.create" || strings.HasPrefix(method, "automation.") {
 		onlyOneText = errors.New("Use only one of --prompt, --prompt-file or --stdin.")
 	}
+	if strings.HasPrefix(method, "automation.") {
+		request.Automation = &AutomationPatch{}
+	}
+	activationSet := false
 	for index < len(args) {
 		flag := args[index]
 		index++
 		if !slices.Contains(options, flag) {
 			return fmt.Errorf("Unknown option %s.", flag)
+		}
+		if flag == "--enabled" || flag == "--disabled" {
+			if activationSet {
+				return errors.New("Use only one of --enabled or --disabled.")
+			}
+			activationSet = true
+			enabled := flag == "--enabled"
+			request.Automation.Enabled = &enabled
+			continue
 		}
 		if flag == "--json" {
 			printJSON = true
@@ -236,6 +274,22 @@ func runCLI(args []string, out io.Writer) error {
 		}
 		value := args[index]
 		index++
+		if request.Automation != nil {
+			patch := request.Automation
+			fields := map[string]**string{"--name": &patch.Name, "--agent": &patch.Agent, "--model": &patch.Model, "--effort": &patch.Effort, "--repository": &patch.RepositoryID, "--time": &patch.Time, "--date": &patch.Date, "--timezone": &patch.TimeZone}
+			if field := fields[flag]; field != nil {
+				*field = &value
+				continue
+			}
+			if flag == "--days" {
+				days, err := automationDays(value)
+				if err != nil {
+					return err
+				}
+				patch.Days = &days
+				continue
+			}
+		}
 		switch flag {
 		case "--agent":
 			request.Agent = value
@@ -297,6 +351,9 @@ func runCLI(args []string, out io.Writer) error {
 			}
 			timeout = duration
 		}
+	}
+	if request.Automation != nil && textSet {
+		request.Automation.Prompt = &request.Text
 	}
 	if method == "session.rename" && strings.TrimSpace(request.Name) == "" {
 		return errors.New("Use --name with a non-empty session name.")

@@ -142,3 +142,35 @@ them.
   session to launch it. Use `--start` only when the user asked you to start the session.
   Agents can keep 5 sessions they started running in a workspace; after that `--start`
   fails until the user closes one.
+
+## Automations
+
+Create, activate or manually run automations only when the user requests it.
+Use the authenticated Orchestra session connection while the app is open:
+
+```sh
+orchestra automation create --name "Monday review" --agent codex --prompt "Review this repository" --days mon --time 09:00 --timezone America/Sao_Paulo
+orchestra automation list
+orchestra automation show AUTOMATION_ID
+orchestra automation update AUTOMATION_ID --prompt-file ./review.txt --model gpt-6.1-sol --effort high
+orchestra automation enable AUTOMATION_ID
+orchestra automation disable AUTOMATION_ID
+orchestra automation run AUTOMATION_ID
+orchestra automation delete AUTOMATION_ID
+```
+
+Creation is disabled unless `--enabled` is explicit. Timezone defaults to UTC;
+`--timezone` accepts IANA zones. Use `--time HH:MM` with `--days daily`, weekday
+names separated by commas (`sun,mon,tue,wed,thu,fri,sat`), or `--date YYYY-MM-DD`
+for a one-time trigger. To change a recurring trigger to one-time, also use `--days once`.
+Prompt input accepts exactly one of `--prompt`, `--prompt-file` or `--stdin`.
+
+Automations are global, visible and editable in the app. `list` returns all, or
+filters by `--workspace ID_OR_NAME`. Creation inherits the session workspace and
+repository; `--workspace` accepts an ID or exact unambiguous name. A different
+workspace uses its default repository. `--repository ID` must belong to the selected
+workspace. Other commands target stable IDs globally. Updates preserve omitted
+fields, support `--enabled`/`--disabled`, and cannot move workspaces.
+`run` executes once through the app, preserving enabled state and next run.
+All automation commands return JSON; errors include invalid IDs, schedules and
+unavailable app context. The CLI owns neither scheduling nor agent processes.
