@@ -1860,7 +1860,7 @@ input::placeholder {
   grid-template-columns: 64px minmax(0, 1fr) 24px 100px 90px 100px;
   align-items: center;
   gap: 16px;
-  padding: 12px 0;
+  padding: 12px 8px;
 }
 .github-table-head {
   font-size: 10px;
@@ -1874,7 +1874,7 @@ input::placeholder {
   flex: 1;
 }
 .github-row {
-  padding: 16px 0;
+  padding: 16px 8px;
   width: 100%;
   text-align: left;
   border-bottom: 1px solid var(--rule);
@@ -5005,6 +5005,21 @@ h2 {
   align-items: center;
   gap: 5px;
   align-self: flex-start;
+}
+.pr-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.pr-selector select {
+  width: 100%;
+  min-width: 0;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  padding: 6px 8px;
 }
 .pr-header h2 {
   font-size: 14px;

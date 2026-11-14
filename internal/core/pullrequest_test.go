@@ -115,6 +115,32 @@ func TestSessionPullRequestFindsBranchPullRequest(t *testing.T) {
 	}
 }
 
+func TestSessionPullRequestMultipleCandidates(t *testing.T) {
+	s := fixtureStore(t)
+	p := repositoryFixture(t, s)
+	_, respond := pullRequestFixture(t)
+	state, err := s.CreateSession(p.ID, "", "claude", "", "", true, nil, "", "", "", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sess := state.Workspaces[0].Sessions[0]
+	s.mu.Lock()
+	stored, _ := s.workspaceLocked(p.ID)
+	stored.Repositories[0].GitHub = "fixture/repository"
+	s.mu.Unlock()
+	respond("list", `[{"number":12,"state":"OPEN","headRefName":"`+sess.WorktreeBranch+`"},{"number":11,"state":"OPEN","headRefName":"`+sess.WorktreeBranch+`","isDraft":true},{"number":10,"state":"CLOSED","headRefName":"`+sess.WorktreeBranch+`","headRefOid":"old"}]`)
+	respond("reviews", `[[{"id":11}]]`)
+	respond("comments", `[[]]`)
+	status, err := s.SelectSessionPullRequest(sess.ID, 11)
+	if err != nil || status.Number != 11 || len(status.PullRequests) != 2 || status.State != "draft" || len(status.Reviews) != 1 {
+		t.Fatalf("selection: %+v, %v", status, err)
+	}
+	status, err = s.SelectSessionPullRequest(sess.ID, 10)
+	if err != nil || status.Number != 12 {
+		t.Fatalf("stale selection: %+v, %v", status, err)
+	}
+}
+
 func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	s := fixtureStore(t)
 	p := repositoryFixture(t, s)

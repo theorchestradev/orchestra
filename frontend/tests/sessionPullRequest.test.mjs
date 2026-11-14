@@ -147,6 +147,25 @@ test('PR shows grouped checks and activity, and copies failure context', async (
       ],
     ])
 
+    reply = {
+      ...reply,
+      pullRequests: [
+        { number: 9, title: 'First', state: 'open' },
+        { number: 10, title: 'Second', state: 'draft' },
+      ],
+    }
+    session.value = { id: 'multiple' }
+    await flush()
+    const selector = document.querySelector('select[aria-label="Pull request"]')
+    assert.equal(selector.options.length, 2)
+    reply = { ...reply, number: 10, title: 'Second', state: 'draft', comments: [], reviews: [] }
+    selector.value = '10'
+    selector.dispatchEvent(new window.Event('change'))
+    await flush()
+    assert.deepEqual(calls.at(-1), ['SelectSessionPullRequest', 'multiple', 10])
+    assert.match(text(), /Second\s*#10/)
+    assert.equal(pullRequests.get('multiple').number, 10)
+
     reply = { checks: [], branch: 'other', message: 'No pull request for other yet.' }
     session.value = { id: 'two' }
     app._instance.update()
