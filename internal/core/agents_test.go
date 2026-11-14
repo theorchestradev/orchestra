@@ -279,3 +279,26 @@ func TestMuseHooksReportWithoutEnvironment(t *testing.T) {
 		}
 	}
 }
+
+func TestCaptureAntigravityID(t *testing.T) {
+	dir := t.TempDir()
+	term := &TerminalSession{agentDirectory: dir}
+	if captureAntigravityID(term) != "" {
+		t.Fatal("captured an ID without a log")
+	}
+	log := "I1114 00:32:35.967670 256 manager.go:1122] Full redraw completed (RerenderAll) for conversation  (epoch 0, items 1) in 1ms\n" +
+		"I1114 00:32:38.183293 491 conversation_manager.go:1044] Streaming conversation 0c2e620a-6dc4-44d1-ba1a-c98d35e59ef3\n" +
+		"I1114 00:40:01.000000 491 conversation_manager.go:1044] Streaming conversation 7f54d120-074f-4dd8-b2a9-26c7366e6cee\n"
+	if err := os.WriteFile(filepath.Join(dir, "cli.log"), []byte(log+strings.Repeat("x", antigravityLogTail)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if id := captureAntigravityID(term); id != "" {
+		t.Fatalf("read beyond the log tail: %q", id)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "cli.log"), []byte(log), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if id := captureAntigravityID(term); id != "7f54d120-074f-4dd8-b2a9-26c7366e6cee" {
+		t.Fatalf("captured %q", id)
+	}
+}

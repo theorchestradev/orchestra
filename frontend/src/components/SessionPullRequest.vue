@@ -5,13 +5,16 @@ import { call } from '../shared/api'
 // at once. `loadPullRequest` shares one request per session.
 export const pullRequests = reactive(new Map())
 const inFlight = new Map()
-export function loadPullRequest(id, activity = false) {
-  const key = id + (activity ? ':activity' : '')
+const selectedPullRequests = new Map()
+export function loadPullRequest(id, activity = false, number = selectedPullRequests.get(id)) {
+  if (number) selectedPullRequests.set(id, number)
+  const key = id + ':' + (number || '') + (activity ? ':activity' : '')
   if (!inFlight.has(key))
     inFlight.set(
       key,
-      call('SessionPullRequest', id, activity)
+      (number ? call('SelectSessionPullRequest', id, number) : call('SessionPullRequest', id, activity))
         .then((result) => {
+          if (selectedPullRequests.get(id) !== number) return result
           const previous = pullRequests.get(id)
           // A status-only read keeps the activity already shown for the same pull request.
           if (!activity && previous?.number === result.number)
@@ -65,13 +68,13 @@ let generation = 0,
   pollTimer,
   activityTimer,
   copiedTimer
-async function refresh() {
+async function refresh(number) {
   const id = props.session.id,
     current = ++generation
   clearTimeout(pollTimer)
   loading.value = true
   try {
-    await loadPullRequest(id, true)
+    await loadPullRequest(id, true, typeof number === 'number' ? number : undefined)
     if (current === generation) error.value = ''
   } catch (e) {
     if (current === generation) error.value = String(e)
@@ -142,6 +145,14 @@ defineExpose({ refresh, loading })
     <div v-else class="pr-scroller" @click="linkClick">
       <p v-if="error" class="diff-placeholder" role="alert">{{ error }}</p>
       <section class="pr-header">
+        <label v-if="status.pullRequests?.length > 1" class="pr-selector caption">
+          Pull request
+          <select :value="status.number" aria-label="Pull request" @change="refresh(Number($event.target.value))">
+            <option v-for="pr in status.pullRequests" :key="pr.number" :value="pr.number">
+              #{{ pr.number }} · {{ pr.title }} · {{ stateLabels[pr.state] }}
+            </option>
+          </select>
+        </label>
         <button class="text-link muted caption pr-view" @click="openURL(status.url)">
           <Icon name="arrow.up.right.square" :size="12" />View on GitHub
         </button>
@@ -165,7 +176,12 @@ defineExpose({ refresh, loading })
         visible
         @resolve="emit('resolve', conflict, $event)"
       />
-      <PullRequestChecks :key="session.id" :status="status" :load-failure="loadFailure" @error="error = $event" />
+      <PullRequestChecks
+        :key="session.id + ':' + status.number"
+        :status="status"
+        :load-failure="loadFailure"
+        @error="error = $event"
+      />
       <section class="pr-activity" aria-label="Activity">
         <button
           class="pr-group-toggle muted caption"
