@@ -238,6 +238,10 @@ hr {
 .app-shell.translucent .content-body {
   background: transparent;
 }
+/* Page canvases reveal the shared tint instead of covering native vibrancy. */
+.app-shell.translucent :is(.github-page, .github-detail, .automations-page, .scratchpad-read, .scratchpad textarea) {
+  background: transparent;
+}
 .app-shell.translucent.rounded-viewport .content {
   background: transparent;
 }
