@@ -786,6 +786,13 @@ func (a *App) SessionPullRequest(id string, activity bool) (core.PullRequestStat
 	return a.store.SessionPullRequest(id, activity)
 }
 
+func (a *App) SelectSessionPullRequest(id string, number int) (core.PullRequestStatus, error) {
+	if err := a.ready(); err != nil {
+		return core.PullRequestStatus{}, err
+	}
+	return a.store.SelectSessionPullRequest(id, number)
+}
+
 // PullRequestCheckFailure describes a failed check as text the user can copy.
 func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 	if err := a.ready(); err != nil {

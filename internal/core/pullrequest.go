@@ -33,14 +33,15 @@ type PullRequestCheck struct {
 // PullRequestStatus is the pull request for a session's branch. Without a number, Message
 // explains why there is none to show.
 type PullRequestStatus struct {
-	Message        string `json:"message,omitempty"`
-	Branch         string `json:"branch,omitempty"`
-	Repository     string `json:"repository,omitempty"`
-	Number         int    `json:"number,omitempty"`
-	URL            string `json:"url,omitempty"`
-	Title          string `json:"title,omitempty"`
-	State          string `json:"state,omitempty"` // open, draft, merged or closed
-	ReviewDecision string `json:"reviewDecision,omitempty"`
+	PullRequests   []PullRequestStatus `json:"pullRequests,omitempty"`
+	Message        string              `json:"message,omitempty"`
+	Branch         string              `json:"branch,omitempty"`
+	Repository     string              `json:"repository,omitempty"`
+	Number         int                 `json:"number,omitempty"`
+	URL            string              `json:"url,omitempty"`
+	Title          string              `json:"title,omitempty"`
+	State          string              `json:"state,omitempty"` // open, draft, merged or closed
+	ReviewDecision string              `json:"reviewDecision,omitempty"`
 	// Conflicts is set only once GitHub has confirmed them; it reports UNKNOWN while computing.
 	Conflicts  bool   `json:"conflicts,omitempty"`
 	BaseBranch string `json:"baseBranch,omitempty"`
@@ -88,6 +89,15 @@ var actionsJobRE = regexp.MustCompile(`/actions/runs/(\d+)/job/(\d+)`)
 // session's process. A session started from Review shows that pull request; others show
 // the pull request whose head is the branch checked out in the session folder.
 func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus, error) {
+	return s.sessionPullRequest(id, activity, 0)
+}
+
+// SelectSessionPullRequest reads a current candidate without changing the session's branch.
+func (s *Store) SelectSessionPullRequest(id string, number int) (PullRequestStatus, error) {
+	return s.sessionPullRequest(id, true, number)
+}
+
+func (s *Store) sessionPullRequest(id string, activity bool, selected int) (PullRequestStatus, error) {
 	s.mu.Lock()
 	_, sess, repository, err := s.sessionRepositoryLocked(id)
 	if err != nil {
@@ -130,6 +140,18 @@ func (s *Store) SessionPullRequest(id string, activity bool) (PullRequestStatus,
 			return PullRequestStatus{}, errors.New("Invalid GitHub response.")
 		}
 		pr = pickPullRequest(candidates, branch, head)
+		for i := range candidates {
+			candidate := &candidates[i]
+			if pickPullRequest([]ghPullRequest{*candidate}, branch, head) == nil {
+				continue
+			}
+			item := PullRequestStatus{Repository: repo, Branch: candidate.HeadRefName}
+			fillPullRequestStatus(&item, candidate)
+			result.PullRequests = append(result.PullRequests, item)
+			if candidate.Number == selected {
+				pr = candidate
+			}
+		}
 		if pr == nil {
 			result.Message = "No pull request for " + branch + " yet. Push the branch and open one to see its checks here."
 			return result, nil
