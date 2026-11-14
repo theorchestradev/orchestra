@@ -42,7 +42,8 @@ type Session struct {
 	ExitMessage      string `json:"exitMessage,omitempty"`
 	StatusNeedsSetup bool   `json:"statusNeedsSetup,omitempty"`
 	// GitHubItem links a session started from Work on or Review to its issue or pull request.
-	GitHubItem *GitHubItem `json:"gitHubItem,omitempty"`
+	GitHubItem *GitHubItem        `json:"gitHubItem,omitempty"`
+	WorkItem   *WorkItemReference `json:"workItem,omitempty"`
 	// ProfileID chooses the agent accounts for the session's whole life; empty is Default.
 	ProfileID string `json:"profileID,omitempty"`
 	// LoginAgent makes a terminal session run that agent's login command when it first starts.
@@ -55,10 +56,20 @@ type Session struct {
 	AgentStarted bool `json:"agentStarted,omitempty"`
 }
 
-// GitHubItem identifies an issue or pull request in the session's repository.
+// WorkItemReference separates stable provider identity from the execution repository.
+type WorkItemReference struct {
+	Provider   string `json:"provider"`
+	ID         string `json:"id"`
+	URL        string `json:"url"`
+	Identifier string `json:"identifier,omitempty"`
+}
+
+// GitHubItem preserves the existing session creation bridge and saved GitHub links.
 type GitHubItem struct {
-	Number      int  `json:"number"`
-	PullRequest bool `json:"pullRequest,omitempty"`
+	// Reference is accepted by the existing session creation bridge for either provider.
+	Reference   *WorkItemReference `json:"reference,omitempty"`
+	Number      int                `json:"number"`
+	PullRequest bool               `json:"pullRequest,omitempty"`
 }
 
 // Repository is a local folder that a workspace's sessions can work in. Removing it from the
@@ -81,7 +92,8 @@ type Workspace struct {
 	// Emoji is one optional grapheme cluster shown before the name and as the Arc Mode space icon.
 	Emoji string `json:"emoji,omitempty"`
 	// Repositories is never empty; the first one provides the workspace icon.
-	Repositories []*Repository `json:"repositories"`
+	Repositories  []*Repository  `json:"repositories"`
+	LinearSources []LinearSource `json:"linearSources,omitempty"`
 	// LastRepositoryID is the repository New Session chose last.
 	LastRepositoryID string `json:"lastRepositoryID,omitempty"`
 	// Directory is the single folder of version 1 workspaces, read only to migrate them.
@@ -1013,6 +1025,9 @@ func clampSessionName(name string) string {
 // and base is where it starts, by default the repository's current commit. It first keeps local main up to date when the preference is on, and
 // otherwise emits "local-main-behind" when local main lags origin.
 func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
+	if gitHubItem != nil && gitHubItem.Reference != nil && gitHubItem.Reference.Provider == "linear" && repositoryID == "" {
+		return State{}, errors.New("Choose an execution repository.")
+	}
 	s.mu.Lock()
 	directory, keepUpdated, notice := "", false, false
 	if p, err := s.workspaceLocked(workspaceID); err == nil && createWorktree && agent != terminalAgent {
@@ -1112,7 +1127,17 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	if spec := agentSpecs[agent]; spec != nil && spec.NoInitialPrompt && prompt != "" {
 		return State{}, fmt.Errorf("%s cannot start an interactive session with an initial prompt. Create a session and enter the request in its terminal.", spec.Name)
 	}
-	if gitHubItem != nil && gitHubItem.Number <= 0 {
+	if gitHubItem != nil && gitHubItem.Reference != nil {
+		if gitHubItem.Reference.Provider == "github" && gitHubItem.Number <= 0 {
+			return State{}, errors.New("Invalid GitHub issue or pull request.")
+		}
+		if gitHubItem.Reference.Provider == "linear" && repositoryID == "" && len(p.Repositories) > 1 {
+			return State{}, errors.New("Choose an execution repository.")
+		}
+		if err := validateWorkItemReference(*gitHubItem.Reference); err != nil {
+			return State{}, err
+		}
+	} else if gitHubItem != nil && gitHubItem.Number <= 0 {
 		return State{}, errors.New("Invalid GitHub issue or pull request.")
 	}
 	if err = validateLaunch(agent, model, effort); err != nil {
@@ -1131,6 +1156,17 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
 	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent, RepositoryID: repo.ID}
+	if gitHubItem != nil && gitHubItem.Reference != nil {
+		ref := *gitHubItem.Reference
+		sess.WorkItem = &ref
+		if ref.Provider == "linear" {
+			sess.GitHubItem = nil
+		} else {
+			link := *gitHubItem
+			link.Reference = nil
+			sess.GitHubItem = &link
+		}
+	}
 	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID
 	}

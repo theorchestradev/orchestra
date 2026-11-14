@@ -35,7 +35,7 @@ static OSStatus orchestraKeychain(const char *service, int operation, const char
         status = SecItemUpdate(query, update);
         if (status == errSecItemNotFound) {
             CFDictionarySetValue(query, kSecValueData, data);
-            CFDictionarySetValue(query, kSecAttrLabel, CFSTR("Orchestra OpenRouter management key"));
+            CFDictionarySetValue(query, kSecAttrLabel, name);
             status = SecItemAdd(query, NULL);
         }
         CFRelease(update);
@@ -55,17 +55,17 @@ import (
 	"unsafe"
 )
 
-func OpenRouterKey(service string) (string, error) { return openRouterKeychain(service, 0, "") }
+func OpenRouterKey(service string) (string, error) { return platformCredential(service, 0, "") }
 func SaveOpenRouterKey(service, key string) error {
-	_, err := openRouterKeychain(service, 1, key)
+	_, err := platformCredential(service, 1, key)
 	return err
 }
 func RemoveOpenRouterKey(service string) error {
-	_, err := openRouterKeychain(service, 2, "")
+	_, err := platformCredential(service, 2, "")
 	return err
 }
 
-func openRouterKeychain(service string, operation int, secret string) (string, error) {
+func platformCredential(service string, operation int, secret string) (string, error) {
 	name, value := C.CString(service), C.CString(secret)
 	defer C.free(unsafe.Pointer(name))
 	defer C.free(unsafe.Pointer(value))
@@ -79,7 +79,7 @@ func openRouterKeychain(service string, operation int, secret string) (string, e
 		return "", nil
 	}
 	if status != C.errSecSuccess {
-		return "", errors.New("Could not access the OpenRouter key in macOS Keychain. Allow Orchestra access and try again.")
+		return "", errors.New("Could not access the integration key in macOS Keychain. Allow Orchestra access and try again.")
 	}
 	if output != nil {
 		return C.GoStringN(output, length), nil

@@ -1,5 +1,5 @@
 import { agents, themeOptions, isTerminal } from './appearance.js'
-import { hasWorkItems, workspaceTitle, sessionRepository, workspaceAgent } from './workspace.js'
+import { hasWorkItems, gitHubRepositories, workspaceTitle, sessionRepository, workspaceAgent } from './workspace.js'
 import { shortcut } from './shortcuts.js'
 import { appSymbol } from './openIn.js'
 
@@ -31,7 +31,7 @@ export function commandItems({
       name: 'Open Work Items',
       icon: 'list.bullet.rectangle',
     },
-    hasWorkItems(workspace) && {
+    gitHubRepositories(workspace).length > 0 && {
       id: 'reviews',
       group: 'Navigation',
       name: 'Open Reviews',
@@ -147,7 +147,7 @@ export function destinations(workspaces = []) {
             workspace: p,
             destination: 'reviews',
           },
-        ]
+        ].filter((item) => item.destination !== 'reviews' || gitHubRepositories(p).length)
       : []),
     ...(p.hasScratchpad
       ? [

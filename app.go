@@ -396,7 +396,7 @@ func (a *App) CreateSession(workspace, repository, agent, name, prompt string, c
 	}
 
 	state, err := a.store.CreateSession(workspace, repository, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
-	if err == nil && gitHubItem != nil {
+	if err == nil && gitHubItem != nil && (gitHubItem.Reference == nil || gitHubItem.Reference.Provider == "github") {
 		action := "work_on"
 		if gitHubItem.PullRequest {
 			action = "review"

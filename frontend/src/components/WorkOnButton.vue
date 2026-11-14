@@ -15,13 +15,16 @@ const props = defineProps({
   visible: Boolean,
   profiles: { type: Array, default: () => [] },
   profileId: String,
+  repositories: { type: Array, default: () => [] },
+  repositoryId: String,
 })
 const emit = defineEmits(['work'])
 const trigger = ref(null),
   popup = ref(null),
   open = ref(false),
   position = ref({})
-const profile = ref(''),
+const repository = ref(''),
+  profile = ref(''),
   agent = ref(''),
   model = ref(''),
   effort = ref(''),
@@ -97,6 +100,9 @@ async function toggle() {
         : agents[0].id
   // Each opening starts from the workspace's profile, or Default when it was removed.
   profile.value = findProfile(props.profiles, props.profileId) ? props.profileId : ''
+  repository.value =
+    props.repositories.find((r) => r.id === props.repositoryId)?.id ||
+    (props.repositories.length === 1 ? props.repositories[0].id : '')
   open.value = true
   listen(true)
   await nextTick()
@@ -110,7 +116,14 @@ function close(restoreFocus = false) {
   if (restoreFocus) trigger.value?.focus()
 }
 function start() {
-  emit('work', { agent: agent.value, model: model.value, effort: effort.value, profileID: profile.value })
+  if (props.repositories.length && !repository.value) return
+  emit('work', {
+    agent: agent.value,
+    model: model.value,
+    effort: effort.value,
+    profileID: profile.value,
+    ...(props.repositories.length ? { repositoryID: repository.value } : {}),
+  })
   close()
 }
 watch(
@@ -123,7 +136,7 @@ onBeforeUnmount(() => listen(false))
 </script>
 <template>
   <div class="split-button">
-    <button class="standard-button" @click="emit('work')">{{ label }}</button
+    <button class="standard-button" @click="repositories.length ? toggle() : emit('work')">{{ label }}</button
     ><button
       ref="trigger"
       class="standard-button split-toggle"
@@ -147,6 +160,13 @@ onBeforeUnmount(() => listen(false))
       @keydown.esc.stop.prevent="close(true)"
     >
       <form class="metadata-editor" @submit.prevent="start">
+        <label v-if="repositories.length"
+          >Repository<span class="theme-select general-select"
+            ><select v-model="repository" required>
+              <option disabled value="">Choose a repository</option>
+              <option v-for="r in repositories" :key="r.id" :value="r.id">{{ r.name }}</option></select
+            ><Icon name="chevron.up.chevron.down" :size="10" /></span
+        ></label>
         <label v-if="profiles.length"
           >Profile<span class="theme-select general-select"
             ><select v-model="profile">
@@ -206,7 +226,13 @@ onBeforeUnmount(() => listen(false))
         </p>
         <footer>
           <button type="button" class="standard-button" @click="close(true)">Cancel</button
-          ><button type="submit" class="standard-button primary" :disabled="loading">{{ label }}</button>
+          ><button
+            type="submit"
+            class="standard-button primary"
+            :disabled="loading || (repositories.length > 0 && !repository)"
+          >
+            {{ label }}
+          </button>
         </footer>
       </form>
     </section></Teleport

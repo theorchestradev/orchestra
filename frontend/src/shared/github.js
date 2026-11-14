@@ -1,14 +1,28 @@
 // Links between Work on / Review sessions and the GitHub items they came from. An item's number is
 // only unique within its repository, which Work Items records on each item as repositoryID.
-export const gitHubItem = (item) => ({ number: item.number, pullRequest: Boolean(item.pull_request) })
+export const itemIdentifier = (item) => item.identifier || `#${item.number}`
+export const itemReference = (item) => ({
+  provider: item.provider || 'github',
+  id: item.provider === 'linear' ? item.id : String(item.id || `${item.repositoryID}#${item.number}`),
+  url: item.html_url || item.pull_request?.html_url,
+  identifier: itemIdentifier(item),
+})
+export const gitHubItem = (item) => ({
+  number: item.number || 0,
+  pullRequest: Boolean(item.pull_request),
+  ...(item.html_url ? { reference: itemReference(item) } : {}),
+})
 export const itemSessions = (workspace, item) =>
-  workspace?.sessions?.filter(
-    (s) =>
-      s.repositoryID === item.repositoryID &&
-      s.gitHubItem?.number === item.number &&
-      Boolean(s.gitHubItem.pullRequest) === Boolean(item.pull_request),
+  workspace?.sessions?.filter((s) =>
+    s.workItem
+      ? s.workItem.provider === (item.provider || 'github') && s.workItem.id === itemReference(item).id
+      : item.provider !== 'linear' &&
+        s.repositoryID === item.repositoryID &&
+        s.gitHubItem?.number === item.number &&
+        Boolean(s.gitHubItem.pullRequest) === Boolean(item.pull_request),
   ) || []
-export const itemKey = (item) => `${item.repositoryID}#${item.number}`
+export const itemKey = (item) =>
+  item.provider === 'linear' ? `linear:${item.sourceID}:${item.id}` : `${item.repositoryID}#${item.number}`
 // Work Items shows the items of every GitHub repository in the workspace, newest activity first.
 export const workItems = (sources) =>
   sources
@@ -23,9 +37,11 @@ export const workItems = (sources) =>
     .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
 // Filters for Work Items: '' matches every source or assignee, and '-' items without assignees.
 export const matchesWorkItem = (item, { source = '', assignee = '', search = '' }) =>
-  (!source || item.repositoryID === source) &&
+  (!source || (item.sourceID || item.repositoryID) === source) &&
   (!assignee || (assignee === '-' ? !item.assignees?.length : item.assignees?.some((a) => a.login === assignee))) &&
-  (!search || item.title.toLowerCase().includes(search.toLowerCase()) || ('#' + item.number).includes(search))
+  (!search ||
+    item.title.toLowerCase().includes(search.toLowerCase()) ||
+    itemIdentifier(item).toLowerCase().includes(search.toLowerCase()))
 export const workItemAssignees = (items) =>
   [...new Set(items.flatMap((item) => item.assignees?.map((a) => a.login) || []))].sort((a, b) => a.localeCompare(b))
 export const sessionsLabel = (sessions) =>

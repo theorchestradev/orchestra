@@ -5,6 +5,7 @@ import { mac, shortcutLabel } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
+import { linearItem, executionRepository } from './shared/linear'
 import { conflictTask, gitHubItem } from './shared/github'
 import {
   workspaceTitle,
@@ -13,6 +14,7 @@ import {
   sessionRepository,
   defaultRepository,
   hasWorkItems,
+  gitHubRepositories,
   repositoryLabel,
   workspaceAgent,
 } from './shared/workspace'
@@ -709,7 +711,27 @@ async function newTerminal(p) {
     formError.value = ''
   }
 }
-function workOn(item, choice = {}) {
+async function workOn(item, choice = {}) {
+  if (item.provider === 'linear') {
+    const source = workspace.value.linearSources?.find((s) => s.id === item.sourceID)
+    const repositoryID = executionRepository(workspace.value, source, choice.repositoryID)
+    if (!repositoryID) {
+      error.value = 'Choose an execution repository.'
+      return
+    }
+    try {
+      const issue = linearItem(await call('LinearDetail', workspace.value.id, item.sourceID, item.id), source)
+      return startGitHubSession(
+        { ...issue, repositoryID },
+        `Work on this Linear issue: ${issue.html_url}\n${issue.identifier}: ${issue.title}\n\nIssue description (Markdown):\n${issue.body}`,
+        `${issue.identifier} ${issue.title}`,
+        choice,
+      )
+    } catch (e) {
+      error.value = String(e)
+      return
+    }
+  }
   const url = item.pull_request?.html_url || item.html_url
   // Agents often read only the description, so ask for the discussion explicitly.
   return startGitHubSession(
@@ -1353,7 +1375,7 @@ onBeforeUnmount(() => {
               <div v-if="preferences.arcMode || p.isExpanded" class="workspace-children">
                 <template v-if="hasWorkItems(p)"
                   ><button
-                    v-for="view in gitHubViewRows"
+                    v-for="view in gitHubViewRows.filter((v) => v.id !== 'reviews' || gitHubRepositories(p).length)"
                     :key="view.id"
                     class="sidebar-row"
                     :class="{ selected: workspace?.id === p.id && currentDestination === view.id }"
@@ -1538,7 +1560,10 @@ onBeforeUnmount(() => {
           <template v-for="p in appState.workspaces" :key="p.id"
             ><template v-for="view in gitHubViews" :key="view"
               ><div
-                v-if="(preferences.showWorkItemCounts || visitedGitHub.has(p.id + ':' + view)) && hasWorkItems(p)"
+                v-if="
+                  (preferences.showWorkItemCounts || visitedGitHub.has(p.id + ':' + view)) &&
+                  (view === 'reviews' ? gitHubRepositories(p).length : hasWorkItems(p))
+                "
                 v-show="workspace?.id === p.id && currentDestination === view"
                 class="github-pane"
               >

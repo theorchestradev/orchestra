@@ -7,7 +7,7 @@ export const settingsSearchItems = [
   ['General', 'Dismiss Errors Manually', 'manualErrorDismiss'],
   ['General', 'Keep Sessions Running After Quitting', 'keepSessionsRunning'],
   ['General', 'Keep Computer Awake While Sessions Run', 'keepAwake'],
-  ['General', 'GitHub Auto Refresh', 'github-refresh'],
+  ['General', 'Work Items Auto Refresh', 'github-refresh'],
   ['General', 'Check for Updates Automatically', 'updateChecks'],
   ['General', 'Include Beta Versions', 'betaUpdates'],
   ['Agents', 'Default Agent', 'default-agent'],
@@ -42,6 +42,7 @@ export const settingsSearchItems = [
   ['Status Bar', 'Restore Default Layout', 'restore-status-layout'],
   ['Profiles', 'Profiles, accounts, login and skills', ''],
   ['Usage', 'Codex, Claude Code and OpenRouter usage limits', ''],
+  ['Integrations', 'Linear account, API key and workspace team/project sources', ''],
 ].map(([section, label, target]) => ({ section, label, target }))
 settingsSearchItems.push(
   ...statusBarGroups.flatMap((group) =>

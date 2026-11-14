@@ -19,7 +19,7 @@ export const defaultRepository = (p) =>
   repositories(p).find((r) => r.id === p.lastRepositoryID) || repositories(p)[0] || null
 // Repositories whose GitHub remote Work Items lists.
 export const gitHubRepositories = (p) => repositories(p).filter((r) => r.gitHub)
-export const hasWorkItems = (p) => gitHubRepositories(p).length > 0
+export const hasWorkItems = (p) => gitHubRepositories(p).length > 0 || !!p?.linearSources?.length
 // The repository's name, shown beside sessions only when the workspace has several.
 export const repositoryLabel = (p, session) =>
   repositories(p).length > 1 ? sessionRepository(p, session)?.name || '' : ''

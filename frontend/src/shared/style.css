@@ -1861,7 +1861,9 @@ input::placeholder {
 .github-table-head,
 .github-row {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) 24px 100px 90px 100px;
+  grid-template-columns:
+    var(--work-item-id-width, 64px) minmax(0, 1fr) 24px 100px var(--work-item-status-width, 90px)
+    100px;
   align-items: center;
   gap: 16px;
   padding: 12px 8px;
@@ -2396,7 +2398,7 @@ input::placeholder {
 @container (max-width:819px) {
   .github-table-head,
   .github-row {
-    grid-template-columns: 64px minmax(0, 1fr) 90px;
+    grid-template-columns: var(--work-item-id-width, 64px) minmax(0, 1fr) var(--work-item-status-width, 90px);
   }
   .wide-column {
     display: none;
@@ -2538,7 +2540,7 @@ input::placeholder {
 }
 @container (max-width:819px) {
   .github-row {
-    grid-template-columns: 64px minmax(0, 1fr) 90px 8px;
+    grid-template-columns: var(--work-item-id-width, 64px) minmax(0, 1fr) var(--work-item-status-width, 90px) 8px;
   }
   .github-row > .wide-column {
     display: none;
@@ -2837,7 +2839,7 @@ h2 {
 }
 @container (max-width:819px) {
   .github-table-head {
-    grid-template-columns: 64px minmax(0, 1fr) 90px 8px;
+    grid-template-columns: var(--work-item-id-width, 64px) minmax(0, 1fr) var(--work-item-status-width, 90px) 8px;
   }
   .github-table-head:after {
     content: '';
@@ -5406,4 +5408,45 @@ h2 {
 .app-shell.full-width-pages .settings-content,
 .app-shell.full-width-pages .settings-main :is(h2, .settings-card, .profile-settings) {
   max-width: none;
+}
+
+/* Native Linear identifiers and workflow names can be longer than GitHub's. */
+.linear-row .item-id {
+  min-width: 0;
+}
+.linear-row .item-id > svg,
+.linear-row .status-badge > svg {
+  flex-shrink: 0;
+}
+.linear-row .status-badge {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+}
+.work-on-popover {
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+.linear-detail .metadata-trigger.status-badge {
+  white-space: normal;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.linear-row .item-title-line {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.linear-row .item-title-line strong,
+.linear-row .item-byline {
+  max-width: 100%;
+}
+.linear-row .item-byline {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.github-table.has-linear-sources {
+  --work-item-id-width: 96px;
+  --work-item-status-width: 120px;
 }

@@ -79,6 +79,15 @@ let state = {
         { id: appID, name: 'app', directory: '/tmp/orchestra-visual-fixture', gitHub: 'example/orchestra' },
         { id: siteID, name: 'site', directory: '/tmp/orchestra-visual-site', gitHub: 'example/site' },
       ],
+      linearSources: [
+        {
+          id: 'linear-preview',
+          name: 'Engineering / Desktop',
+          teamID: 'engineering',
+          projectID: 'desktop',
+          repositoryID: appID,
+        },
+      ],
       lastRepositoryID: appID,
       isExpanded: true,
       hasScratchpad: true,
@@ -280,7 +289,52 @@ const openRouterAccount = () =>
         checkedAt: Math.floor(Date.now() / 1000),
       }
     : { configured: false }
+let linearConnected = true
+const linearIssue = {
+  id: 'linear-issue-preview',
+  identifier: 'ENG-123',
+  title: 'Keep linked work visible across repositories',
+  description:
+    '## Workspace sources\n\nBrowse Linear and GitHub together, then choose the repository where work runs.\n\n- Preserve the native workflow status\n- Keep the issue linked to every session',
+  url: 'https://linear.app/example/issue/ENG-123',
+  updatedAt: new Date().toISOString(),
+  createdAt: new Date().toISOString(),
+  state: { name: 'In Progress', type: 'started' },
+  assignee: { id: 'alex', name: 'Alex' },
+  creator: { id: 'sam', name: 'Sam' },
+  labels: { nodes: [{ id: 'feature', name: 'Feature', color: '#888888' }] },
+  team: { id: 'engineering', name: 'Engineering' },
+  project: { id: 'desktop', name: 'Desktop' },
+}
 export const backend = {
+  LinearAccount: () => (linearConnected ? { id: 'preview-account', name: 'Preview Account' } : {}),
+  ConnectLinear: () => {
+    linearConnected = true
+    return { id: 'preview-account', name: 'Preview Account' }
+  },
+  DisconnectLinear: () => {
+    linearConnected = false
+  },
+  LinearChoices: (team) => (team ? [{ id: 'desktop', name: 'Desktop' }] : [{ id: 'engineering', name: 'Engineering' }]),
+  LinearItems: (_pid, _source, status) => {
+    if (!linearConnected) throw Error('Connect Linear in Settings → Integrations.')
+    return status === 'closed' ? [] : [structuredClone(linearIssue)]
+  },
+  LinearDetail: () => structuredClone(linearIssue),
+  SaveLinearSource: (pid, source) => {
+    const p = state.workspaces.find((p) => p.id === pid)
+    p.linearSources ||= []
+    const value = { ...source, id: source.id || id(), name: 'Engineering' + (source.projectID ? ' / Desktop' : '') }
+    const index = p.linearSources.findIndex((s) => s.id === value.id)
+    if (index < 0) p.linearSources.push(value)
+    else p.linearSources[index] = value
+    return changed()
+  },
+  RemoveLinearSource: (pid, source) => {
+    const p = state.workspaces.find((p) => p.id === pid)
+    p.linearSources = p.linearSources.filter((s) => s.id !== source)
+    return changed()
+  },
   Track: () => {},
   TelemetryStatus: () => ({ available: true, reason: '', debug: true }),
   SetTelemetryConsent: (enabled) => {
@@ -762,7 +816,10 @@ export const backend = {
         initialPrompt: prompt,
         repositoryID: repo.id,
       }
-    if (gitHubItem && agent !== 'terminal') sess.gitHubItem = gitHubItem
+    if (gitHubItem && agent !== 'terminal') {
+      if (gitHubItem.reference) sess.workItem = gitHubItem.reference
+      if (gitHubItem.reference?.provider !== 'linear') sess.gitHubItem = gitHubItem
+    }
     if (profileID) sess.profileID = profileID
     if (model) sess.model = model
     if (effort) sess.effort = effort

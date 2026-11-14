@@ -161,7 +161,8 @@ export function arcScrollDelta(event, width) {
 }
 // Work Items and Reviews list a workspace's GitHub repositories. It matches hasWorkItems in
 // workspace.js, kept here because the website's build reads this file alone.
-const listsWorkItems = (p) => (p?.repositories || []).some((r) => r.gitHub)
+const listsReviews = (p) => (p?.repositories || []).some((r) => r.gitHub)
+const listsWorkItems = (p) => listsReviews(p) || !!p?.linearSources?.length
 // Reorderable rows under Work Items and Reviews: sessions with the Scratchpad at its saved position.
 export function workspaceRows(p) {
   const rows = [...(p.sessions || [])]
@@ -173,12 +174,14 @@ export function sidebarItems(workspaces) {
   return (workspaces || [])
     .filter((p) => p.isExpanded)
     .flatMap((p) =>
-      [...(listsWorkItems(p) ? ['github', 'reviews'] : []), ...workspaceRows(p).map((s) => s.id)].map(
-        (destination) => ({
-          workspace: p,
-          destination,
-        }),
-      ),
+      [
+        ...(listsWorkItems(p) ? ['github'] : []),
+        ...(listsReviews(p) ? ['reviews'] : []),
+        ...workspaceRows(p).map((s) => s.id),
+      ].map((destination) => ({
+        workspace: p,
+        destination,
+      })),
     )
 }
 export function adjacentItem(workspaces, workspaceID, current, step) {
@@ -238,7 +241,10 @@ export function accentForeground(color) {
 export function startupDestination(workspace, preferences) {
   if (!workspace) return null
   if (preferences.startupView === 'scratchpad') return 'scratchpad'
-  if ((preferences.startupView === 'github' || preferences.startupView === 'reviews') && listsWorkItems(workspace))
+  if (
+    (preferences.startupView === 'github' || preferences.startupView === 'reviews') &&
+    (preferences.startupView === 'reviews' ? listsReviews(workspace) : listsWorkItems(workspace))
+  )
     return preferences.startupView
   return null
 }

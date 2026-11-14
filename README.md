@@ -20,7 +20,8 @@
   workspace Scratchpad through the `orchestra` CLI. Nothing is typed into a terminal
   unless you choose to.
 - **Work Items, Reviews and diffs:** browse the issues (Work Items) and pull requests
-  (Reviews) of every GitHub repository in a workspace, start a session from one, and review
+  (Reviews) of every GitHub repository in a workspace. Add read-only [Linear sources](docs/linear.md),
+  filter issues by source, choose an execution repository and start a linked session. Review
   each session's [branch changes](docs/changes.md), including uncommitted edits.
   When the session's branch has multiple current pull requests, use the PR pane's
   selector to switch between their checks and activity.
