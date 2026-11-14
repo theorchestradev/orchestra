@@ -4,6 +4,28 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.27.0 — 2026-11-14
+
+### New
+
+- **Browse Linear alongside GitHub.** Connect a personal Linear API key in
+  Settings → Integrations and add team or project sources to a workspace.
+  Work Items combines both providers with source, assignee and text filters.
+- **Start sessions from Linear issues.** Read issue details, choose an execution
+  repository and use Work on with the existing agent, model and worktree choices.
+  Linked sessions follow the issue across repositories and sources. Linear access
+  is read-only; keys are stored in the system keyring.
+- Switch between multiple current pull requests for a session's branch in the
+  PR pane to inspect their checks and activity.
+
+### Fixed
+
+- Antigravity sessions capture their conversation ID while running, preserving
+  resume support when stopped before the CLI exits on its own.
+- Page backgrounds respect the window translucency setting.
+- Escape leaves Settings when its search field is empty.
+- Review rows have more consistent spacing.
+
 ## 0.26.0 — 2026-11-11
 
 ### New
