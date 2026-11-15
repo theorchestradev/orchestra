@@ -4,6 +4,24 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.30.0 — 2026-11-15
+
+### New
+
+- **Board.** A new Board in the sidebar shows every agent session across your
+  workspaces in To do, In progress, In review and Done columns. Sessions move to In
+  review when their branch has an open or draft pull request, and to Done once it is
+  merged or closed. Each card shows the branch, workspace and the agent's live
+  activity; select one to open the session. Filter by workspace or start a new
+  session from the Board.
+- Settings → Sidebar → Show Board in Sidebar hides or shows the Board entry, which
+  sits below Automations.
+
+### Changed
+
+- In workspace settings, the Linear source form opens only when you add or edit a
+  Linear source.
+
 ## 0.29.0 — 2026-11-15
 
 ### New
