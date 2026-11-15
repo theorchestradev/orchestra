@@ -4,10 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
-## Unreleased
+## 0.29.0 — 2026-11-15
+
+### New
+
+- **Interface font size.** Settings → Appearance → Font size offers Smaller, Small,
+  Default, Large and Larger. Changes apply immediately; terminal text keeps its own
+  font size setting.
 
 ### Changed
 
+- Workspace settings save as you change them, without a Save button.
+- A session's profile now shows as a small badge on the agent icon in the sidebar.
+  Hover it to see the profile's name.
+- Linear sources in Work Items show the Linear logo.
 - **Work Items and Reviews in workspace settings.** A workspace's settings now group
   its sources under Work Items (GitHub issues and Linear) and Reviews (GitHub pull
   requests). Each repository's issues, each repository's pull requests and each
