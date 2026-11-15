@@ -795,6 +795,31 @@ function editWorkspaceSettings(p) {
   if (busy.value) return
   edit(p.id, p.name, 'Workspace', p.description || '', p.emoji || '', p.profileID || '', p.defaultAgent || '')
 }
+// Serialize workspace edits so rapid changes cannot apply older state last.
+let workspaceSettingsSave = Promise.resolve()
+function saveWorkspaceSettings(field = 'details') {
+  const id = renameID.value
+  const name = renameValue.value.trim()
+  if (field === 'details' && !name) {
+    formError.value = 'Workspace name is required.'
+    return
+  }
+  const method = field === 'profile' ? 'SetWorkspaceProfile' : field === 'agent' ? 'SetWorkspaceAgent' : 'EditWorkspace'
+  const args =
+    field === 'profile'
+      ? [id, workspaceProfileID.value]
+      : field === 'agent'
+        ? [id, workspaceAgentID.value]
+        : [id, name, workspaceDescription.value, workspaceEmoji.value]
+  formError.value = ''
+  workspaceSettingsSave = workspaceSettingsSave.then(async () => {
+    try {
+      apply(await call(method, ...args))
+    } catch (e) {
+      error.value = String(e)
+    }
+  })
+}
 async function rename() {
   if (busy.value || !renameValue.value.trim()) return
   busy.value = true
@@ -1953,24 +1978,22 @@ onBeforeUnmount(() => {
       :workspace-icons="workspaceIcons"
       @workspace-settings="editWorkspaceSettings"
       ><template #workspace
-        ><div
-          v-if="editedWorkspace"
-          class="settings-groups workspace-settings"
-          @keydown.meta.enter.capture.prevent.stop="rename"
-          @keydown.ctrl.enter.capture.prevent.stop="rename"
-        >
+        ><div v-if="editedWorkspace" class="settings-groups workspace-settings">
           <section class="settings-group">
             <h3 class="settings-group-title">Workspace</h3>
             <div class="settings-card">
               <div class="setting-row">
                 <label for="workspace-emoji">Emoji</label
                 ><span class="emoji-input"
-                  ><EmojiPicker id="workspace-emoji" :value="workspaceEmoji" @pick="workspaceEmoji = $event" /><button
+                  ><EmojiPicker
+                    id="workspace-emoji"
+                    :value="workspaceEmoji"
+                    @pick="((workspaceEmoji = $event), saveWorkspaceSettings())" /><button
                     v-if="workspaceEmoji"
                     class="icon-button"
                     aria-label="Clear Emoji"
                     title="Clear Emoji"
-                    @click="workspaceEmoji = ''"
+                    @click="((workspaceEmoji = ''), saveWorkspaceSettings())"
                   >
                     <Icon name="xmark" :size="10" /></button
                 ></span>
@@ -1982,7 +2005,8 @@ onBeforeUnmount(() => {
                   autocorrect="off"
                   autocapitalize="off"
                   v-model="renameValue"
-                  @keydown.enter.prevent="rename"
+                  @change="saveWorkspaceSettings()"
+                  @keydown.enter.prevent="$event.target.blur()"
                 />
               </div>
               <div class="setting-row">
@@ -1992,6 +2016,7 @@ onBeforeUnmount(() => {
                   autocorrect="off"
                   autocapitalize="off"
                   v-model="workspaceDescription"
+                  @change="saveWorkspaceSettings()"
                   class="description-field"
                   rows="3"
                   maxlength="500"
@@ -2063,6 +2088,7 @@ onBeforeUnmount(() => {
                   <select
                     id="workspace-agent"
                     v-model="workspaceAgentID"
+                    @change="saveWorkspaceSettings('agent')"
                     aria-describedby="workspace-agent-description"
                   >
                     <option value="">
@@ -2083,6 +2109,7 @@ onBeforeUnmount(() => {
                   <select
                     id="workspace-profile"
                     v-model="workspaceProfileID"
+                    @change="saveWorkspaceSettings('profile')"
                     aria-describedby="workspace-profile-description"
                   >
                     <option value="">Default</option>
@@ -2103,11 +2130,6 @@ onBeforeUnmount(() => {
             />
           </div>
           <p v-if="formError" class="error" role="alert">{{ formError }}</p>
-          <footer>
-            <button class="standard-button primary" :disabled="busy || !renameValue.trim()" @click="rename">
-              Save
-            </button>
-          </footer>
         </div></template
       ></Settings
     >

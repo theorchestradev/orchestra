@@ -80,3 +80,48 @@ test('Settings lists workspaces and opens the selected workspace without selecti
     dom.window.close()
   }
 })
+
+const source = readFileSync(new URL('../src/App.vue', import.meta.url), 'utf8')
+test('workspace autosave serializes edits and captures the workspace before navigation', async () => {
+  const body = source.match(/function saveWorkspaceSettings\(field = 'details'\) \{([\s\S]*?)\n\}/)[1]
+  const ref = (value) => ({ value })
+  const id = ref('first')
+  const calls = []
+  const save = new Function(
+    'renameID',
+    'renameValue',
+    'workspaceProfileID',
+    'workspaceAgentID',
+    'workspaceDescription',
+    'workspaceEmoji',
+    'formError',
+    'error',
+    'call',
+    'apply',
+    `let workspaceSettingsSave = Promise.resolve(); return { save(field) {${body}}, done() { return workspaceSettingsSave } }`,
+  )(
+    id,
+    ref('Workspace'),
+    ref('profile'),
+    ref('agent'),
+    ref('description'),
+    ref('emoji'),
+    ref(''),
+    ref(''),
+    async (...args) => {
+      calls.push(args)
+      return args
+    },
+    () => {},
+  )
+  save.save()
+  save.save('agent')
+  id.value = 'second'
+  save.save('profile')
+  await save.done()
+  assert.deepEqual(calls, [
+    ['EditWorkspace', 'first', 'Workspace', 'description', 'emoji'],
+    ['SetWorkspaceAgent', 'first', 'agent'],
+    ['SetWorkspaceProfile', 'second', 'profile'],
+  ])
+})
