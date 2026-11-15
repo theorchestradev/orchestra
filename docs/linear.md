@@ -1,6 +1,6 @@
 # Linear Work Items
 
-Open **Settings → Integrations** and connect Linear with a personal API key from
+Open the workspace menu and choose **Edit Workspace → Linear** and connect Linear with a personal API key from
 Linear's **Settings → Security & access**. Grant read access to the teams you want
 to browse. This initial integration uses personal keys; OAuth is not implemented.
 Orchestra stores the key in macOS Keychain or the Linux desktop Secret Service
@@ -8,7 +8,7 @@ Orchestra stores the key in macOS Keychain or the Linux desktop Secret Service
 be available and unlocked. There is no plaintext fallback. The key is never saved
 in workspace state or included in session prompts.
 
-Select a workspace, choose a Linear team and optionally a project, and click
+Choose a Linear team and optionally a project, and click
 **Add Source**. You can edit or remove sources here. An optional default execution
 repository preselects where **Work on** runs; it does not bind the team or project
 to a single repository. Removing a local repository leaves the source available;
@@ -39,3 +39,7 @@ existing behavior. **Disconnect** removes the stored key but keeps workspace
 source configuration and existing session links; reconnect to browse again.
 
 API reference: <https://linear.app/developers/graphql>.
+
+Each workspace has its own Linear connection. Connecting or disconnecting one workspace
+does not affect another. Existing sources are preserved; if you previously used the
+global connection, reconnect Linear separately in each workspace.

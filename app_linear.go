@@ -9,22 +9,25 @@ import (
 	"github.com/theorchestradev/orchestra/internal/core"
 )
 
-func linearKeyService() string {
+func linearKeyService(workspace string) string {
 	service := "com.orchestra.linear"
 	if path := os.Getenv("ORCHESTRA_STATE_FILE"); path != "" {
 		service += fmt.Sprintf(".workspace-%x", sha256.Sum256([]byte(path)))
 	}
-	return service
+	return service + fmt.Sprintf(".%x", sha256.Sum256([]byte(workspace)))
 }
-func (a *App) linearClient() (core.LinearClient, error) {
+func (a *App) linearClient(workspace string) (core.LinearClient, error) {
 	if err := a.ready(); err != nil {
 		return core.LinearClient{}, err
 	}
-	key, err := core.LinearKey(linearKeyService())
+	if err := a.linearWorkspace(workspace); err != nil {
+		return core.LinearClient{}, err
+	}
+	key, err := core.LinearKey(linearKeyService(workspace))
 	return core.LinearClient{Key: key}, err
 }
-func (a *App) LinearAccount() (core.LinearChoice, error) {
-	client, err := a.linearClient()
+func (a *App) LinearAccount(workspace string) (core.LinearChoice, error) {
+	client, err := a.linearClient(workspace)
 	if err != nil {
 		return core.LinearChoice{}, err
 	}
@@ -33,8 +36,11 @@ func (a *App) LinearAccount() (core.LinearChoice, error) {
 	}
 	return client.Viewer(a.ctx)
 }
-func (a *App) ConnectLinear(key string) (core.LinearChoice, error) {
+func (a *App) ConnectLinear(workspace, key string) (core.LinearChoice, error) {
 	if err := a.ready(); err != nil {
+		return core.LinearChoice{}, err
+	}
+	if err := a.linearWorkspace(workspace); err != nil {
 		return core.LinearChoice{}, err
 	}
 	key = strings.TrimSpace(key)
@@ -42,19 +48,22 @@ func (a *App) ConnectLinear(key string) (core.LinearChoice, error) {
 	if err != nil {
 		return core.LinearChoice{}, err
 	}
-	if err = core.SaveLinearKey(linearKeyService(), key); err != nil {
+	if err = core.SaveLinearKey(linearKeyService(workspace), key); err != nil {
 		return core.LinearChoice{}, err
 	}
 	return account, nil
 }
-func (a *App) DisconnectLinear() error {
+func (a *App) DisconnectLinear(workspace string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	return core.RemoveLinearKey(linearKeyService())
+	if err := a.linearWorkspace(workspace); err != nil {
+		return err
+	}
+	return core.RemoveLinearKey(linearKeyService(workspace))
 }
-func (a *App) LinearChoices(team string) ([]core.LinearChoice, error) {
-	client, err := a.linearClient()
+func (a *App) LinearChoices(workspace, team string) ([]core.LinearChoice, error) {
+	client, err := a.linearClient(workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +74,7 @@ func (a *App) SaveLinearSource(workspace string, source core.LinearSource) (core
 		return core.State{}, err
 	}
 	// Resolve names and validate access, rather than trusting frontend IDs or labels.
-	client, err := a.linearClient()
+	client, err := a.linearClient(workspace)
 	if err != nil {
 		return core.State{}, err
 	}
@@ -107,7 +116,7 @@ func (a *App) RemoveLinearSource(workspace, source string) (core.State, error) {
 	return a.store.RemoveLinearSource(workspace, source)
 }
 func (a *App) LinearItems(workspace, source, state string) ([]core.LinearIssue, error) {
-	client, err := a.linearClient()
+	client, err := a.linearClient(workspace)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +127,7 @@ func (a *App) LinearItems(workspace, source, state string) ([]core.LinearIssue, 
 	return client.Items(a.ctx, config, state)
 }
 func (a *App) LinearDetail(workspace, source, id string) (core.LinearIssue, error) {
-	client, err := a.linearClient()
+	client, err := a.linearClient(workspace)
 	if err != nil {
 		return core.LinearIssue{}, err
 	}
@@ -127,4 +136,13 @@ func (a *App) LinearDetail(workspace, source, id string) (core.LinearIssue, erro
 		return core.LinearIssue{}, err
 	}
 	return client.Detail(a.ctx, config, id)
+}
+
+func (a *App) linearWorkspace(id string) error {
+	for _, workspace := range a.store.Snapshot().Workspaces {
+		if workspace.ID == id {
+			return nil
+		}
+	}
+	return fmt.Errorf("Workspace not found.")
 }

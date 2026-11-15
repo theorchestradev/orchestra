@@ -97,6 +97,7 @@ onMounted(async () => {
   // App shortcuts are left to App.vue. Off macOS, Ctrl+B, Ctrl+K and Ctrl+N belong to the
   // terminal, so app shortcuts and copy/paste use Ctrl+Shift there.
   terminal.attachCustomKeyEventHandler((e) => {
+    if (!props.visible) return false
     if (!mac && e.ctrlKey && e.shiftKey && (e.code === 'KeyC' || e.code === 'KeyV')) {
       e.preventDefault()
       if (e.type === 'keydown' && e.code === 'KeyC' && terminal.hasSelection()) copy(terminal.getSelection())

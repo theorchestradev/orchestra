@@ -1,4 +1,5 @@
 <script setup>
+import LinearIntegration from './components/LinearIntegration.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, on, copy, preview } from './shared/api'
 import { mac, shortcutLabel } from './shared/platform'
@@ -787,6 +788,7 @@ function edit(id, name, kind, description = '', emoji = '', profileID = '', agen
   nextTick(() => document.querySelector('.rename-dialog input[autofocus]')?.select())
 }
 async function rename() {
+  if (busy.value || !renameValue.value.trim()) return
   busy.value = true
   try {
     let state = await (renameKind.value === 'Workspace'
@@ -1664,7 +1666,7 @@ onBeforeUnmount(() => {
                   :session="sess"
                   :preferences="shownPreferences"
                   :translucent="translucent"
-                  :visible="workspace?.id === p.id && currentDestination === sess.id"
+                  :visible="modal !== 'settings' && workspace?.id === p.id && currentDestination === sess.id"
                   @error="error = $event"
                   @key="lastKey[sess.id] = Date.now()"
                 />
@@ -2141,7 +2143,7 @@ onBeforeUnmount(() => {
       v-else-if="modal === 'rename'"
       :label="'Edit ' + (renameKind === 'Workspace' ? 'Workspace' : renameKind)"
       @close="closeModal"
-      ><form class="rename-dialog" @submit.prevent="rename">
+      ><div class="rename-dialog">
         <h2>Edit {{ renameKind === 'Workspace' ? 'Workspace' : renameKind }}</h2>
         <div v-if="renameKind === 'Workspace'" class="workspace-name-fields">
           <div class="emoji-field">
@@ -2163,6 +2165,7 @@ onBeforeUnmount(() => {
               autocorrect="off"
               autocapitalize="off"
               v-model="renameValue"
+              @keydown.enter.prevent="rename"
               autofocus
               aria-label="Workspace Name"
           /></label>
@@ -2173,6 +2176,7 @@ onBeforeUnmount(() => {
             autocorrect="off"
             autocapitalize="off"
             v-model="renameValue"
+            @keydown.enter.prevent="rename"
             autofocus
             :aria-label="renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'" /></label
         ><label v-if="renameKind === 'Workspace'"
@@ -2260,12 +2264,26 @@ onBeforeUnmount(() => {
             ><Icon name="chevron.up.chevron.down" :size="10" />
           </div>
         </div>
+        <LinearIntegration
+          v-if="editedWorkspace"
+          :key="editedWorkspace.id"
+          :workspace="editedWorkspace"
+          @state="apply"
+        />
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button type="button" class="standard-button" @click="closeModal">Cancel</button
-          ><button type="submit" class="standard-button primary" :disabled="busy || !renameValue.trim()">Save</button>
+          ><button
+            type="button"
+            data-default-action
+            class="standard-button primary"
+            :disabled="busy || !renameValue.trim()"
+            @click="rename"
+          >
+            Save
+          </button>
         </footer>
-      </form></Modal
+      </div></Modal
     >
     <Modal v-else-if="modal === 'removeWorkspace'" label="Remove Workspace" @close="!busy && closeModal()"
       ><div class="close-dialog">

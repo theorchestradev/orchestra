@@ -16,9 +16,12 @@ const token = {}
 let observer
 // Buttons inside a nested dialog belong to that dialog.
 function defaultAction() {
-  return [
-    ...element.value.querySelectorAll('[data-default-action]:not(:disabled), button[type="submit"]:not(:disabled)'),
-  ].find((button) => button.closest('.modal') === element.value)
+  for (const selector of ['[data-default-action]:not(:disabled)', 'button[type="submit"]:not(:disabled)']) {
+    const action = [...element.value.querySelectorAll(selector)].find(
+      (button) => button.closest('.modal') === element.value,
+    )
+    if (action) return action
+  }
 }
 function markDefaultAction() {
   const action = defaultAction()

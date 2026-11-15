@@ -289,7 +289,7 @@ const openRouterAccount = () =>
         checkedAt: Math.floor(Date.now() / 1000),
       }
     : { configured: false }
-let linearConnected = true
+const linearDisconnected = new Set()
 const linearIssue = {
   id: 'linear-issue-preview',
   identifier: 'ENG-123',
@@ -307,17 +307,18 @@ const linearIssue = {
   project: { id: 'desktop', name: 'Desktop' },
 }
 export const backend = {
-  LinearAccount: () => (linearConnected ? { id: 'preview-account', name: 'Preview Account' } : {}),
-  ConnectLinear: () => {
-    linearConnected = true
+  LinearAccount: (pid) => (!linearDisconnected.has(pid) ? { id: 'preview-account', name: 'Preview Account' } : {}),
+  ConnectLinear: (pid) => {
+    linearDisconnected.delete(pid)
     return { id: 'preview-account', name: 'Preview Account' }
   },
-  DisconnectLinear: () => {
-    linearConnected = false
+  DisconnectLinear: (pid) => {
+    linearDisconnected.add(pid)
   },
-  LinearChoices: (team) => (team ? [{ id: 'desktop', name: 'Desktop' }] : [{ id: 'engineering', name: 'Engineering' }]),
+  LinearChoices: (_pid, team) =>
+    team ? [{ id: 'desktop', name: 'Desktop' }] : [{ id: 'engineering', name: 'Engineering' }],
   LinearItems: (_pid, _source, status) => {
-    if (!linearConnected) throw Error('Connect Linear in Settings → Integrations.')
+    if (linearDisconnected.has(_pid)) throw Error('Connect Linear in Edit Workspace → Linear.')
     return status === 'closed' ? [] : [structuredClone(linearIssue)]
   },
   LinearDetail: () => structuredClone(linearIssue),

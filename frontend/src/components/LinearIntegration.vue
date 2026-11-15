@@ -30,11 +30,11 @@ async function run(action) {
   }
 }
 async function loadTeams() {
-  teams.value = await call('LinearChoices', '')
+  teams.value = await call('LinearChoices', props.workspace.id, '')
 }
 onMounted(() =>
   run(async () => {
-    account.value = await call('LinearAccount')
+    account.value = await call('LinearAccount', props.workspace.id)
     if (account.value?.id) await loadTeams()
   }),
 )
@@ -45,7 +45,7 @@ watch(team, async (id) => {
   projectsLoading.value = !!id
   if (!id) return
   try {
-    const list = await call('LinearChoices', id)
+    const list = await call('LinearChoices', props.workspace.id, id)
     if (token === projectRequest) projects.value = list
   } catch (e) {
     if (token === projectRequest) error.value = String(e)
@@ -66,13 +66,13 @@ async function connect() {
   const value = key.value
   key.value = ''
   await run(async () => {
-    account.value = await call('ConnectLinear', value)
+    account.value = await call('ConnectLinear', props.workspace.id, value)
     await loadTeams()
   })
 }
 async function disconnect() {
   await run(async () => {
-    await call('DisconnectLinear')
+    await call('DisconnectLinear', props.workspace.id)
     account.value = null
     teams.value = []
     team.value = ''
@@ -101,7 +101,7 @@ async function edit(source) {
   team.value = source.teamID
   repository.value = source.repositoryID || ''
   await run(async () => {
-    projects.value = await call('LinearChoices', source.teamID)
+    projects.value = await call('LinearChoices', props.workspace.id, source.teamID)
     project.value = source.projectID || ''
   })
 }
@@ -109,16 +109,16 @@ async function edit(source) {
 <template>
   <div class="settings-groups general-settings">
     <section class="settings-group" aria-label="Linear integration">
-      <h3 class="settings-group-title">Linear</h3>
+      <h3 class="settings-group-title">Linear for {{ workspace.name }}</h3>
       <div class="settings-card">
         <div class="setting-row">
           <div>
             <label>Linear account</label>
             <p class="muted caption">
               Connect with a personal API key with read access to the teams you need. Stored in macOS Keychain or the
-              Linux desktop keyring.
+              Linux desktop keyring. This connection is only used by this workspace.
             </p>
-            <button class="text-link" @click="openURL('https://linear.app/settings/account/security')">
+            <button type="button" class="text-link" @click="openURL('https://linear.app/settings/account/security')">
               Create a personal API key
             </button>
           </div>
@@ -151,8 +151,11 @@ async function edit(source) {
               {{ workspace.repositories.find((r) => r.id === source.repositoryID)?.name || 'Ask when starting work' }}
             </p>
           </div>
-          <button class="standard-button" :disabled="busy || !account?.id" @click="edit(source)">Edit</button>
+          <button type="button" class="standard-button" :disabled="busy || !account?.id" @click="edit(source)">
+            Edit
+          </button>
           <button
+            type="button"
             class="standard-button"
             :disabled="busy"
             @click="run(async () => emit('state', await call('RemoveLinearSource', workspace.id, source.id)))"

@@ -15,7 +15,6 @@ import Modal from './Modal.vue'
 import AgentUsage from './AgentUsage.vue'
 import AgentSkill from './AgentSkill.vue'
 import Profiles from './Profiles.vue'
-import LinearIntegration from './LinearIntegration.vue'
 import { call, openURL } from '../shared/api'
 import { privacyURL } from '../shared/telemetry'
 import { mac, shortcutLabel } from '../shared/platform'
@@ -65,7 +64,6 @@ const sections = {
   Agents: 'person.2',
   'Source Control': 'arrow.triangle.branch',
   Profiles: 'person.crop.circle',
-  Integrations: 'circle.dotted',
   Appearance: 'paintpalette',
   Sidebar: 'sidebar.left',
   'Status Bar': 'list.bullet.rectangle',
@@ -1108,11 +1106,6 @@ if (!mac)
             </div>
           </section>
         </div>
-        <LinearIntegration
-          v-else-if="section === 'Integrations'"
-          :workspace="workspace"
-          @state="emit('state', $event)"
-        />
         <Profiles
           v-else-if="section === 'Profiles'"
           :profiles="profiles"

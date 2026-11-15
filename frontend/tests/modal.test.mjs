@@ -100,3 +100,19 @@ test('the button Command-Return clicks shows the shortcut, and only that button'
     },
   )
 })
+
+test('explicit dialog action takes priority over embedded form submit buttons', async () => {
+  let saved = 0
+  await withModal(
+    (h) => [
+      h('form', [h('button', { type: 'submit', id: 'connect' }, 'Connect Linear')]),
+      h('button', { id: 'save', 'data-default-action': true, onClick: () => saved++ }, 'Save'),
+    ],
+    (dom) => {
+      assert.equal(document.getElementById('connect').hasAttribute('data-shortcut'), false)
+      assert.ok(document.getElementById('save').hasAttribute('data-shortcut'))
+      document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', metaKey: true, bubbles: true }))
+      assert.equal(saved, 1)
+    },
+  )
+})

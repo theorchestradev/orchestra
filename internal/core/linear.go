@@ -36,7 +36,7 @@ type LinearClient struct {
 // Never return response bodies, GraphQL messages or transport errors: they may echo credentials.
 func (c LinearClient) query(ctx context.Context, query string, variables any, result any) error {
 	if c.Key == "" {
-		return errors.New("Connect Linear in Settings → Integrations.")
+		return errors.New("Connect Linear in Edit Workspace → Linear.")
 	}
 	data, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
@@ -67,7 +67,7 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		return errors.New("Linear authentication failed. Reconnect in Settings → Integrations.")
+		return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Linear.")
 	}
 	if resp.StatusCode == 429 {
 		return errors.New("Linear rate limit reached. Wait before refreshing.")
@@ -91,7 +91,7 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 		case "RATELIMITED":
 			return errors.New("Linear rate limit reached. Wait before refreshing.")
 		case "UNAUTHENTICATED", "AUTHENTICATION_ERROR", "FORBIDDEN":
-			return errors.New("Linear authentication failed. Reconnect in Settings → Integrations.")
+			return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Linear.")
 		}
 	}
 	if len(envelope.Errors) > 0 {
