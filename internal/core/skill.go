@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -74,14 +73,18 @@ var cliShell = func(ctx context.Context, script string) ([]byte, int, error) {
 		return nil, -1, err
 	}
 	defer os.RemoveAll(directory)
-	cmd := exec.CommandContext(ctx, loginShell(), "-l", "-i", "-c", script+" </dev/null")
+	argv, err := loginShellArgs(script + " </dev/null")
+	if err != nil {
+		return nil, -1, err
+	}
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	cmd.Dir = directory
 	env := environmentMap()
 	env["NO_COLOR"] = "1"
 	env["DO_NOT_TRACK"] = "1"
 	cmd.Env = environmentList(env)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	setProcessGroup(cmd)
+	cmd.Cancel = func() error { return killProcessGroup(cmd) }
 	output, err := cmd.CombinedOutput()
 	if ctx.Err() != nil {
 		return output, -1, ctx.Err()

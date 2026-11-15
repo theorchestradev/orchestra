@@ -12,6 +12,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"time"
@@ -164,8 +165,11 @@ func newCollaboration(path string, s *Store, live map[string]sessionhost.Info) (
 			return nil, "", err
 		}
 	}
-	shim := "#!/bin/sh\nexec " + shellQuote(s.executable) + " --orchestra-cli \"$@\"\n"
-	if err = atomicWrite(filepath.Join(s.runtimeDir, "orchestra"), []byte(shim), 0700); err != nil {
+	shim, name := "#!/bin/sh\nexec "+shellQuote(s.executable)+" --orchestra-cli \"$@\"\n", "orchestra"
+	if runtime.GOOS == "windows" {
+		shim, name = "@echo off\r\n\""+s.executable+"\" --orchestra-cli %*\r\n", "orchestra.cmd"
+	}
+	if err = atomicWrite(filepath.Join(s.runtimeDir, name), []byte(shim), 0700); err != nil {
 		return nil, "", err
 	}
 	// A runtime folder kept for the session host can hold the socket of an earlier launch.

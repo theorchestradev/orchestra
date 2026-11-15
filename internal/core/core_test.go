@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -19,6 +20,9 @@ import (
 
 func fixtureStore(t *testing.T) *Store {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Store fixtures start sessions through a POSIX shell; see docs/windows.md")
+	}
 	path := filepath.Join(t.TempDir(), "state.json")
 	exe, _ := os.Executable()
 	s, err := NewStore(path, exe, nil, nil)

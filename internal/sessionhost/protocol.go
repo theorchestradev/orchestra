@@ -59,6 +59,15 @@ type Info struct {
 	Exit    *Exit           `json:"exit,omitempty"`
 }
 
+// Options tune when an unused host exits. Zero values use the defaults.
+type Options struct {
+	// Idle is how long the host waits without clients or running sessions before it exits.
+	Idle time.Duration
+	// Retain keeps a session that exited without a client for this long, so Orchestra can
+	// still show how it ended when it opens again.
+	Retain time.Duration
+}
+
 // SocketPath and lockPath are the host's files in its folder.
 func SocketPath(dir string) string { return filepath.Join(dir, "host.sock") }
 func lockPath(dir string) string   { return filepath.Join(dir, "host.lock") }

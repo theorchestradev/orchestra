@@ -27,6 +27,10 @@ export DEVELOPER_DIR
 # Start from `go env` so the default -O2 -g flags are kept.
 export CGO_CFLAGS := $(strip $(shell go env CGO_CFLAGS) -mmacosx-version-min=$(MACOS_MIN_VERSION))
 export CGO_LDFLAGS := $(strip $(shell go env CGO_LDFLAGS) -mmacosx-version-min=$(MACOS_MIN_VERSION))
+else ifeq ($(OS),Windows_NT)
+# Windows builds need no tags: Wails uses the WebView2 runtime through go-webview2.
+# GNU make sets OS on Windows, whatever shell runs the recipe.
+TAGS :=
 else
 # Linux builds against WebKitGTK 4.1 (libwebkit2gtk-4.1-dev), the version current
 # Ubuntu LTS releases ship.
