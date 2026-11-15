@@ -52,6 +52,7 @@ let state = {
     arcMode: false,
     hideSearch: false,
     hideAutomations: false,
+    hideBoard: false,
     defaultAgent: 'claude',
     startupView: 'last',
     confirmQuit: true,

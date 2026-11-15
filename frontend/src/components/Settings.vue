@@ -837,6 +837,24 @@ if (!mac)
               <hr />
               <div class="setting-row">
                 <div>
+                  <label for="show-board">Show Board in Sidebar</label>
+                  <p class="muted caption">Show the Board entry below Automations.</p>
+                </div>
+                <button
+                  id="show-board"
+                  class="switch"
+                  :class="{ on: !preferences.hideBoard }"
+                  role="switch"
+                  :aria-checked="!preferences.hideBoard"
+                  aria-label="Show Board in Sidebar"
+                  @click="choose('hideBoard', !preferences.hideBoard)"
+                >
+                  <span />
+                </button>
+              </div>
+              <hr />
+              <div class="setting-row">
+                <div>
                   <label for="show-work-item-counts">Show Work Items and Reviews counts</label>
                   <p class="muted caption">Show loaded list counts in the sidebar.</p>
                 </div>

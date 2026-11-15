@@ -52,6 +52,7 @@ test('command bar lists navigation, creation and app commands for the selected w
   const none = commandItems({ workspaces: [], preferences: {} }).map((c) => c.id)
   assert.deepEqual(none, [
     'goto',
+    'board',
     'workspace',
     'automations',
     'settings',
@@ -102,16 +103,15 @@ test('new session commands prefer the workspace agent over the Default Agent', (
 test('go to lists every workspace page and session', () => {
   const items = destinations(workspaces)
   assert.deepEqual(
-    items.map((i) => [i.workspace.id, i.destination]),
+    items.map((i) => [i.workspace?.id, i.destination]),
     [
+      [undefined, 'board'],
       ['p1', 'workspace'],
       ['p1', 'github'],
       ['p1', 'reviews'],
-      ['p1', 'board'],
       ['p1', 'scratchpad'],
       ['p1', 's1'],
       ['p2', 'workspace'],
-      ['p2', 'board'],
       ['p2', 's2'],
     ],
   )

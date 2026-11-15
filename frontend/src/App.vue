@@ -89,6 +89,7 @@ const appState = ref({
     arcMode: false,
     hideSearch: false,
     hideAutomations: false,
+    hideBoard: false,
     defaultAgent: 'claude',
     startupView: 'last',
     confirmQuit: true,
@@ -528,6 +529,7 @@ function navigate(step) {
     workspace.value?.id,
     currentDestination.value,
     step,
+    preferences.value.hideBoard,
   )
   if (item) item.globalBoard ? openBoard() : select(item.workspace, item.destination)
 }
@@ -1311,14 +1313,6 @@ onBeforeUnmount(() => {
       </div>
       <nav class="sidebar-global" aria-label="Global navigation">
         <button
-          class="sidebar-row"
-          :class="{ selected: globalView === 'board' || currentDestination === 'board' }"
-          :aria-current="globalView === 'board' || currentDestination === 'board' ? 'page' : undefined"
-          @click="openBoard"
-        >
-          <Icon name="board" :size="15" /><span>Board</span>
-        </button>
-        <button
           v-if="!preferences.hideSearch"
           class="sidebar-row command-search-row"
           aria-label="Search"
@@ -1335,6 +1329,15 @@ onBeforeUnmount(() => {
           @click="openAutomations"
         >
           <Icon name="bot" :size="15" /><span>Automations</span>
+        </button>
+        <button
+          v-if="!preferences.hideBoard"
+          class="sidebar-row"
+          :class="{ selected: globalView === 'board' || currentDestination === 'board' }"
+          :aria-current="globalView === 'board' || currentDestination === 'board' ? 'page' : undefined"
+          @click="openBoard"
+        >
+          <Icon name="board" :size="15" /><span>Board</span>
         </button>
       </nav>
       <div v-if="!preferences.arcMode" class="sidebar-heading">

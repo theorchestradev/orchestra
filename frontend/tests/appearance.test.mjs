@@ -110,16 +110,22 @@ test('sidebar navigation follows visible order and wraps', () => {
   ]
   assert.deepEqual(
     sidebarItems(workspaces).map((i) => i.workspace.id + ':' + i.destination),
-    ['a:github', 'a:reviews', 'a:board', 'a:scratchpad', 'a:s1', 'a:s2', 'c:board', 'c:s4'],
+    ['a:board', 'a:github', 'a:reviews', 'a:scratchpad', 'a:s1', 'a:s2', 'c:s4'],
   )
-  assert.equal(adjacentItem(workspaces, 'a', 's2', 1).destination, 'board')
-  assert.equal(adjacentItem(workspaces, 'c', 's4', 1).destination, 'github')
-  assert.equal(adjacentItem(workspaces, 'a', 'github', -1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'a', 's2', 1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'c', 's4', 1).destination, 'board')
+  assert.equal(adjacentItem(workspaces, 'a', 'github', -1).destination, 'board')
   assert.equal(adjacentItem(workspaces, 'a', 'github', 1).destination, 'reviews')
-  assert.equal(adjacentItem(workspaces, 'a', 'scratchpad', -1).destination, 'board')
-  assert.equal(adjacentItem(workspaces, 'a', 'empty', 1).destination, 'github')
+  assert.equal(adjacentItem(workspaces, 'a', 'board', -1).destination, 's4')
+  assert.equal(adjacentItem(workspaces, 'a', 'scratchpad', -1).destination, 'reviews')
+  assert.equal(adjacentItem(workspaces, 'a', 'empty', 1).destination, 'board')
   assert.equal(adjacentItem(workspaces, 'a', 'empty', -1).destination, 's4')
   assert.equal(adjacentItem([], 'a', 'empty', 1), null)
+  assert.deepEqual(
+    sidebarItems(workspaces, 'a', true).map((i) => i.destination),
+    ['github', 'reviews', 'scratchpad', 's1', 's2', 's4'],
+  )
+  assert.equal(adjacentItem(workspaces, 'a', 'github', -1, true).destination, 's4')
 })
 test('the Scratchpad sits at its saved position among sessions, below Work Items and Reviews', () => {
   const p = {
@@ -132,7 +138,7 @@ test('the Scratchpad sits at its saved position among sessions, below Work Items
   }
   assert.deepEqual(
     sidebarItems([p]).map((i) => i.destination),
-    ['github', 'reviews', 'board', 's1', 'scratchpad', 's2'],
+    ['board', 'github', 'reviews', 's1', 'scratchpad', 's2'],
   )
   assert.equal(adjacentItem([p], 'a', 's1', 1).destination, 'scratchpad')
   assert.equal(adjacentItem([p], 'a', 'scratchpad', 1).destination, 's2')

@@ -172,7 +172,7 @@ export function workspaceRows(p) {
     rows.splice(Math.max(0, Math.min(p.scratchpadIndex || 0, rows.length)), 0, { id: 'scratchpad', scratchpad: true })
   return rows
 }
-export function sidebarItems(workspaces, workspaceID) {
+export function sidebarItems(workspaces, workspaceID, hideBoard = false) {
   const list = (workspaces || [])
     .filter((p) => p.isExpanded)
     .flatMap((p) =>
@@ -185,11 +185,12 @@ export function sidebarItems(workspaces, workspaceID) {
         destination,
       })),
     )
+  if (hideBoard) return list
   const boardWorkspace = (workspaces || []).find((p) => p.id === workspaceID) || workspaces?.[0]
   return boardWorkspace ? [{ workspace: boardWorkspace, destination: 'board', globalBoard: true }, ...list] : list
 }
-export function adjacentItem(workspaces, workspaceID, current, step) {
-  const items = sidebarItems(workspaces, workspaceID)
+export function adjacentItem(workspaces, workspaceID, current, step, hideBoard = false) {
+  const items = sidebarItems(workspaces, workspaceID, hideBoard)
   if (!items.length) return null
   const index = items.findIndex((i) =>
     i.globalBoard ? current === 'board' : i.workspace.id === workspaceID && i.destination === current,

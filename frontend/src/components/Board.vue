@@ -1,7 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { agents, agentIcon, activityLabel, isTerminal } from '../shared/appearance'
-import { repositoryLabel } from '../shared/workspace'
+import { repositoryLabel, sessionRepository } from '../shared/workspace'
+import { loadPullRequest, pullRequests } from './SessionPullRequest.vue'
 import Icon from './Icon.vue'
 
 const props = defineProps({ workspaces: Array, currentWorkspaceId: String, appearance: String })
@@ -13,33 +14,44 @@ const createWorkspace = computed(
     props.workspaces.find((workspace) => workspace.id === props.currentWorkspaceId) ||
     props.workspaces[0],
 )
+const cards = computed(() =>
+  (props.workspaces || [])
+    .filter((workspace) => !workspaceFilter.value || workspace.id === workspaceFilter.value)
+    .flatMap((workspace) =>
+      (workspace.sessions || []).filter((session) => !isTerminal(session)).map((session) => ({ workspace, session })),
+    ),
+)
+// A session's pull request moves it to review and, once merged or closed, to done.
+function stage(session) {
+  const state = pullRequests.get(session.id)?.state
+  if (state === 'merged' || state === 'closed') return 'done'
+  if (state === 'open' || state === 'draft') return 'review'
+  return !session.hasLaunched && !session.running ? 'todo' : 'progress'
+}
 const columns = computed(() => {
   const groups = [
-    { id: 'waiting', name: 'Waiting', description: 'Waiting for your input', sessions: [] },
-    { id: 'working', name: 'Doing', description: 'Agents working now', sessions: [] },
-    { id: 'inactive', name: 'Inactive', description: 'Ready to start, resume or restart', sessions: [] },
-    { id: 'unknown', name: 'Unknown', description: 'Activity is not available yet', sessions: [] },
+    { id: 'todo', name: 'To do', sessions: [] },
+    { id: 'progress', name: 'In progress', sessions: [] },
+    { id: 'review', name: 'In review', sessions: [] },
+    { id: 'done', name: 'Done', sessions: [] },
   ]
-  for (const workspace of props.workspaces || []) {
-    if (workspaceFilter.value && workspace.id !== workspaceFilter.value) continue
-    for (const session of workspace.sessions || []) {
-      if (isTerminal(session)) continue
-      const activity =
-        session.restored || !session.running || session.activity === 'ended'
-          ? 'inactive'
-          : ['waiting', 'working'].includes(session.activity)
-            ? session.activity
-            : 'unknown'
-      groups.find((group) => group.id === activity).sessions.push({ workspace, session })
-    }
-  }
+  for (const card of cards.value) groups.find((group) => group.id === stage(card.session)).sessions.push(card)
   return groups
 })
-const count = computed(() => columns.value.reduce((n, column) => n + column.sessions.length, 0))
-function detail(card) {
-  return [card.workspace.name, repositoryLabel(card.workspace, card.session), card.session.worktreeBranch]
-    .filter(Boolean)
-    .join(' · ')
+const count = computed(() => cards.value.length)
+// Pull requests load one at a time so a large Board doesn't start a GitHub request per session at once.
+onMounted(async () => {
+  for (const { workspace, session } of cards.value)
+    if (sessionRepository(workspace, session)?.gitHub) await loadPullRequest(session.id).catch(() => {})
+})
+function branch(session) {
+  return session.worktreeBranch || pullRequests.get(session.id)?.branch || ''
+}
+function place(card) {
+  return [card.workspace.name, repositoryLabel(card.workspace, card.session)].filter(Boolean).join(' · ')
+}
+function agentName(session) {
+  return agents.find((agent) => agent.id === session.agent)?.name || session.agent
 }
 function status(session) {
   if (session.restored)
@@ -54,7 +66,7 @@ function status(session) {
     <header class="board-header">
       <div>
         <h1 id="board-title">Board</h1>
-        <p>{{ count }} {{ count === 1 ? 'agent' : 'agents' }}</p>
+        <p>{{ count }} {{ count === 1 ? 'session' : 'sessions' }}</p>
       </div>
       <label class="board-workspace-filter">
         <span>Workspace</span>
@@ -69,40 +81,40 @@ function status(session) {
         <Icon name="plus" :size="12" />New Session
       </button>
     </header>
-    <p class="board-hint">Agents move automatically as their activity changes. Select a card to open its session.</p>
-    <div class="board-columns" tabindex="0" aria-label="Agent activity columns">
+    <div class="board-columns" tabindex="0" aria-label="Session columns">
       <section v-for="column in columns" :key="column.id" class="board-column" :aria-labelledby="'board-' + column.id">
         <header>
+          <i class="board-column-dot" :class="column.id" aria-hidden="true" />
           <h2 :id="'board-' + column.id">{{ column.name }}</h2>
           <span class="board-count">{{ column.sessions.length }}</span>
         </header>
-        <p class="board-column-description">{{ column.description }}</p>
         <div class="board-cards">
           <button
             v-for="card in column.sessions"
             :key="card.session.id"
             class="board-card"
-            :title="[card.session.name, detail(card), status(card.session)].filter(Boolean).join('\n')"
+            :title="
+              [card.session.name, branch(card.session), place(card), status(card.session)].filter(Boolean).join('\n')
+            "
             :aria-label="'Open ' + card.session.name + ' in ' + card.workspace.name + ' — ' + status(card.session)"
             @click="$emit('select', card)"
           >
-            <span class="board-card-heading">
-              <img :src="agentIcon(card.session.agent, appearance)" alt="" />
-              <strong>{{ card.session.name }}</strong>
-            </span>
-            <span class="board-card-agent">{{
-              agents.find((agent) => agent.id === card.session.agent)?.name || card.session.agent
-            }}</span>
-            <span class="board-card-detail">{{ detail(card) }}</span>
-            <span class="board-card-status"
-              ><span
-                class="activity-dot"
-                :class="card.session.restored ? 'unknown' : card.session.activity"
-                aria-hidden="true"
-              />{{ status(card.session) }}</span
+            <strong class="board-card-title">{{ card.session.name }}</strong>
+            <span v-if="branch(card.session)" class="board-card-branch"
+              ><Icon name="arrow.triangle.branch" :size="12" />{{ branch(card.session) }}</span
             >
+            <span class="board-card-place"><Icon name="folder" :size="11" />{{ place(card) }}</span>
+            <span class="board-card-status">
+              <span
+                class="activity-dot"
+                :class="card.session.restored || !card.session.running ? 'unknown' : card.session.activity"
+                aria-hidden="true"
+              />
+              <img :src="agentIcon(card.session.agent, appearance)" alt="" />
+              <span>{{ agentName(card.session) }} · {{ status(card.session) }}</span>
+            </span>
           </button>
-          <p v-if="!column.sessions.length" class="board-empty">No agents here</p>
+          <p v-if="!column.sessions.length" class="board-empty">No sessions</p>
         </div>
       </section>
     </div>
@@ -124,25 +136,19 @@ function status(session) {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 16px;
-  padding: 26px 24px 12px;
+  padding: 26px 24px 18px;
 }
 .board-header h1 {
   font-size: 20px;
 }
 .board-header p,
-.board-hint,
-.board-column-description,
-.board-empty,
-.board-card-agent,
-.board-card-detail,
-.board-card-status {
+.board-empty {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.5;
 }
 .board-header p {
   margin-top: 4px;
-  overflow-wrap: anywhere;
 }
 .board-header .standard-button {
   flex-shrink: 0;
@@ -161,60 +167,79 @@ function status(session) {
   padding: 7px 10px;
   color: var(--text);
 }
-.board-hint {
-  padding: 0 24px 20px;
-}
 .board-columns {
   display: grid;
   grid-template-columns: repeat(4, minmax(220px, 1fr));
-  align-items: start;
-  gap: 14px;
+  align-items: stretch;
+  gap: 12px;
   padding: 0 24px 24px;
   overflow: auto;
   min-height: 0;
   flex: 1;
 }
 .board-column {
+  display: flex;
+  flex-direction: column;
   background: var(--sidebar);
-  border: 1px solid var(--rule);
-  border-radius: 10px;
-  padding: 12px;
+  border-radius: 14px;
+  padding: 14px 10px 10px;
   min-width: 0;
+  min-height: 0;
 }
 .board-column > header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
+  padding: 0 6px 12px;
 }
 .board-column h2 {
-  font-size: 13px;
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+.board-column-dot {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--muted);
+}
+.board-column-dot.progress {
+  background: var(--accent);
+}
+.board-column-dot.review {
+  background: var(--status-merged);
+}
+.board-column-dot.done {
+  background: var(--status-open);
 }
 .board-count {
   color: var(--muted);
-  background: var(--surface);
-  border-radius: 5px;
-  padding: 1px 6px;
-  font-size: 11px;
-}
-.board-column-description {
-  margin: 6px 0 14px;
+  font:
+    11px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
 }
 .board-cards {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 .board-card {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 12px;
+  padding: 13px 14px;
   text-align: left;
-  background: var(--surface);
+  color: var(--text);
+  background: var(--canvas);
   border: 1px solid var(--rule);
-  border-radius: 8px;
+  border-radius: 12px;
   overflow-wrap: anywhere;
 }
 .board-card:hover {
@@ -225,26 +250,46 @@ function status(session) {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
-.board-card-heading {
-  display: flex;
-  align-items: start;
-  gap: 8px;
-}
-.board-card-heading img {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-.board-card-heading strong {
-  min-width: 0;
+.board-card-title {
   font-size: 13px;
-  line-height: 1.4;
+  font-weight: 500;
+  line-height: 1.35;
 }
+.board-card-branch,
+.board-card-place,
 .board-card-status {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-top: 4px;
+  gap: 7px;
+  min-width: 0;
+  color: var(--muted);
+  font:
+    10.5px/1.4 ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    monospace;
+}
+.board-card-branch :deep(.symbol),
+.board-card-place :deep(.symbol) {
+  flex-shrink: 0;
+}
+.board-card-place {
+  align-self: start;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  background: var(--surface);
+}
+.board-card-status {
+  margin-top: 2px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.board-card-status img {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
 }
 .board-card-status .activity-dot {
   flex-shrink: 0;

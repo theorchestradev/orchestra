@@ -25,6 +25,7 @@ export const settingsSearchItems = [
   ['Sidebar', 'Show Work Items and Reviews counts', 'show-work-item-counts'],
   ['Sidebar', 'Show Search in Sidebar', 'show-search'],
   ['Sidebar', 'Show Automations in Sidebar', 'show-automations'],
+  ['Sidebar', 'Show Board in Sidebar', 'show-board'],
   ['Status Bar', 'Show Status Bar', 'show-status-bar'],
   ['Terminal', 'Font', 'font-family'],
   ['Terminal', 'Font Size', 'font-size'],
