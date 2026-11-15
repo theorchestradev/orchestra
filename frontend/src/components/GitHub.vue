@@ -411,7 +411,7 @@ onMounted(() => load())
               :aria-label="'Open ' + (repo.gitHub || repo.name)"
               @click="openURL(repo.provider === 'linear' ? 'https://linear.app' : 'https://github.com/' + repo.gitHub)"
             >
-              <Icon :name="repo.provider === 'linear' ? 'circle.dotted' : 'github'" :size="12" />{{
+              <Icon :name="repo.provider === 'linear' ? 'linear' : 'github'" :size="12" />{{
                 repo.gitHub || repo.name
               }}
             </button></span
@@ -507,7 +507,7 @@ onMounted(() => load())
                   v-if="showsSource"
                   class="item-source"
                   :title="item.provider === 'linear' ? 'Linear' : 'GitHub · ' + item.repositoryGitHub"
-                  ><Icon :name="item.provider === 'linear' ? 'circle.dotted' : 'github'" :size="10" />{{
+                  ><Icon :name="item.provider === 'linear' ? 'linear' : 'github'" :size="10" />{{
                     item.repositoryName
                   }}</span
                 >{{ showsSource ? ' · ' : '' }}by {{ item.user?.login || 'Deleted user'
