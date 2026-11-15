@@ -5394,7 +5394,8 @@ h2 {
   border-bottom: 1px solid var(--rule);
 }
 
-/* Content pages share Settings' comfortable reading width. Full width preserves their original layout. */
+/* Content pages share Settings' comfortable reading width, which Settings always keeps. Full width
+   preserves the other pages' original layout. */
 .app-shell {
   --page-content-width: 960px;
   --page-top-space: 40px;
@@ -5433,14 +5434,6 @@ h2 {
     --page-side-space: 24px;
     --page-top-space: 32px;
   }
-}
-
-.app-shell.full-width-pages .settings-main {
-  padding: 24px;
-}
-.app-shell.full-width-pages .settings-content,
-.app-shell.full-width-pages .settings-main :is(h2, .settings-card, .profile-settings) {
-  max-width: none;
 }
 
 /* Items without a number, such as Linear issues, have longer identifiers and workflow names. */

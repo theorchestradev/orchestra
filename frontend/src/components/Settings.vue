@@ -681,8 +681,8 @@ if (!mac)
                 <div>
                   <label for="full-width-pages">Full Width Pages</label>
                   <p class="muted caption">
-                    Use the available width for Settings, Work Items, Reviews, Automations and Scratchpad. Off: use a
-                    centered column with more space around the content.
+                    Use the available width for Work Items, Reviews, Automations and Scratchpad. Off: use a centered
+                    column with more space around the content.
                   </p>
                 </div>
                 <button
