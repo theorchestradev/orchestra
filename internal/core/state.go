@@ -140,6 +140,7 @@ type Preferences struct {
 	FullWidthPages bool `json:"fullWidthPages"`
 	// TerminalFontFamily is an installed font family for terminals; empty means System Monospace.
 	TerminalFontFamily    string  `json:"terminalFontFamily,omitempty"`
+	UIFontSize            string  `json:"uiFontSize"`
 	TerminalFontSize      int     `json:"terminalFontSize"`
 	TerminalFontSmoothing bool    `json:"terminalFontSmoothing"`
 	TerminalPaddingX      int     `json:"terminalPaddingX"`
@@ -928,6 +929,9 @@ func (s *Store) SetPreferences(p Preferences) (State, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p = normalizeGeneralPreferences(p)
+	if p.UIFontSize != "" && p.UIFontSize != "default" && p.UIFontSize != "smaller" && p.UIFontSize != "small" && p.UIFontSize != "large" && p.UIFontSize != "larger" {
+		return State{}, errors.New("Invalid interface font size.")
+	}
 	if p.Appearance != "system" && p.Appearance != "dark" && p.Appearance != "light" {
 		return State{}, errors.New("Invalid appearance.")
 	}

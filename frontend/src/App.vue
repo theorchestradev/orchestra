@@ -1296,7 +1296,12 @@ onBeforeUnmount(() => {
       'native-titlebar': !mac,
       'has-usage-consent': !loading && !preferences.telemetryChoiceMade,
     }"
-    :style="{ ...appearance, colorScheme: shownPreferences.appearance, '--sidebar-width': sidebarWidth + 'px' }"
+    :style="{
+      ...appearance,
+      colorScheme: shownPreferences.appearance,
+      '--sidebar-width': sidebarWidth + 'px',
+      '--ui-font-scale': { smaller: 0.85, small: 0.925, large: 1.1, larger: 1.2 }[preferences.uiFontSize] || 1,
+    }"
     :data-appearance="shownPreferences.appearance"
     :data-theme="preferences.theme"
     @pointerdown="menu = null"

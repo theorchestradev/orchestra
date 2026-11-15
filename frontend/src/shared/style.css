@@ -12,7 +12,7 @@ body,
 }
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   -webkit-font-smoothing: antialiased;
 }
 button,
@@ -64,13 +64,13 @@ p {
   margin: 0;
 }
 h2 {
-  font-size: 17px;
-  line-height: 20px;
+  font-size: calc(17px * var(--ui-font-scale, 1));
+  line-height: calc(20px * var(--ui-font-scale, 1));
   letter-spacing: -0.35px;
   font-weight: 600;
 }
 h3 {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 hr {
@@ -85,7 +85,7 @@ hr {
   color: var(--accent);
 }
 .caption {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .spacer {
   flex: 1;
@@ -169,7 +169,7 @@ hr {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   font-weight: 600;
   line-height: 1.4;
   padding: 2px 6px;
@@ -289,7 +289,7 @@ hr {
   background: transparent;
 }
 .preview-label {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   color: var(--muted);
   position: absolute;
   left: 16px;
@@ -304,7 +304,7 @@ hr {
   height: 44px;
 }
 .sidebar-heading strong {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .workspace-list {
@@ -330,7 +330,7 @@ hr {
   max-width: calc(100% - 88px);
   min-width: 0;
   font-weight: 700;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .workspace-title span {
   overflow: hidden;
@@ -340,7 +340,7 @@ hr {
 .workspace-title .workspace-emoji {
   flex-shrink: 0;
   width: 16px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1;
   text-align: center;
   text-overflow: clip;
@@ -356,7 +356,7 @@ hr {
 }
 .arc-sidebar .workspace-title .workspace-emoji {
   width: auto;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .hover-control {
   opacity: 0;
@@ -380,8 +380,8 @@ hr {
   gap: 8px;
   width: 100%;
   text-align: left;
-  font-size: 12px;
-  line-height: 14px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
   min-height: 34px;
   padding: 10px 12px;
   border-radius: 9px;
@@ -407,7 +407,7 @@ hr {
 .command-search-row kbd {
   margin-left: auto;
   color: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   font-family: inherit;
 }
 .session-row {
@@ -449,7 +449,7 @@ hr {
   white-space: nowrap;
 }
 .session-name small {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .visually-hidden {
@@ -465,7 +465,7 @@ hr {
 }
 .status-help {
   color: var(--accent);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   text-align: left;
   padding: 0 0 3px 30px;
 }
@@ -559,7 +559,7 @@ hr {
   color: var(--muted);
 }
 .empty-state h2 {
-  font-size: 17px;
+  font-size: calc(17px * var(--ui-font-scale, 1));
   font-weight: 700;
 }
 .empty-state p {
@@ -649,7 +649,7 @@ hr {
   padding: 48px 28px 28px;
   background: var(--canvas);
   --wails-draggable: no-drag;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -692,7 +692,7 @@ hr {
   min-height: 0;
   resize: none;
   padding: 48px 28px 28px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   line-height: 1.5;
   border: 0;
   border-radius: 0;
@@ -796,9 +796,9 @@ input::placeholder {
   min-width: 0;
 }
 .diff-title h2 {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   font-weight: 600;
-  line-height: 24px;
+  line-height: calc(24px * var(--ui-font-scale, 1));
   letter-spacing: 0;
   color: var(--muted);
 }
@@ -847,7 +847,7 @@ input::placeholder {
   width: 100%;
   min-width: 0;
   text-align: left;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .diff-file-toggle:hover {
   background: color-mix(in srgb, var(--selection) 50%, transparent);
@@ -856,7 +856,7 @@ input::placeholder {
   display: inline-flex;
   flex-shrink: 0;
   font-variant-numeric: tabular-nums;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   gap: 6px;
 }
 .diff-status {
@@ -918,7 +918,7 @@ input::placeholder {
 }
 .diff-placeholder {
   padding: 12px 14px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .diff-body {
   overflow-x: auto;
@@ -1079,7 +1079,7 @@ input::placeholder {
   color: var(--muted);
 }
 .emoji-value {
-  font-size: 16px;
+  font-size: calc(16px * var(--ui-font-scale, 1));
   line-height: 1;
 }
 .emoji-picker-trigger[aria-expanded='true'] {
@@ -1128,7 +1128,7 @@ input::placeholder {
 .emoji-groups button {
   width: 30px;
   height: 26px;
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
   opacity: 0.55;
 }
 .emoji-groups button:hover,
@@ -1149,7 +1149,7 @@ input::placeholder {
 }
 .emoji-grid button {
   aspect-ratio: 1;
-  font-size: 20px;
+  font-size: calc(20px * var(--ui-font-scale, 1));
 }
 .emoji-grid button:hover {
   background: var(--selection);
@@ -1227,7 +1227,7 @@ input::placeholder {
   gap: 12px;
 }
 .repository-settings h3 {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .repository-settings ul {
   margin: 0;
@@ -1301,7 +1301,7 @@ input::placeholder {
   width: 100%;
   padding: 9px 12px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .settings-rail button.selected {
@@ -1342,7 +1342,7 @@ input::placeholder {
   border: 0;
   background: var(--surface);
   max-width: var(--page-content-width);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   border-radius: 14px;
 }
 .settings-groups {
@@ -1361,7 +1361,7 @@ input::placeholder {
 .settings-group-title {
   margin: 0 10px 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 500;
 }
 .settings-groups.general-settings,
@@ -1425,8 +1425,8 @@ input::placeholder {
   flex-shrink: 0;
 }
 .mode-switch button {
-  font-size: 12px;
-  line-height: 14px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
   flex: 1;
   display: flex;
   align-items: center;
@@ -1446,7 +1446,7 @@ input::placeholder {
   width: 240px;
 }
 .theme-select {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   height: 30px;
   width: 200px;
   display: flex;
@@ -1566,7 +1566,7 @@ input::placeholder {
   box-shadow: none;
   padding: 0;
   border-radius: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .command-search kbd {
   font:
@@ -1581,7 +1581,7 @@ input::placeholder {
   padding: 8px;
 }
 .command-results h3 {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   letter-spacing: 0.8px;
   color: var(--muted);
   padding: 9px 12px 8px;
@@ -1639,7 +1639,7 @@ input::placeholder {
   padding: 6px 9px;
   border-radius: 4px;
   text-align: left;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .context-menu button:hover:not(:disabled) {
   background: var(--selection);
@@ -1696,7 +1696,7 @@ input::placeholder {
 }
 .local-main-notice h3 {
   margin: 0 0 4px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .local-main-notice p {
@@ -1760,8 +1760,8 @@ input::placeholder {
   flex-wrap: wrap;
 }
 .github-heading h2 {
-  font-size: 16px;
-  line-height: 22px;
+  font-size: calc(16px * var(--ui-font-scale, 1));
+  line-height: calc(22px * var(--ui-font-scale, 1));
 }
 .github-heading .standard-button {
   padding: 7px 10px;
@@ -1782,7 +1782,7 @@ input::placeholder {
   border-radius: 7px;
   padding: 8px 10px;
   min-width: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .search-field:focus-within {
   border-color: var(--accent);
@@ -1827,7 +1827,7 @@ input::placeholder {
   white-space: pre-line;
 }
 .status-filter {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   max-width: 100%;
   color: var(--text);
   display: flex;
@@ -1870,7 +1870,7 @@ input::placeholder {
   padding: 12px 8px;
 }
 .github-table-head {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   letter-spacing: 0.7px;
   color: var(--muted);
   font-weight: 600;
@@ -1905,14 +1905,14 @@ input::placeholder {
   min-width: 0;
 }
 .item-context strong {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .assignees {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
@@ -1930,13 +1930,13 @@ input::placeholder {
   display: inline-flex;
   gap: 5px;
   align-items: center;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   border: 1px solid var(--rule);
   border-radius: 20px;
   padding: 2px 7px;
   background: var(--surface);
   color: var(--muted);
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .label-chip i {
   height: 5px;
@@ -1951,7 +1951,7 @@ input::placeholder {
   gap: 7px;
   border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
   border-radius: 20px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   font-weight: 500;
   padding: 5px 10px;
   color: var(--muted);
@@ -1977,7 +1977,7 @@ input::placeholder {
   padding: 18px 24px;
   border-bottom: 1px solid var(--rule);
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   min-height: 50px;
   white-space: nowrap;
 }
@@ -2022,7 +2022,7 @@ input::placeholder {
   padding-right: 0;
 }
 .issue-heading h1 {
-  font-size: 25px;
+  font-size: calc(25px * var(--ui-font-scale, 1));
   font-weight: 600;
   letter-spacing: -0.4px;
   line-height: 1.3;
@@ -2054,10 +2054,10 @@ input::placeholder {
   gap: 24px;
   padding: 24px 0;
   border-bottom: 1px solid var(--rule);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .metadata h3 {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   font-weight: 600;
   letter-spacing: 0.8px;
   color: var(--muted);
@@ -2068,7 +2068,7 @@ input::placeholder {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   padding-top: 16px;
 }
 .branches code,
@@ -2088,7 +2088,7 @@ input::placeholder {
   border: 1px solid color-mix(in srgb, var(--status-warning) 45%, var(--rule));
   border-radius: 8px;
   background: color-mix(in srgb, var(--status-warning) 9%, var(--canvas));
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.45;
 }
 .conflict-notice p {
@@ -2152,7 +2152,7 @@ input::placeholder {
   padding: 12px 16px;
   background: var(--surface);
   border-bottom: 1px solid var(--rule);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .discussion article strong {
   font-weight: 500;
@@ -2191,7 +2191,7 @@ input::placeholder {
   padding: 10px 12px;
   border-radius: 8px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -2211,7 +2211,7 @@ input::placeholder {
   margin-right: auto;
 }
 .discussion h4 {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   font-weight: 500;
   margin: 28px 0 16px;
 }
@@ -2228,13 +2228,13 @@ input::placeholder {
   margin-bottom: 0;
 }
 .markdown h1 {
-  font-size: 22px;
+  font-size: calc(22px * var(--ui-font-scale, 1));
 }
 .markdown h2 {
-  font-size: 18px;
+  font-size: calc(18px * var(--ui-font-scale, 1));
 }
 .markdown h3 {
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
 }
 .markdown h1,
 .markdown h2,
@@ -2328,7 +2328,7 @@ input::placeholder {
 }
 .message-card header strong {
   font-weight: 600;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   overflow-wrap: anywhere;
 }
 .message-card header .caption {
@@ -2343,7 +2343,7 @@ input::placeholder {
   margin: 0;
 }
 .message-card footer {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   gap: 12px;
 }
 .message-card .execute {
@@ -2425,7 +2425,7 @@ input::placeholder {
     padding-right: 0;
   }
   .issue-heading h1 {
-    font-size: 21px;
+    font-size: calc(21px * var(--ui-font-scale, 1));
   }
   .work-on {
     position: static;
@@ -2479,7 +2479,7 @@ input::placeholder {
   border: 1px solid var(--rule);
   color: var(--muted);
   background: var(--surface);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .avatar img {
@@ -2505,26 +2505,26 @@ input::placeholder {
 }
 .settings-rail button {
   font-weight: 500;
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
   gap: 10px;
 }
 .settings-main h2 {
   margin-bottom: 20px;
 }
 .github-heading .standard-button {
-  font-size: 12px;
-  line-height: 14px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .messages-dialog > header p,
 .messages-dialog > p,
 .message-text,
 .message-card header strong,
 .message-card .execute {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .modal:is(.sheet, .messages) .standard-button:not(.execute) {
   padding: 3px 11px;
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
   border-radius: 6px;
 }
 .modal:is(.sheet, .messages) .standard-button:not(.execute):not(.primary) {
@@ -2533,7 +2533,7 @@ input::placeholder {
   border-color: transparent;
 }
 .message-card footer .standard-button {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .compact-assignees,
 .compact-chevron {
@@ -2635,16 +2635,16 @@ input::placeholder {
 .command-search input,
 .command-list button,
 .no-results {
-  font-size: 12px;
-  line-height: 14px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .command-search kbd {
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
-  line-height: 12px;
+  line-height: calc(12px * var(--ui-font-scale, 1));
 }
 .command-results h3 {
-  line-height: 12px;
+  line-height: calc(12px * var(--ui-font-scale, 1));
   padding-bottom: 4px;
   margin-bottom: 4px;
 }
@@ -2652,7 +2652,7 @@ input::placeholder {
   min-height: 34px;
 }
 .modal.sheet label input {
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
   padding: 9px;
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
@@ -2667,7 +2667,7 @@ input::placeholder {
   border-color: transparent;
 }
 .session-dialog p {
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
 }
 .session-dialog .error {
   overflow-wrap: anywhere;
@@ -2679,7 +2679,7 @@ input::placeholder {
   gap: 8px;
 }
 .session-dialog .workspace-path {
-  line-height: 13px;
+  line-height: calc(13px * var(--ui-font-scale, 1));
 }
 .context-menu button:focus-visible {
   outline: none;
@@ -2689,8 +2689,8 @@ input::placeholder {
   margin-bottom: 4px;
 }
 .github-heading .text-link {
-  font-size: 12px;
-  line-height: 14px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .github-table-head,
 .github-row {
@@ -2701,22 +2701,22 @@ input::placeholder {
 .status-filter {
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .search-field input,
 .status-filter select {
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .label-chip {
   border: 0;
   box-shadow: inset 0 0 0 1px var(--rule);
-  line-height: 12px;
+  line-height: calc(12px * var(--ui-font-scale, 1));
   padding: 3px 7px;
 }
 .status-badge {
   border: 0;
   box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 35%, transparent);
-  line-height: 13px;
+  line-height: calc(13px * var(--ui-font-scale, 1));
   gap: 6px;
 }
 
@@ -2725,16 +2725,16 @@ h2 {
   letter-spacing: normal;
 }
 .sidebar-heading strong {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .caption,
 .session-name small,
 .workspace-path {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
 }
 .github-heading .text-link {
-  font-size: 10px;
-  line-height: 14px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .item-id {
   font:
@@ -2744,7 +2744,7 @@ h2 {
   gap: 8px;
 }
 .status-badge {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
 }
 .label-chip {
   font-weight: 500;
@@ -2756,7 +2756,7 @@ h2 {
 }
 .detail-toolbar {
   min-height: 51px;
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
   border: 0;
   box-shadow: inset 0 -1px var(--rule);
 }
@@ -2766,12 +2766,12 @@ h2 {
   min-width: 0;
 }
 .github-article .work-on .standard-button {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   line-height: 1.5;
   border-radius: 8px;
 }
 .github-article .status-badge {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.8;
   padding: 3px 11px;
   border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
@@ -2780,7 +2780,7 @@ h2 {
   background: color-mix(in srgb, currentColor 8%, transparent);
 }
 .github-article .label-chip {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1.65;
   padding: 2px 9px;
   border: 1px solid var(--rule);
@@ -2789,7 +2789,7 @@ h2 {
   gap: 5px;
 }
 .github-article .metadata {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
 }
 .github-article .metadata .labels {
   gap: 6px;
@@ -2801,7 +2801,7 @@ h2 {
 .github-article .person {
   gap: 7px;
   margin-right: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .github-article .discussion article .markdown > *,
 .github-article .discussion .description-body > * {
@@ -2832,10 +2832,10 @@ h2 {
   margin: 0;
 }
 .github-heading .text-link {
-  line-height: 14px;
+  line-height: calc(14px * var(--ui-font-scale, 1));
 }
 .github-table-head {
-  line-height: 13px;
+  line-height: calc(13px * var(--ui-font-scale, 1));
   min-height: 38px;
 }
 @container (max-width:819px) {
@@ -2848,7 +2848,7 @@ h2 {
 }
 
 .github-row .item-id {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .item-context {
   gap: 7px;
@@ -2888,7 +2888,7 @@ h2 {
   font-weight: 400;
 }
 .mode-switch button {
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
 }
 .smoothing-row {
   justify-content: flex-start;
@@ -2979,11 +2979,11 @@ h2 {
 }
 
 h2 {
-  line-height: 21px;
+  line-height: calc(21px * var(--ui-font-scale, 1));
 }
 .modal.sheet label,
 .folder-field h3 {
-  line-height: 16px;
+  line-height: calc(16px * var(--ui-font-scale, 1));
 }
 .message-editor:focus-visible {
   border-color: var(--rule);
@@ -3020,8 +3020,8 @@ h2 {
 }
 .github-unavailable p {
   color: var(--text);
-  font-size: 15px;
-  line-height: 21px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
+  line-height: calc(21px * var(--ui-font-scale, 1));
 }
 .github-unavailable > .standard-button {
   margin-top: 16px;
@@ -3130,7 +3130,7 @@ h2 {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .metadata-error {
   color: var(--status-deleted);
@@ -3183,7 +3183,7 @@ h2 {
 }
 .metadata-state-popover .metadata-error {
   padding: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .metadata-popover .metadata-options {
   max-height: min(240px, 40vh);
@@ -3219,13 +3219,13 @@ h2 {
   gap: 10px;
   padding: 8px 10px;
   min-height: 44px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   border-radius: 6px;
 }
 .metadata-assignee-popover .avatar {
   width: 26px;
   height: 26px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .metadata-assignee-popover .metadata-option input {
   appearance: none;
@@ -3258,15 +3258,15 @@ h2 {
 .metadata-assignee-popover .metadata-loading,
 .metadata-assignee-popover .metadata-error {
   padding: 8px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 
 /* Status choices mirror GitHub's reason menu with shared semantic colors. */
 .github-article .metadata-trigger.status-badge {
   border-radius: 999px;
   padding: 4px 10px;
-  font-size: 13px;
-  line-height: 20px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
+  line-height: calc(20px * var(--ui-font-scale, 1));
 }
 .status-choice-icon {
   position: relative;
@@ -3324,7 +3324,7 @@ h2 {
   gap: 12px;
   min-height: 40px;
   padding: 9px 10px;
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   border-radius: 7px;
 }
 .metadata-state-option.selected {
@@ -3341,12 +3341,12 @@ h2 {
   align-items: center;
   gap: 8px;
   padding: 9px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .metadata-state-popover .metadata-editor > input {
   margin: 4px;
   width: calc(100% - 8px);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .duplicate-options {
   max-height: min(260px, 45vh);
@@ -3356,7 +3356,7 @@ h2 {
   gap: 2px;
 }
 .duplicate-options .metadata-state-option {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .duplicate-options .caption {
   flex-shrink: 0;
@@ -3366,7 +3366,7 @@ h2 {
 }
 .metadata-state-popover .metadata-loading {
   padding: 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 
 .general-settings {
@@ -3479,7 +3479,7 @@ h2 {
 .worktree-option small {
   display: block;
   margin-top: 5px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1.45;
 }
 .session-dialog .workspace-path,
@@ -3487,11 +3487,11 @@ h2 {
   overflow-wrap: anywhere;
 }
 .command-list h3 {
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   letter-spacing: 0.8px;
   color: var(--muted);
   padding: 10px 12px 4px;
-  line-height: 12px;
+  line-height: calc(12px * var(--ui-font-scale, 1));
 }
 .command-list h3:first-child {
   padding-top: 4px;
@@ -3503,7 +3503,7 @@ h2 {
   min-width: 0;
 }
 .command-list .command-name small {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   flex-shrink: 1;
   color: var(--muted);
 }
@@ -3538,7 +3538,7 @@ h2 {
   background: var(--sidebar);
   border-top: 1px solid var(--rule);
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1;
   white-space: nowrap;
   container-type: inline-size;
@@ -3581,7 +3581,7 @@ h2 {
 }
 .status-emoji {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   line-height: 1;
 }
 .status-workspace-icon {
@@ -3611,7 +3611,7 @@ h2 {
 }
 .status-button .count {
   padding: 1px 5px;
-  font-size: 9px;
+  font-size: calc(9px * var(--ui-font-scale, 1));
   color: var(--text);
 }
 @container (max-width:640px) {
@@ -3719,7 +3719,7 @@ h2 {
   gap: 10px;
   overflow: hidden;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .arc-workspace-edge-ring {
   display: grid;
@@ -3753,7 +3753,7 @@ h2 {
 .arc-sidebar .workspace-title {
   max-width: calc(100% - 64px);
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 500;
 }
 .arc-sidebar .workspace-title > .symbol {
@@ -3824,7 +3824,7 @@ h2 {
   flex-shrink: 0;
   border-radius: 50%;
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .arc-space:hover,
@@ -3845,7 +3845,7 @@ h2 {
   padding-bottom: 2px;
 }
 .arc-space.emoji span {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   line-height: 1;
   padding-bottom: 3px;
 }
@@ -3960,7 +3960,7 @@ h2 {
   border-radius: 6px;
   background: var(--canvas);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1.5;
   overflow-wrap: break-word;
   user-select: text;
@@ -3987,7 +3987,7 @@ h2 {
 }
 /* Custom themes that failed validation; the rest of the picker keeps working. */
 .theme-errors {
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1.45;
   color: var(--status-deleted);
   overflow-wrap: anywhere;
@@ -4000,7 +4000,7 @@ h2 {
 
 /* Account subscription limits in Settings. */
 .agent-usage {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .usage-toolbar {
   display: flex;
@@ -4035,7 +4035,7 @@ h2 {
   object-fit: contain;
 }
 .usage-provider h3 {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .usage-credits {
@@ -4052,7 +4052,7 @@ h2 {
   margin-bottom: 8px;
 }
 .usage-window-heading strong {
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -4115,7 +4115,7 @@ h2 {
   min-width: 0;
 }
 .openrouter-totals strong {
-  font-size: 20px;
+  font-size: calc(20px * var(--ui-font-scale, 1));
   font-weight: 600;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
@@ -4132,7 +4132,7 @@ h2 {
 .openrouter-key-form input {
   width: 100%;
   padding: 9px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .openrouter-key-form p {
   line-height: 1.5;
@@ -4162,7 +4162,7 @@ h2 {
     gap: 16px;
   }
   .openrouter-totals strong {
-    font-size: 16px;
+    font-size: calc(16px * var(--ui-font-scale, 1));
   }
   .openrouter-totals .caption {
     max-width: 65%;
@@ -4173,7 +4173,7 @@ h2 {
   margin-top: 24px;
 }
 .openrouter-models h4 {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 600;
   margin-bottom: 6px;
 }
@@ -4190,7 +4190,7 @@ h2 {
   width: 100%;
   min-width: 480px;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .openrouter-model-table th,
 .openrouter-model-table td {
@@ -4203,7 +4203,7 @@ h2 {
 .openrouter-model-table thead th {
   color: var(--muted);
   font-weight: 500;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   white-space: nowrap;
 }
 .openrouter-model-table th:first-child {
@@ -4221,7 +4221,7 @@ h2 {
 .openrouter-model-table small {
   display: block;
   color: var(--muted);
-  font-size: 10px;
+  font-size: calc(10px * var(--ui-font-scale, 1));
   margin-top: 4px;
 }
 .openrouter-models .openrouter-byok-note {
@@ -4305,7 +4305,7 @@ h2 {
 .open-in .standard-button {
   padding-top: 3px;
   padding-bottom: 3px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .open-in-main {
   min-width: 0;
@@ -4352,7 +4352,7 @@ h2 {
   text-overflow: ellipsis;
 }
 .work-on-popover .metadata-error {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .work-on-popover .metadata-editor > .standard-button {
   align-self: flex-start;
@@ -4414,13 +4414,13 @@ h2 {
   padding: 2px 2px 8px 6px;
 }
 .usage-popover-heading h2 {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
   flex-shrink: 0;
 }
 .usage-popover-heading span {
   margin-left: auto;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .usage-popover-heading button {
   width: 24px;
@@ -4441,7 +4441,7 @@ h2 {
 }
 .usage-popover-note {
   padding: 8px 6px 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.5;
 }
 .usage-popover hr {
@@ -4462,7 +4462,7 @@ h2 {
   margin-left: auto;
   padding-left: 12px;
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-variant-numeric: tabular-nums;
 }
 .usage-popover-value strong {
@@ -4482,7 +4482,7 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
   margin-bottom: 8px;
 }
@@ -4504,11 +4504,11 @@ h2 {
   margin-top: 10px;
 }
 .usage-popover-window .usage-window-heading {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   margin-bottom: 6px;
 }
 .usage-popover-window .usage-window-heading strong {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .usage-popover-window p {
   margin-top: 5px;
@@ -4602,7 +4602,7 @@ h2 {
   border-radius: 50%;
   background: var(--accent);
   color: var(--on-accent);
-  font-size: 7px;
+  font-size: calc(7px * var(--ui-font-scale, 1));
   font-weight: 700;
   line-height: 1;
   overflow: hidden;
@@ -4614,7 +4614,7 @@ h2 {
 .menu-heading {
   display: block;
   padding: 4px 9px 2px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   color: var(--muted);
 }
 .menu-check-space {
@@ -4652,7 +4652,7 @@ h2 {
   max-width: 60%;
   height: 30px;
   padding: 0 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   background: var(--canvas);
   border-radius: 8px;
 }
@@ -4699,7 +4699,7 @@ h2 {
   border-radius: 8px;
   background: var(--selection);
   color: var(--text);
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
   font-weight: 600;
   line-height: 1;
 }
@@ -4754,7 +4754,7 @@ h2 {
 }
 .profile-relogin {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .profile-relogin:disabled {
   opacity: 0.5;
@@ -4849,7 +4849,7 @@ h2 {
   padding: 4px 8px;
   border-radius: 5px;
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .session-pane-tabs button[aria-selected='true'] {
@@ -4903,7 +4903,7 @@ h2 {
   padding: 5px 12px;
   text-align: left;
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .session-file-row:hover {
   background: var(--surface);
@@ -4925,7 +4925,7 @@ h2 {
   justify-content: space-between;
   gap: 8px;
   padding: 8px 12px;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .file-code-scroll {
   display: flex;
@@ -4997,7 +4997,7 @@ h2 {
   min-width: 0;
 }
 .file-view-title h2 {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   line-height: 1.5;
   user-select: text;
 }
@@ -5055,7 +5055,7 @@ h2 {
   padding: 6px 8px;
 }
 .pr-header h2 {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   font-weight: 600;
   line-height: 1.35;
 }
@@ -5113,7 +5113,7 @@ h2 {
   flex: 1;
 }
 .pr-summary-text strong {
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .pr-ring {
@@ -5143,7 +5143,7 @@ h2 {
 }
 .pr-copy-all {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .pr-check-list {
   max-height: 268px;
@@ -5197,7 +5197,7 @@ h2 {
   min-width: 0;
   text-align: left;
   color: var(--text);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .pr-check-name:disabled {
   cursor: default;
@@ -5206,7 +5206,7 @@ h2 {
 .pr-workflow {
   flex-shrink: 100;
   min-width: 2em;
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
 }
 .pr-copy {
   flex-shrink: 0;
@@ -5254,7 +5254,7 @@ h2 {
   gap: 6px;
   min-width: 0;
   padding: 6px 6px 6px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .pr-activity-item header .icon-button {
   color: var(--muted);
@@ -5278,7 +5278,7 @@ h2 {
 }
 .pr-activity-item .markdown {
   padding: 2px 12px 10px;
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   border-top: 0;
 }
 .submenu-chevron {
@@ -5324,7 +5324,7 @@ h2 {
 }
 .status-bar-group-heading h3 {
   margin: 0;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .status-bar-group-heading > .caption {
@@ -5356,7 +5356,7 @@ h2 {
   border-radius: 5px;
   background: var(--sidebar);
   color: var(--muted);
-  font-size: 11px;
+  font-size: calc(11px * var(--ui-font-scale, 1));
   line-height: 1;
   white-space: nowrap;
 }
@@ -5481,7 +5481,7 @@ h2 {
 .settings-workspaces-title {
   margin: 20px 12px 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   font-weight: 500;
 }
 .workspace-settings .repository-settings ul {
@@ -5506,4 +5506,9 @@ h2 {
 }
 .workspace-settings p {
   line-height: 1.45;
+}
+
+/* Interface text scales independently of xterm’s terminal font preference. */
+.app-shell {
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }

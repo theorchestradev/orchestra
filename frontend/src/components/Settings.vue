@@ -575,6 +575,30 @@ if (!mac)
           </section>
         </div>
         <div v-else-if="section === 'Appearance'" class="settings-groups appearance-controls">
+          <section class="settings-group" aria-label="Interface">
+            <h3 class="settings-group-title">Interface</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <div>
+                  <label for="ui-font-size">Font size</label>
+                  <p class="muted caption">
+                    Adjust the size of text across the app. Terminal font size is configured separately.
+                  </p>
+                </div>
+                <select
+                  id="ui-font-size"
+                  :value="preferences.uiFontSize || 'default'"
+                  @change="choose('uiFontSize', $event.target.value)"
+                >
+                  <option value="smaller">Smaller</option>
+                  <option value="small">Small</option>
+                  <option value="default">Default</option>
+                  <option value="large">Large</option>
+                  <option value="larger">Larger</option>
+                </select>
+              </div>
+            </div>
+          </section>
           <section class="settings-group" aria-label="Color Scheme">
             <h3 class="settings-group-title">Color Scheme</h3>
             <div class="settings-card">

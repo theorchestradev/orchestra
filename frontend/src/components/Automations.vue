@@ -716,8 +716,8 @@ function schedule(item) {
   flex-wrap: wrap;
 }
 .automations-heading h1 {
-  font-size: 16px;
-  line-height: 22px;
+  font-size: calc(16px * var(--ui-font-scale, 1));
+  line-height: calc(22px * var(--ui-font-scale, 1));
   margin: 0;
   font-weight: 600;
 }
@@ -781,7 +781,7 @@ function schedule(item) {
   margin-top: 28px;
   text-align: left;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .automation-template {
   display: flex;
@@ -805,13 +805,13 @@ function schedule(item) {
   outline-offset: 2px;
 }
 .automation-template-name {
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .automation-template-description,
 .automation-template-schedule {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.5;
 }
 .automation-template-schedule {
@@ -852,8 +852,8 @@ function schedule(item) {
   flex-wrap: wrap;
 }
 .automation-title h2 {
-  font-size: 13px;
-  line-height: 19px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
+  line-height: calc(19px * var(--ui-font-scale, 1));
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -864,7 +864,7 @@ function schedule(item) {
 .automations-footnote,
 .automation-notice {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .automation-context {
   margin-top: 3px;
@@ -912,7 +912,7 @@ function schedule(item) {
   color: var(--muted);
 }
 .automation-empty h2 {
-  font-size: 15px;
+  font-size: calc(15px * var(--ui-font-scale, 1));
   font-weight: 600;
 }
 .automation-empty p {
@@ -943,14 +943,14 @@ function schedule(item) {
   position: relative;
 }
 .automation-step > legend {
-  font-size: 14px;
+  font-size: calc(14px * var(--ui-font-scale, 1));
   font-weight: 600;
   margin-bottom: 5px;
 }
 .automation-step-help,
 .automation-timezone {
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
   line-height: 1.5;
   font-weight: 400;
 }
@@ -1053,7 +1053,7 @@ function schedule(item) {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .automation-heading-meta {
   display: flex;
@@ -1179,7 +1179,7 @@ textarea {
 }
 .automation-history-help {
   color: var(--muted);
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   overflow-wrap: anywhere;
 }
 .automation-runs {
@@ -1194,7 +1194,7 @@ textarea {
 }
 .automation-run-heading {
   justify-content: space-between;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
 }
 .automation-runs details {
   margin: 12px 0;
@@ -1206,7 +1206,7 @@ textarea {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   font: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   background: var(--surface);
   padding: 12px;
   border-radius: 6px;
@@ -1224,7 +1224,7 @@ textarea {
   padding: 0;
   min-width: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: calc(12px * var(--ui-font-scale, 1));
 }
 .automation-breadcrumb li:last-child {
   min-width: 0;
@@ -1266,7 +1266,7 @@ textarea {
   flex-shrink: 0;
 }
 .automation-detail-heading h1 {
-  font-size: 16px;
+  font-size: calc(16px * var(--ui-font-scale, 1));
   font-weight: 600;
   line-height: 1.4;
   margin: 2px 0 6px;
@@ -1293,7 +1293,7 @@ textarea {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   cursor: pointer;
 }
 .automation-tabs button:hover {
@@ -1316,7 +1316,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 13px;
+  font-size: calc(13px * var(--ui-font-scale, 1));
   font-weight: 500;
 }
 .automation-editor .automation-enabled label {
