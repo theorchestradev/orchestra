@@ -1,5 +1,5 @@
 # Windows builds compile the app and CLI and run the checks that need no POSIX shell.
-# Sessions do not run on Windows yet, so Store tests skip there; see docs/windows.md.
+# Sessions do not run on Windows yet, so most internal/core tests are !windows; see docs/windows.md.
 name: Windows
 
 on:
