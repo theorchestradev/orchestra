@@ -229,7 +229,12 @@ hr {
   --surface-translucent: color-mix(in srgb, var(--surface) var(--canvas-opacity, 78%), transparent);
   background: transparent;
 }
+/* The Changes pane sits inside .content beside .content-body, so only .content-body takes the
+   canvas tint and the pane shows the same vibrancy as the sidebar. */
 .app-shell.translucent .content {
+  background: transparent;
+}
+.app-shell.translucent .content-body {
   background: var(--canvas-translucent);
 }
 .app-shell.translucent :is(.sidebar, .diff-pane, .status-bar, .settings-rail) {
@@ -238,9 +243,6 @@ hr {
 .app-shell.translucent .settings-main {
   background: var(--canvas-translucent);
 }
-.app-shell.translucent .content-body {
-  background: transparent;
-}
 /* Page canvases reveal the shared tint instead of covering native vibrancy. */
 .app-shell.translucent
   :is(.github-page, .github-detail, .automations-page, .agent-board, .scratchpad-read, .scratchpad textarea) {
@@ -248,9 +250,6 @@ hr {
 }
 .app-shell.translucent .board-column {
   background: var(--sidebar-translucent);
-}
-.app-shell.translucent.rounded-viewport .content {
-  background: transparent;
 }
 .app-shell.translucent.rounded-viewport .content-body {
   background: var(--sidebar-translucent);
