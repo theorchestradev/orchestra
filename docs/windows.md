@@ -54,7 +54,8 @@ Windows QA that the port still needs.
 ## Verifying
 
 Windows CI runs the frontend tests and build, `go vet`, `go test -race` and
-`make build`. Store tests skip on Windows, because every fixture starts sessions through
+`make build`. `.gitattributes` keeps every checkout at LF, which Prettier and the tests
+that read source and documentation files expect. Store tests skip on Windows, because every fixture starts sessions through
 a POSIX shell; pure helpers still run. Local builds need Go, Node, GNU make and the Wails
 CLI. There is no Windows visual fixture yet; dialogs, themes and keyboard navigation
 need checking in a real window before a release.
