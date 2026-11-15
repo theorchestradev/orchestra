@@ -78,6 +78,19 @@ test('workspace Linear forms route credentials and sources through their own wor
         ([method, id, source]) => method === 'SaveLinearSource' && id === workspace.id && source.teamID === 'team',
       ),
     )
+    // Saving closes the source form; it opens again only to add another source.
+    const addButton = () =>
+      Array.from(document.querySelectorAll('button')).find((b) => b.textContent.trim() === 'Add Linear Source')
+    assert.equal(document.querySelector('form'), null)
+    addButton().click()
+    await settle()
+    assert.ok(document.querySelector('form select'))
+    Array.from(document.querySelectorAll('button'))
+      .find((b) => b.textContent.includes('Cancel'))
+      .click()
+    await settle()
+    assert.equal(document.querySelector('form'), null)
+    assert.ok(addButton())
     Array.from(document.querySelectorAll('button'))
       .find((b) => b.textContent.includes('Disconnect'))
       .click()

@@ -14,7 +14,8 @@ const account = ref(null),
 const team = ref(''),
   project = ref(''),
   repository = ref(''),
-  editing = ref('')
+  editing = ref(''),
+  formOpen = ref(false)
 const projectsLoading = ref(false)
 // Linear sources are configured here with their team and project; the others come from the
 // repositories' remotes.
@@ -23,6 +24,7 @@ const listed = computed(() => props.workspace?.sources || [])
 const repositorySources = computed(() => listed.value.filter((s) => s.kind === 'workItems' && s.provider !== 'linear'))
 const reviewSources = computed(() => listed.value.filter((s) => s.kind === 'reviews'))
 const linearShown = (id) => !listed.value.find((s) => s.id === id)?.hidden
+const editingName = computed(() => sources.value.find((s) => s.id === editing.value)?.name)
 let projectRequest = 0
 async function run(action) {
   if (busy.value) return
@@ -71,19 +73,23 @@ watch(team, async (id) => {
 })
 watch(
   () => props.workspace?.id,
-  () => {
-    editing.value = ''
-    team.value = ''
-    project.value = ''
-    repository.value = ''
-  },
+  () => closeForm(),
 )
+// The source form stays closed until the user adds or edits a source.
+function closeForm() {
+  formOpen.value = false
+  editing.value = ''
+  team.value = ''
+  project.value = ''
+  repository.value = ''
+}
 async function connect() {
   const value = key.value
   key.value = ''
   await run(async () => {
     account.value = await call('ConnectLinear', props.workspace.id, value)
     await loadTeams()
+    formOpen.value = !sources.value.length
   })
 }
 async function disconnect() {
@@ -91,7 +97,7 @@ async function disconnect() {
     await call('DisconnectLinear', props.workspace.id)
     account.value = null
     teams.value = []
-    team.value = ''
+    closeForm()
     projectRequest++
   })
 }
@@ -106,13 +112,11 @@ async function save() {
         repositoryID: repository.value,
       }),
     )
-    editing.value = ''
-    team.value = ''
-    project.value = ''
-    repository.value = ''
+    closeForm()
   })
 }
 async function edit(source) {
+  formOpen.value = true
   editing.value = source.id
   team.value = source.teamID
   repository.value = source.repositoryID || ''
@@ -216,7 +220,11 @@ async function edit(source) {
           /></label>
           <button class="standard-button" type="submit" :disabled="busy || !key.trim()">Connect Linear</button>
         </form>
+        <button v-else-if="!formOpen" type="button" class="standard-button add-source" @click="formOpen = true">
+          Add Linear Source
+        </button>
         <form v-else class="linear-form" @submit.prevent="save">
+          <h4 class="linear-form-title">{{ editing ? 'Edit ' + editingName : 'New Linear Source' }}</h4>
           <label
             >Team<select v-model="team" required :disabled="busy">
               <option value="" disabled>Choose a team</option>
@@ -235,9 +243,12 @@ async function edit(source) {
               <option v-for="r in workspace.repositories" :key="r.id" :value="r.id">{{ r.name }}</option>
             </select></label
           >
-          <button class="standard-button" type="submit" :disabled="busy || projectsLoading || !team">
-            {{ editing ? 'Save Linear Source' : 'Add Linear Source' }}
-          </button>
+          <span class="source-actions">
+            <button class="standard-button" type="submit" :disabled="busy || projectsLoading || !team">
+              {{ editing ? 'Save Linear Source' : 'Add Linear Source' }}
+            </button>
+            <button type="button" class="standard-button" :disabled="busy" @click="closeForm">Cancel</button>
+          </span>
         </form>
       </div>
     </section>
@@ -297,8 +308,16 @@ async function edit(source) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-.linear-form button {
+.linear-form-title {
+  margin: 0;
+  font-size: inherit;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.linear-form .source-actions,
+.add-source {
   justify-self: start;
+  align-self: start;
 }
 .setting-row {
   flex-wrap: wrap;
