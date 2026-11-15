@@ -4,15 +4,16 @@ import { call } from '../shared/api'
 import Modal from './Modal.vue'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
-// repository is the workspace repository the item belongs to.
+// Edits a GitHub issue's or pull request's status, assignees or labels. source is the item's
+// Work Items or Reviews source.
 const props = defineProps({
   workspace: Object,
-  repository: Object,
+  source: Object,
   item: Object,
-  pull: Boolean,
   field: String,
   anchor: Object,
 })
+const pull = props.item.review
 const emit = defineEmits(['close', 'saved', 'busy'])
 const inline = props.field !== 'labels',
   popup = ref(null),
@@ -44,8 +45,8 @@ const title = { state: 'Status', assignees: 'Assignees', labels: 'Labels' }[prop
 const key = props.field === 'assignees' ? 'login' : 'name'
 const original =
   props.field === 'state'
-    ? props.item.state === 'closed' && !props.pull
-      ? ['closed', props.item.state_reason || 'completed']
+    ? props.item.state === 'closed' && !pull
+      ? ['closed', props.item.stateReason || 'completed']
       : [props.item.state]
     : (props.item[props.field] || []).map((o) => o[key])
 const values = ref([...original]),
@@ -59,13 +60,13 @@ const duplicates = ref(false),
 const duplicateChoices = computed(() =>
   duplicateItems.value.filter(
     (i) =>
-      !i.pull_request &&
+      !i.review &&
       i.number !== props.item.number &&
       (i.title.toLowerCase().includes(query.value.toLowerCase()) || ('#' + i.number).includes(query.value)),
   ),
 )
-const statusKey = props.item.state === 'open' ? 'open' : props.pull ? 'closed' : props.item.state_reason || 'completed'
-const statuses = props.pull
+const statusKey = props.item.state === 'open' ? 'open' : pull ? 'closed' : props.item.stateReason || 'completed'
+const statuses = pull
   ? [
       { id: 'open', label: 'Open', icon: 'open' },
       { id: 'closed', label: 'Closed', icon: 'completed' },
@@ -96,7 +97,7 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const available = await call('GitHubMetadataOptions', props.workspace.id, props.repository.id, props.field)
+    const available = await call('WorkItemOptions', props.workspace.id, props.source.id, props.field)
     if (!active) return
     const all = new Map([...available, ...(props.item[props.field] || [])].map((o) => [o[key], o]))
     options.value = [...all.values()].sort((a, b) => a[key].localeCompare(b[key]))
@@ -128,7 +129,11 @@ onMounted(async () => {
 })
 function patch() {
   return props.field === 'state'
-    ? { state: values.value[0], state_reason: values.value[0] === 'open' ? 'reopened' : values.value[1] || null }
+    ? {
+        state: values.value[0],
+        stateReason: values.value[0] === 'open' ? 'reopened' : values.value[1] || '',
+        status: values.value[0] === 'open' ? 'Open' : 'Closed',
+      }
     : { [props.field]: options.value.filter((o) => values.value.includes(o[key])) }
 }
 async function save() {
@@ -137,15 +142,7 @@ async function save() {
   emit('busy', true)
   error.value = ''
   try {
-    await call(
-      'UpdateGitHubMetadata',
-      props.workspace.id,
-      props.repository.id,
-      props.item.number,
-      props.pull,
-      props.field,
-      [...values.value],
-    )
+    await call('UpdateWorkItem', props.workspace.id, props.source.id, props.item.id, props.field, [...values.value])
     if (active) emit('saved', patch())
   } catch (e) {
     if (active) {
@@ -179,7 +176,7 @@ async function chooseState(value) {
     close()
     return
   }
-  values.value = value === 'open' ? ['open'] : props.pull ? ['closed'] : ['closed', value]
+  values.value = value === 'open' ? ['open'] : pull ? ['closed'] : ['closed', value]
   await save()
 }
 async function showDuplicates() {
@@ -188,7 +185,7 @@ async function showDuplicates() {
   error.value = ''
   loading.value = true
   try {
-    const items = await call('GitHubItems', props.workspace.id, props.repository.id, 'all')
+    const items = await call('WorkItems', props.workspace.id, props.source.id, 'all')
     if (active) duplicateItems.value = items
   } catch (e) {
     if (active) error.value = String(e)
@@ -234,7 +231,7 @@ function close() {
       ><form class="metadata-editor" @submit.prevent="save" @keydown.stop="menuKeys">
         <header v-if="!inline">
           <h2>Edit {{ title }}</h2>
-          <p class="muted caption">{{ repository.gitHub }} #{{ item.number }}</p>
+          <p class="muted caption">{{ source.name }} {{ item.identifier }}</p>
         </header>
         <template v-if="field === 'state'">
           <template v-if="!duplicates"

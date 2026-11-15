@@ -5437,15 +5437,15 @@ h2 {
   max-width: none;
 }
 
-/* Native Linear identifiers and workflow names can be longer than GitHub's. */
-.linear-row .item-id {
+/* Items without a number, such as Linear issues, have longer identifiers and workflow names. */
+.named-row .item-id {
   min-width: 0;
 }
-.linear-row .item-id > svg,
-.linear-row .status-badge > svg {
+.named-row .item-id > svg,
+.named-row .status-badge > svg {
   flex-shrink: 0;
 }
-.linear-row .status-badge {
+.named-row .status-badge {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
@@ -5454,26 +5454,26 @@ h2 {
   max-height: calc(100vh - 16px);
   overflow-y: auto;
 }
-.linear-detail .metadata-trigger.status-badge {
+.named-detail .metadata-trigger.status-badge {
   white-space: normal;
   text-align: left;
   overflow-wrap: anywhere;
 }
-.linear-row .item-title-line {
+.named-row .item-title-line {
   flex-direction: column;
   align-items: flex-start;
 }
-.linear-row .item-title-line strong,
-.linear-row .item-byline {
+.named-row .item-title-line strong,
+.named-row .item-byline {
   max-width: 100%;
 }
-.linear-row .item-byline {
+.named-row .item-byline {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.github-table.has-linear-sources {
+.github-table.has-named-items {
   --work-item-id-width: 96px;
   --work-item-status-width: 120px;
 }

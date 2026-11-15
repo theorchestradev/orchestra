@@ -62,6 +62,7 @@ const conflict = computed(
       base: status.value.baseBranch,
       head: status.value.branch,
       forkWithoutEdits: status.value.forkWithoutEdits,
+      reference: status.value.reference,
     },
 )
 let generation = 0,

@@ -115,29 +115,6 @@ func (a *App) RemoveLinearSource(workspace, source string) (core.State, error) {
 	}
 	return a.store.RemoveLinearSource(workspace, source)
 }
-func (a *App) LinearItems(workspace, source, state string) ([]core.LinearIssue, error) {
-	client, err := a.linearClient(workspace)
-	if err != nil {
-		return nil, err
-	}
-	config, err := a.store.LinearSource(workspace, source)
-	if err != nil {
-		return nil, err
-	}
-	return client.Items(a.ctx, config, state)
-}
-func (a *App) LinearDetail(workspace, source, id string) (core.LinearIssue, error) {
-	client, err := a.linearClient(workspace)
-	if err != nil {
-		return core.LinearIssue{}, err
-	}
-	config, err := a.store.LinearSource(workspace, source)
-	if err != nil {
-		return core.LinearIssue{}, err
-	}
-	return client.Detail(a.ctx, config, id)
-}
-
 func (a *App) linearWorkspace(id string) error {
 	for _, workspace := range a.store.Snapshot().Workspaces {
 		if workspace.ID == id {

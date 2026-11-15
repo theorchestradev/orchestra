@@ -41,9 +41,10 @@ type Session struct {
 	LaunchID         string `json:"launchID,omitempty"`
 	ExitMessage      string `json:"exitMessage,omitempty"`
 	StatusNeedsSetup bool   `json:"statusNeedsSetup,omitempty"`
-	// GitHubItem links a session started from Work on or Review to its issue or pull request.
-	GitHubItem *GitHubItem        `json:"gitHubItem,omitempty"`
-	WorkItem   *WorkItemReference `json:"workItem,omitempty"`
+	// WorkItem links a session started from Work on or Review to its item.
+	WorkItem *WorkItemReference `json:"workItem,omitempty"`
+	// LegacyGitHubItem is the GitHub link of earlier versions, read only to migrate it.
+	LegacyGitHubItem *legacyGitHubItem `json:"gitHubItem,omitempty"`
 	// ProfileID chooses the agent accounts for the session's whole life; empty is Default.
 	ProfileID string `json:"profileID,omitempty"`
 	// LoginAgent makes a terminal session run that agent's login command when it first starts.
@@ -56,20 +57,21 @@ type Session struct {
 	AgentStarted bool `json:"agentStarted,omitempty"`
 }
 
-// WorkItemReference separates stable provider identity from the execution repository.
+// WorkItemReference identifies a session's item by its provider and the item's ID there, apart
+// from the repository the session works in.
 type WorkItemReference struct {
 	Provider   string `json:"provider"`
 	ID         string `json:"id"`
-	URL        string `json:"url"`
+	URL        string `json:"url,omitempty"`
 	Identifier string `json:"identifier,omitempty"`
+	// Number and Review are set for numbered items, such as a GitHub issue or pull request.
+	Number int  `json:"number,omitempty"`
+	Review bool `json:"review,omitempty"`
 }
 
-// GitHubItem preserves the existing session creation bridge and saved GitHub links.
-type GitHubItem struct {
-	// Reference is accepted by the existing session creation bridge for either provider.
-	Reference   *WorkItemReference `json:"reference,omitempty"`
-	Number      int                `json:"number"`
-	PullRequest bool               `json:"pullRequest,omitempty"`
+type legacyGitHubItem struct {
+	Number      int  `json:"number"`
+	PullRequest bool `json:"pullRequest,omitempty"`
 }
 
 // Repository is a local folder that a workspace's sessions can work in. Removing it from the
@@ -94,6 +96,10 @@ type Workspace struct {
 	// Repositories is never empty; the first one provides the workspace icon.
 	Repositories  []*Repository  `json:"repositories"`
 	LinearSources []LinearSource `json:"linearSources,omitempty"`
+	// Sources lists where Work Items and Reviews read items. The snapshot derives it, and it is
+	// never saved; HiddenSources holds the IDs of those the user turned off.
+	Sources       []Source `json:"sources,omitempty"`
+	HiddenSources []string `json:"hiddenSources,omitempty"`
 	// LastRepositoryID is the repository New Session chose last.
 	LastRepositoryID string `json:"lastRepositoryID,omitempty"`
 	// Directory is the single folder of version 1 workspaces, read only to migrate them.
@@ -211,6 +217,8 @@ type State struct {
 // Store owns app metadata. TerminalSession owns every live PTY, through the session host
 // for sessions that keep running after quitting; Collaboration owns routing.
 type Store struct {
+	// LinearClient returns a workspace's Linear client, whose key the app keeps in the keychain.
+	LinearClient  func(workspaceID string) (LinearClient, error)
 	shuttingDown  bool
 	mu            sync.Mutex
 	state         State
@@ -330,12 +338,13 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 	}
 	s := &Store{path: path, worktreesDir: filepath.Join(filepath.Dir(path), "Worktrees"), executable: executable, canSave: true, terminals: map[string]*TerminalSession{}, closing: map[string]bool{}, emit: emit, log: logger}
 	s.state = State{Version: stateVersion, Workspaces: []*Workspace{}, Preferences: defaultPreferences()}
-	migrated := false
+	migrated, linksMigrated := false, false
 	if data, err := os.ReadFile(path); err == nil {
 		if err = json.Unmarshal(data, &s.state); err == nil {
 			if migrated = s.state.Version == 1 || s.state.LegacyWorkspaces != nil; migrated {
 				migrateState(&s.state)
 			}
+			linksMigrated = migrateWorkItemLinks(&s.state)
 			err = validateState(s.state)
 		}
 		// Earlier versions cannot read the new format, so the original stays beside it.
@@ -357,7 +366,7 @@ func OpenStore(path, executable string, emit func(string, any), logger *slog.Log
 	if s.canSave {
 		accountsChanged = s.ensureProfileAccountsLocked()
 	}
-	if s.canSave && (accountsChanged || historyRestored) {
+	if s.canSave && (accountsChanged || historyRestored || linksMigrated) {
 		if err := s.saveLocked(); err != nil {
 			return nil, err
 		}
@@ -493,6 +502,7 @@ func (s *Store) saveLocked() error {
 	saved.Runs = nil
 	saved.Error = ""
 	for _, p := range saved.Workspaces {
+		p.Sources = nil
 		for _, repo := range p.Repositories {
 			repo.GitHub = ""
 		}
@@ -524,6 +534,9 @@ func (s *Store) snapshotLocked() State {
 	}
 	if s.collaboration != nil {
 		state.Runs = s.collaboration.historyLocked()
+	}
+	for _, p := range state.Workspaces {
+		p.Sources = workspaceSources(p)
 	}
 	return state
 }
@@ -1023,13 +1036,13 @@ func clampSessionName(name string) string {
 
 // CreateSession names the session sessionName when given, otherwise "<Agent name> <n>".
 // repositoryID is the workspace repository it works in; empty is the one New Session used last.
-// gitHubItem records the issue or pull request in that repository a Work on or Review session came from.
+// workItem records the item a Work on or Review session came from.
 // profileID chooses the session's agent accounts; empty is Default.
 // With a worktree, branch names the new session branch, by default orchestra/<session name>,
 // and base is where it starts, by default the repository's current commit. It first keeps local main up to date when the preference is on, and
 // otherwise emits "local-main-behind" when local main lags origin.
-func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, branch, base string) (State, error) {
-	if gitHubItem != nil && gitHubItem.Reference != nil && gitHubItem.Reference.Provider == "linear" && repositoryID == "" {
+func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, workItem *WorkItemReference, model, effort, profileID, branch, base string) (State, error) {
+	if workItem != nil && workItem.Provider == "linear" && repositoryID == "" {
 		return State{}, errors.New("Choose an execution repository.")
 	}
 	s.mu.Lock()
@@ -1050,7 +1063,7 @@ func (s *Store) CreateSession(workspaceID, repositoryID, agent, sessionName, pro
 	}
 	// ponytail: checkout holds the Store lock; prepare outside it if large repos block navigation.
 	s.mu.Lock()
-	state, err := s.createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt, createWorktree, gitHubItem, model, effort, profileID, "", branch, base, true)
+	state, err := s.createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt, createWorktree, workItem, model, effort, profileID, "", branch, base, true)
 	s.mu.Unlock()
 	if err == nil && notice {
 		if branch, behind, behindErr := localMainBehind(directory); behindErr == nil && behind > 0 {
@@ -1112,7 +1125,7 @@ func (s *Store) DismissLocalMainNotice(workspaceID string) (State, error) {
 	s.changedLocked()
 	return s.snapshotLocked(), nil
 }
-func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, gitHubItem *GitHubItem, model, effort, profileID, loginAgent, branch, base string, selectSession bool) (State, error) {
+func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionName, prompt string, createWorktree bool, workItem *WorkItemReference, model, effort, profileID, loginAgent, branch, base string, selectSession bool) (State, error) {
 	p, err := s.workspaceLocked(workspaceID)
 	if err != nil {
 		return State{}, err
@@ -1126,23 +1139,18 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 		return State{}, errors.New("Unknown agent.")
 	}
 	if agent == terminalAgent {
-		prompt, createWorktree, gitHubItem = "", false, nil
+		prompt, createWorktree, workItem = "", false, nil
 	}
 	if spec := agentSpecs[agent]; spec != nil && spec.NoInitialPrompt && prompt != "" {
 		return State{}, fmt.Errorf("%s cannot start an interactive session with an initial prompt. Create a session and enter the request in its terminal.", spec.Name)
 	}
-	if gitHubItem != nil && gitHubItem.Reference != nil {
-		if gitHubItem.Reference.Provider == "github" && gitHubItem.Number <= 0 {
-			return State{}, errors.New("Invalid GitHub issue or pull request.")
-		}
-		if gitHubItem.Reference.Provider == "linear" && repositoryID == "" && len(p.Repositories) > 1 {
+	if workItem != nil {
+		if workItem.Provider == "linear" && repositoryID == "" && len(p.Repositories) > 1 {
 			return State{}, errors.New("Choose an execution repository.")
 		}
-		if err := validateWorkItemReference(*gitHubItem.Reference); err != nil {
+		if err := validateWorkItemReference(*workItem); err != nil {
 			return State{}, err
 		}
-	} else if gitHubItem != nil && gitHubItem.Number <= 0 {
-		return State{}, errors.New("Invalid GitHub issue or pull request.")
 	}
 	if err = validateLaunch(agent, model, effort); err != nil {
 		return State{}, err
@@ -1159,17 +1167,10 @@ func (s *Store) createSessionLocked(workspaceID, repositoryID, agent, sessionNam
 	if sessionName = clampSessionName(sessionName); sessionName == "" {
 		sessionName = fmt.Sprintf("%s %d", name, n)
 	}
-	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", GitHubItem: gitHubItem, ProfileID: profileID, LoginAgent: loginAgent, RepositoryID: repo.ID}
-	if gitHubItem != nil && gitHubItem.Reference != nil {
-		ref := *gitHubItem.Reference
+	sess := &Session{ID: uuid.NewString(), Name: sessionName, Agent: agent, InitialPrompt: prompt, Model: model, Effort: effort, Activity: "unknown", ProfileID: profileID, LoginAgent: loginAgent, RepositoryID: repo.ID}
+	if workItem != nil {
+		ref := *workItem
 		sess.WorkItem = &ref
-		if ref.Provider == "linear" {
-			sess.GitHubItem = nil
-		} else {
-			link := *gitHubItem
-			link.Reference = nil
-			sess.GitHubItem = &link
-		}
 	}
 	if presetsID(agent) {
 		sess.AgentSessionID = sess.ID

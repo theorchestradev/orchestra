@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { sessionsLabel } from '../shared/github'
+import { sessionsLabel } from '../shared/workItems'
 import Icon from './Icon.vue'
 const props = defineProps({ sessions: Array })
 const emit = defineEmits(['open'])

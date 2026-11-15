@@ -2,7 +2,9 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import {
   defaultRepository,
+  hasReviews,
   hasWorkItems,
+  workspaceSources,
   needsGitRepository,
   workspaceTitle,
   repositoryLabel,
@@ -62,6 +64,14 @@ test('sessions belong to one of the workspace repositories', () => {
   assert.equal(defaultRepository({}), null)
   assert.equal(repositoryLabel(p, { repositoryID: 'site' }), 'site')
   assert.equal(repositoryLabel({ repositories: [app] }, { repositoryID: 'app' }), '')
-  assert.ok(hasWorkItems(p))
-  assert.ok(!hasWorkItems({ repositories: [site] }))
+  // Hidden sources leave their view; issues and pull requests hide independently.
+  const issues = { id: 'github:issues:app', kind: 'workItems' },
+    pulls = { id: 'github:pulls:app', kind: 'reviews' },
+    linear = { id: 'linear:l', kind: 'workItems' }
+  assert.ok(hasWorkItems({ sources: [issues, pulls] }) && hasReviews({ sources: [issues, pulls] }))
+  assert.ok(!hasWorkItems({}) && !hasReviews({ repositories: [app] }))
+  const quiet = { sources: [{ ...issues, hidden: true }, pulls] }
+  assert.ok(!hasWorkItems(quiet) && hasReviews(quiet))
+  assert.ok(hasWorkItems({ sources: [...quiet.sources, linear] }))
+  assert.deepEqual(workspaceSources({ sources: [...quiet.sources, linear] }, 'workItems'), [linear])
 })

@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"github.com/theorchestradev/orchestra/internal/appearance"
 	"github.com/theorchestradev/orchestra/internal/apps"
@@ -72,6 +71,7 @@ func (a *App) startup(ctx context.Context) {
 	}
 	if a.store != nil {
 		store := a.store
+		store.LinearClient = a.linearClient
 		a.updater = core.NewUpdater(core.UpdaterOptions{
 			Current:     version,
 			Executable:  exe,
@@ -390,15 +390,15 @@ func (a *App) SetPreferences(p core.Preferences) (core.State, error) {
 	}
 	return state, err
 }
-func (a *App) CreateSession(workspace, repository, agent, name, prompt string, createWorktree bool, gitHubItem *core.GitHubItem, model, effort, profileID, branch, base string) (core.State, error) {
+func (a *App) CreateSession(workspace, repository, agent, name, prompt string, createWorktree bool, workItem *core.WorkItemReference, model, effort, profileID, branch, base string) (core.State, error) {
 	if err := a.ready(); err != nil {
 		return core.State{}, err
 	}
 
-	state, err := a.store.CreateSession(workspace, repository, agent, name, prompt, createWorktree, gitHubItem, model, effort, profileID, branch, base)
-	if err == nil && gitHubItem != nil && (gitHubItem.Reference == nil || gitHubItem.Reference.Provider == "github") {
+	state, err := a.store.CreateSession(workspace, repository, agent, name, prompt, createWorktree, workItem, model, effort, profileID, branch, base)
+	if err == nil && workItem != nil && workItem.Provider == "github" {
 		action := "work_on"
-		if gitHubItem.PullRequest {
+		if workItem.Review {
 			action = "review"
 		}
 		a.Track("github_action", map[string]any{"action": action})
@@ -519,6 +519,12 @@ func (a *App) SetWorkspaceAgent(workspace, agent string) (core.State, error) {
 	}
 	return a.store.SetWorkspaceAgent(workspace, agent)
 }
+func (a *App) ShowWorkspaceSource(workspace, source string, shown bool) (core.State, error) {
+	if err := a.ready(); err != nil {
+		return core.State{}, err
+	}
+	return a.store.ShowWorkspaceSource(workspace, source, shown)
+}
 
 // ProfileLogins asks each agent's CLI whether the profile is signed in; "" is Default.
 func (a *App) ProfileLogins(profileID string) ([]core.ProfileLogin, error) {
@@ -592,33 +598,31 @@ func (a *App) DetectRepository(id string) (core.State, error) {
 	return a.store.DetectRepository(id)
 }
 
-// The GitHub methods act on one GitHub-connected repository of a workspace.
-func (a *App) GitHubItems(workspace, repository, state string) ([]json.RawMessage, error) {
+// The work item methods act on one source of a workspace's Work Items or Reviews.
+func (a *App) WorkItems(workspace, source, state string) ([]core.WorkItem, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-
-	return a.store.GitHubItems(workspace, repository, state)
+	return a.store.WorkItems(workspace, source, state)
 }
-func (a *App) GitHubDetail(workspace, repository string, number int, pull bool) (core.GitHubContent, error) {
+func (a *App) WorkItemDetail(workspace, source, id string) (core.WorkItemDetail, error) {
 	if err := a.ready(); err != nil {
-		return core.GitHubContent{}, err
+		return core.WorkItemDetail{}, err
 	}
-
-	return a.store.GitHubDetail(workspace, repository, number, pull)
+	return a.store.WorkItemDetail(workspace, source, id)
 }
-func (a *App) GitHubMetadataOptions(workspace, repository, field string) ([]json.RawMessage, error) {
+func (a *App) WorkItemOptions(workspace, source, field string) (any, error) {
 	if err := a.ready(); err != nil {
 		return nil, err
 	}
-	return a.store.GitHubMetadataOptions(workspace, repository, field)
+	return a.store.WorkItemOptions(workspace, source, field)
 }
-func (a *App) UpdateGitHubMetadata(workspace, repository string, number int, pull bool, field string, values []string) error {
+func (a *App) UpdateWorkItem(workspace, source, id, field string, values []string) error {
 	if err := a.ready(); err != nil {
 		return err
 	}
-	err := a.store.UpdateGitHubMetadata(workspace, repository, number, pull, field, values)
-	if err == nil {
+	err := a.store.UpdateWorkItem(workspace, source, id, field, values)
+	if err == nil && strings.HasPrefix(source, "github:") {
 		a.Track("github_action", map[string]any{"action": "edit_metadata"})
 	}
 	return err
@@ -801,20 +805,20 @@ func (a *App) PullRequestCheckFailure(id string, jobID int64) (string, error) {
 	return a.store.PullRequestCheckFailure(id, jobID)
 }
 
-// GitHubPullRequest reads a repository's pull request and its checks for Work Items.
-func (a *App) GitHubPullRequest(workspace, repository string, number int) (core.PullRequestStatus, error) {
+// ReviewStatus reads a review's checks for Reviews.
+func (a *App) ReviewStatus(workspace, source, id string) (core.PullRequestStatus, error) {
 	if err := a.ready(); err != nil {
 		return core.PullRequestStatus{}, err
 	}
-	return a.store.GitHubPullRequest(workspace, repository, number)
+	return a.store.ReviewStatus(workspace, source, id)
 }
 
-// GitHubCheckFailure describes a failed check of a repository's pull request as text to copy.
-func (a *App) GitHubCheckFailure(workspace, repository string, jobID int64) (string, error) {
+// ReviewCheckFailure describes a failed check of a review as text to copy.
+func (a *App) ReviewCheckFailure(workspace, source string, jobID int64) (string, error) {
 	if err := a.ready(); err != nil {
 		return "", err
 	}
-	return a.store.GitHubCheckFailure(workspace, repository, jobID)
+	return a.store.ReviewCheckFailure(workspace, source, jobID)
 }
 
 // SessionFiles lists a folder or previews a text file inside the session folder.

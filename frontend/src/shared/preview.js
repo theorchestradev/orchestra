@@ -147,7 +147,38 @@ let state = {
   ],
   runs: [],
 }
-const clone = () => structuredClone(state),
+// Mirrors workspaceSources in internal/core/workitems.go.
+const sourcesOf = (p) =>
+  [
+    ...p.repositories
+      .filter((r) => r.gitHub)
+      .flatMap((r) =>
+        [
+          ['issues', 'workItems'],
+          ['pulls', 'reviews'],
+        ].map(([key, kind]) => ({
+          id: `github:${key}:${r.id}`,
+          provider: 'github',
+          kind,
+          name: r.gitHub,
+          url: 'https://github.com/' + r.gitHub,
+          repositoryID: r.id,
+        })),
+      ),
+    ...(p.linearSources || []).map((s) => ({
+      id: s.id,
+      provider: 'linear',
+      kind: 'workItems',
+      name: s.name,
+      url: 'https://linear.app',
+      repositoryID: s.repositoryID,
+    })),
+  ].map((s) => ({ ...s, hidden: (p.hiddenSources || []).includes(s.id) }))
+const clone = () => {
+    const copy = structuredClone(state)
+    for (const p of copy.workspaces) p.sources = sourcesOf(p)
+    return copy
+  },
   changed = () => {
     emitPreview('state', clone())
     return clone()
@@ -163,7 +194,8 @@ const clone = () => structuredClone(state),
         (repos.find((r) => r.id === workspace(pid).lastRepositoryID) || repos[0]))
     )
   },
-  session = (id) => state.workspaces.flatMap((p) => p.sessions).find((s) => s.id === id)
+  session = (id) => state.workspaces.flatMap((p) => p.sessions).find((s) => s.id === id),
+  sourceFor = (pid, sid) => sourcesOf(workspace(pid)).find((s) => s.id === sid)
 const item = {
   number: 42,
   title: 'Preserve terminal sessions when switching workspaces',
@@ -306,6 +338,65 @@ const linearIssue = {
   team: { id: 'engineering', name: 'Engineering' },
   project: { id: 'desktop', name: 'Desktop' },
 }
+// Mirror the providers' normalization in internal/core.
+const gitHubWorkItem = (i, source) => {
+  const merged = Boolean(i.merged || i.pull_request?.merged_at),
+    review = source.kind === 'reviews'
+  return {
+    provider: 'github',
+    sourceID: source.id,
+    repositoryID: source.repositoryID,
+    id: `${source.repositoryID}#${i.number}`,
+    number: i.number,
+    identifier: '#' + i.number,
+    title: i.title,
+    url: i.pull_request?.html_url || i.html_url,
+    state: i.state,
+    stateReason: i.state_reason || '',
+    status: merged ? 'Merged' : i.state === 'closed' ? 'Closed' : i.draft ? 'Draft' : 'Open',
+    review,
+    author: i.user,
+    assignees: i.assignees || [],
+    labels: i.labels || [],
+    createdAt: i.created_at,
+    updatedAt: i.updated_at,
+    can: {
+      editState: !merged,
+      editAssignees: true,
+      editLabels: true,
+      editDescription: true,
+      comments: true,
+      checks: review,
+    },
+  }
+}
+const linearWorkItem = (issue, source) => ({
+  provider: 'linear',
+  sourceID: source.id,
+  repositoryID: source.repositoryID || '',
+  id: issue.id,
+  identifier: issue.identifier,
+  title: issue.title,
+  url: issue.url,
+  state: ['completed', 'canceled'].includes(issue.state.type) ? 'closed' : 'open',
+  status: issue.state.name,
+  author: issue.creator && { login: issue.creator.name },
+  assignees: issue.assignee ? [{ login: issue.assignee.name }] : [],
+  labels: issue.labels.nodes.map((label) => ({ name: label.name, color: label.color.replace(/^#/, '') })),
+  createdAt: issue.createdAt,
+  updatedAt: issue.updatedAt,
+  can: { chooseRepository: true },
+})
+const gitHubNumber = (id) => Number(id.split('#')[1])
+// Mirrors gitHubReference in internal/core/github_items.go.
+const gitHubReference = (repositoryID, number, url) => ({
+  provider: 'github',
+  id: `${repositoryID}#${number}`,
+  url,
+  identifier: '#' + number,
+  number,
+  review: true,
+})
 export const backend = {
   LinearAccount: (pid) => (!linearDisconnected.has(pid) ? { id: 'preview-account', name: 'Preview Account' } : {}),
   ConnectLinear: (pid) => {
@@ -317,11 +408,6 @@ export const backend = {
   },
   LinearChoices: (_pid, team) =>
     team ? [{ id: 'desktop', name: 'Desktop' }] : [{ id: 'engineering', name: 'Engineering' }],
-  LinearItems: (_pid, _source, status) => {
-    if (linearDisconnected.has(_pid)) throw Error('Connect Linear in Edit Workspace → Linear.')
-    return status === 'closed' ? [] : [structuredClone(linearIssue)]
-  },
-  LinearDetail: () => structuredClone(linearIssue),
   SaveLinearSource: (pid, source) => {
     const p = state.workspaces.find((p) => p.id === pid)
     p.linearSources ||= []
@@ -334,6 +420,7 @@ export const backend = {
   RemoveLinearSource: (pid, source) => {
     const p = state.workspaces.find((p) => p.id === pid)
     p.linearSources = p.linearSources.filter((s) => s.id !== source)
+    p.hiddenSources = (p.hiddenSources || []).filter((id) => id !== source)
     return changed()
   },
   Track: () => {},
@@ -672,6 +759,11 @@ export const backend = {
     workspace(pid).defaultAgent = agent
     return changed()
   },
+  ShowWorkspaceSource: (pid, source, shown) => {
+    const p = workspace(pid)
+    p.hiddenSources = (p.hiddenSources || []).filter((id) => id !== source).concat(shown ? [] : [source])
+    return changed()
+  },
   SetWorkspaceProfile: (pid, profileID) => {
     workspace(pid).profileID = profileID
     return changed()
@@ -773,7 +865,7 @@ export const backend = {
     name,
     prompt,
     createWorktree,
-    gitHubItem,
+    workItem,
     model,
     effort,
     profileID = '',
@@ -817,10 +909,7 @@ export const backend = {
         initialPrompt: prompt,
         repositoryID: repo.id,
       }
-    if (gitHubItem && agent !== 'terminal') {
-      if (gitHubItem.reference) sess.workItem = gitHubItem.reference
-      if (gitHubItem.reference?.provider !== 'linear') sess.gitHubItem = gitHubItem
-    }
+    if (workItem && agent !== 'terminal') sess.workItem = workItem
     if (profileID) sess.profileID = profileID
     if (model) sess.model = model
     if (effort) sess.effort = effort
@@ -949,6 +1038,7 @@ export const backend = {
       state: 'open',
       conflicts: true,
       baseBranch: 'release/2026-10-a-very-long-base-branch-name',
+      reference: gitHubReference(s.repositoryID, 43, 'https://github.com/example/orchestra/pull/43'),
       checks: [
         ci('changes', 'CI', 'success', '11s', 1),
         ci('server-tests (ubuntu-latest)', 'CI', 'failure', '7m 15s', 2),
@@ -998,11 +1088,21 @@ export const backend = {
     }
     return changed()
   },
-  GitHubItems: (pid, rid, status) => {
-    console.debug('Preview: GitHub refresh', pid, rid)
-    return structuredClone(repositoryItems(rid).filter((i) => status === 'all' || i.state === status))
+  WorkItems: (pid, sid, status) => {
+    const source = sourceFor(pid, sid)
+    console.debug('Preview: work items refresh', pid, sid)
+    if (source.provider === 'linear') {
+      if (linearDisconnected.has(pid)) throw Error('Connect Linear in Edit Workspace → Work Items.')
+      return status === 'closed' ? [] : [linearWorkItem(structuredClone(linearIssue), source)]
+    }
+    return structuredClone(repositoryItems(source.repositoryID))
+      .filter(
+        (i) => (status === 'all' || i.state === status) && Boolean(i.pull_request) === (source.kind === 'reviews'),
+      )
+      .map((i) => gitHubWorkItem(i, source))
   },
-  GitHubPullRequest: (_pid, _rid, number) => {
+  ReviewStatus: (_pid, _sid, itemID) => {
+    const number = gitHubNumber(itemID)
     const ci = (name, workflow, status, duration, jobID) => ({
       name,
       workflow,
@@ -1027,38 +1127,54 @@ export const backend = {
       ],
     }
   },
-  GitHubCheckFailure: (_pid, _rid, jobID) =>
+  ReviewCheckFailure: (_pid, _sid, jobID) =>
     `Check: server-tests (ubuntu-latest)\nConclusion: failure\nURL: https://github.com/example/orchestra/actions/runs/1/job/${jobID}\n\nLog:\n\`\`\`\n--- FAIL: TestPreview (0.01s)\n\`\`\``,
-  GitHubDetail: (_pid, rid, number, pull) => ({
-    detail: {
+  WorkItemDetail: (pid, sid, itemID) => {
+    const source = sourceFor(pid, sid)
+    if (source.provider === 'linear')
+      return {
+        ...linearWorkItem(structuredClone(linearIssue), source),
+        body: linearIssue.description,
+        comments: [],
+        prompt: `Work on this Linear issue: ${linearIssue.url}\n${linearIssue.identifier}: ${linearIssue.title}\n\nIssue description (Markdown):\n${linearIssue.description}`,
+      }
+    const number = gitHubNumber(itemID),
+      review = source.kind === 'reviews',
+      found = structuredClone(repositoryItems(source.repositoryID).find((i) => i.number === number))
+    return {
       body: 'Keep each workspace’s processes and terminal scrollback alive when navigating between sessions.\n\n```\nSwitch workspaces → return to the same conversation\n```',
-      body_html:
+      bodyHTML:
         '<p>Keep each workspace’s processes and terminal scrollback alive when navigating between sessions.</p><pre><code>Switch workspaces → return to the same conversation</code></pre>',
-      ...structuredClone(repositoryItems(rid).find((i) => i.number === number)),
-      ...(pull
+      ...(found.body !== undefined ? { body: found.body, bodyHTML: found.body_html } : {}),
+      ...gitHubWorkItem(found, source),
+      ...(review
         ? {
-            head: { label: 'feature/status', ref: 'feature/status', repo: { full_name: 'example/orchestra' } },
-            base: { label: 'main', ref: 'main', repo: { full_name: 'example/orchestra' } },
-            mergeable: false,
-            mergeable_state: 'dirty',
-            changed_files: 3,
-            additions: 52,
-            deletions: 12,
+            branches: { head: 'feature/status', base: 'main', changedFiles: 3, additions: 52, deletions: 12 },
+            conflict: {
+              number,
+              title: found.title,
+              url: found.pull_request?.html_url,
+              base: 'main',
+              head: 'feature/status',
+              reference: gitHubReference(source.repositoryID, number, found.pull_request?.html_url),
+            },
           }
         : {}),
-    },
-    comments: [
-      {
-        id: 1,
-        user: { login: 'reviewer' },
-        created_at: new Date().toISOString(),
-        body_html: '<p>The session owns the process and the view only renders it.</p>',
-      },
-    ],
-  }),
-  GitHubMetadataOptions: (_pid, _rid, field) => structuredClone(field === 'labels' ? labels : assignees),
-  UpdateGitHubMetadata: (_pid, rid, number, _pull, field, values) => {
-    const target = repositoryItems(rid).find((i) => i.number === number)
+      comments: [
+        {
+          id: '1',
+          author: { login: 'reviewer' },
+          createdAt: new Date().toISOString(),
+          bodyHTML: '<p>The session owns the process and the view only renders it.</p>',
+        },
+      ],
+      prompt: `${review ? 'Review this GitHub pull request' : 'Work on this GitHub issue'}: ${found.pull_request?.html_url || found.html_url}.`,
+    }
+  },
+  WorkItemOptions: (_pid, _sid, field) => structuredClone(field === 'labels' ? labels : assignees),
+  UpdateWorkItem: (pid, sid, itemID, field, values) => {
+    const number = gitHubNumber(itemID)
+    const target = repositoryItems(sourceFor(pid, sid).repositoryID).find((i) => i.number === number)
     if (field === 'body') {
       const escape = (text) =>
         text.replace(/[&<>"]/g, (c) => `&${{ '&': 'amp', '<': 'lt', '>': 'gt', '"': 'quot' }[c]};`)

@@ -38,6 +38,7 @@ export const settingsSearchItems = [
   ['General', 'Confirm Before Closing a Session', 'confirmSessionClose'],
   ['Appearance', 'Mode: System, Light, Dark', 'settings-mode'],
   ['Appearance', 'Duplicate as Custom Theme', 'duplicate-theme'],
+  ['Appearance', 'Interface Font Size', 'ui-font-size'],
   ['General', 'Check for Updates', 'check-updates'],
   ['Status Bar', 'Restore Default Layout', 'restore-status-layout'],
   ['Profiles', 'Profiles, accounts, login and skills', ''],

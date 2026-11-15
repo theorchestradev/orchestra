@@ -149,13 +149,13 @@ func TestSessionPullRequestUsesReviewedPullRequest(t *testing.T) {
 	stored, _ := s.workspaceLocked(p.ID)
 	stored.Repositories[0].GitHub = "fixture/repository"
 	s.mu.Unlock()
-	state, err := s.CreateSession(p.ID, "", "claude", "", "", false, &GitHubItem{Number: 42, PullRequest: true}, "", "", "", "", "")
+	state, err := s.CreateSession(p.ID, "", "claude", "", "", false, gitHubRef(42, true), "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	respond("view", `{"number":42,"title":"Reviewed","state":"OPEN","headRefName":"feature","baseRefName":"main","isCrossRepository":true,"mergeable":"CONFLICTING","statusCheckRollup":[]}`)
 	status, err := s.SessionPullRequest(state.Workspaces[0].Sessions[0].ID, false)
-	if err != nil || status.Number != 42 || status.Branch != "feature" || status.State != "open" {
+	if err != nil || status.Number != 42 || status.Branch != "feature" || status.State != "open" || status.Reference == nil || status.Reference.ID != p.Repositories[0].ID+"#42" || !status.Reference.Review {
 		t.Fatalf("reviewed pull request: %+v, %v", status, err)
 	}
 	if !status.Conflicts || status.BaseBranch != "main" || !status.ForkWithoutEdits {

@@ -4,7 +4,7 @@ import { copy, openURL } from '../shared/api'
 import { checksSummary, failureContext, ringSegments } from '../shared/pullRequest'
 import Icon from './Icon.vue'
 // The checks of a pull request, in the session's PR tab and the GitHub view. `status` comes
-// from SessionPullRequest or GitHubPullRequest; `loadFailure` reads a failed job's context.
+// from SessionPullRequest or ReviewStatus; `loadFailure` reads a failed job's context.
 const props = defineProps({ status: Object, loadFailure: Function })
 const emit = defineEmits(['error'])
 const maxJobs = 5

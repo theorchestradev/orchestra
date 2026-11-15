@@ -26,6 +26,11 @@ import {
 } from '../src/shared/appearance.js'
 import themes from '../src/shared/themes.json' with { type: 'json' }
 // internal/appearance validates the colors and names in themes.json with the custom-theme rules.
+// The sources the Store derives for a repository with a GitHub remote.
+const gitHubSources = [
+  { id: 'github:issues:r', provider: 'github', kind: 'workItems' },
+  { id: 'github:pulls:r', provider: 'github', kind: 'reviews' },
+]
 test('every built-in theme is named from themes.json and drives the terminal', () => {
   assert.deepEqual(
     themeNames.map((t) => t.name),
@@ -63,8 +68,16 @@ test('System mode shows the OS appearance and explicit modes keep their own', ()
 })
 test('workspace navigation preserves page priority and messaging labels', () => {
   assert.equal(destination({ showsScratchpad: true, showsGitHub: true, selectedSessionID: 'a' }), 'scratchpad')
-  assert.equal(destination({ showsGitHub: true, selectedSessionID: 'a' }), 'github')
-  assert.equal(destination({ showsReviews: true, selectedSessionID: 'a' }), 'reviews')
+  const sources = [
+    { id: 'i', kind: 'workItems' },
+    { id: 'p', kind: 'reviews' },
+  ]
+  assert.equal(destination({ sources, showsGitHub: true, selectedSessionID: 'a' }), 'github')
+  assert.equal(destination({ sources, showsReviews: true, selectedSessionID: 'a' }), 'reviews')
+  // A view whose sources are all hidden falls back to the session.
+  const hidden = sources.map((s) => ({ ...s, hidden: true }))
+  assert.equal(destination({ sources: hidden, showsGitHub: true, selectedSessionID: 'a' }), 'a')
+  assert.equal(destination({ sources: hidden, showsReviews: true, selectedSessionID: 'a' }), 'a')
   assert.equal(destination({ selectedSessionID: 'a' }), 'a')
   assert.equal(destination({}), 'empty')
   assert.equal(runLabel('queued'), 'In inbox')
@@ -72,13 +85,13 @@ test('workspace navigation preserves page priority and messaging labels', () => 
 })
 
 test('startup views never select or resume a restored agent', () => {
-  const workspace = { repositories: [{ gitHub: 'example/orchestra' }], selectedSessionID: 'restored-agent' }
+  const workspace = { sources: gitHubSources, selectedSessionID: 'restored-agent' }
   assert.equal(startupDestination(workspace, { startupView: 'last' }), null)
   assert.equal(startupDestination(workspace, { startupView: 'scratchpad' }), 'scratchpad')
   assert.equal(startupDestination(workspace, { startupView: 'github' }), 'github')
   assert.equal(startupDestination(workspace, { startupView: 'reviews' }), 'reviews')
-  assert.equal(startupDestination({ ...workspace, repositories: [{ gitHub: '' }] }, { startupView: 'reviews' }), null)
-  assert.equal(startupDestination({ ...workspace, repositories: [{ gitHub: '' }] }, { startupView: 'github' }), null)
+  assert.equal(startupDestination({ ...workspace, sources: [] }, { startupView: 'reviews' }), null)
+  assert.equal(startupDestination({ ...workspace, sources: [] }, { startupView: 'github' }), null)
   assert.equal(startupDestination(undefined, { startupView: 'scratchpad' }), null)
 })
 
@@ -87,11 +100,11 @@ test('sidebar navigation follows visible order and wraps', () => {
     {
       id: 'a',
       isExpanded: true,
-      repositories: [{ gitHub: 'o/a' }],
+      sources: gitHubSources,
       hasScratchpad: true,
       sessions: [{ id: 's1' }, { id: 's2' }],
     },
-    { id: 'b', isExpanded: false, repositories: [{ gitHub: 'o/b' }], hasScratchpad: true, sessions: [{ id: 's3' }] },
+    { id: 'b', isExpanded: false, sources: gitHubSources, hasScratchpad: true, sessions: [{ id: 's3' }] },
     { id: 'c', isExpanded: true, repositories: [{}], hasScratchpad: false, sessions: [{ id: 's4' }] },
   ]
   assert.deepEqual(
@@ -111,7 +124,7 @@ test('the Scratchpad sits at its saved position among sessions, below Work Items
   const p = {
     id: 'a',
     isExpanded: true,
-    repositories: [{ gitHub: 'o/a' }],
+    sources: gitHubSources,
     hasScratchpad: true,
     scratchpadIndex: 1,
     sessions: [{ id: 's1' }, { id: 's2' }],

@@ -17,9 +17,11 @@ export const sessionRepository = (p, session) => repositories(p).find((r) => r.i
 // New Session starts in the repository chosen last in the workspace, else its first.
 export const defaultRepository = (p) =>
   repositories(p).find((r) => r.id === p.lastRepositoryID) || repositories(p)[0] || null
-// Repositories whose GitHub remote Work Items lists.
-export const gitHubRepositories = (p) => repositories(p).filter((r) => r.gitHub)
-export const hasWorkItems = (p) => gitHubRepositories(p).length > 0 || !!p?.linearSources?.length
+// The sources Work Items ('workItems') or Reviews ('reviews') list, unless hidden in the
+// workspace settings.
+export const workspaceSources = (p, kind) => (p?.sources || []).filter((s) => s.kind === kind && !s.hidden)
+export const hasWorkItems = (p) => workspaceSources(p, 'workItems').length > 0
+export const hasReviews = (p) => workspaceSources(p, 'reviews').length > 0
 // The repository's name, shown beside sessions only when the workspace has several.
 export const repositoryLabel = (p, session) =>
   repositories(p).length > 1 ? sessionRepository(p, session)?.name || '' : ''

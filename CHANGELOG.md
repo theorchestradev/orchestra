@@ -4,6 +4,19 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## Unreleased
+
+### Changed
+
+- **Work Items and Reviews in workspace settings.** A workspace's settings now group
+  its sources under Work Items (GitHub issues and Linear) and Reviews (GitHub pull
+  requests). Each repository's issues, each repository's pull requests and each
+  Linear source has its own switch to show or hide it; hidden sources keep their
+  configuration. Reviews now appears whenever a repository's pull requests are shown,
+  even with no Work Items.
+- Sessions started from Work on, Review or Resolve Conflicts keep their link to the
+  item after upgrading; earlier links are converted when the workspace opens.
+
 ## 0.28.0 — 2026-11-14
 
 ### New

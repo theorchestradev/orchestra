@@ -86,8 +86,8 @@ func validateState(state State) error {
 			if validateLaunch(sess.Agent, sess.Model, sess.Effort) != nil {
 				return errors.New("Invalid saved session model or effort.")
 			}
-			if sess.GitHubItem != nil && sess.GitHubItem.Number <= 0 {
-				return errors.New("Invalid saved session GitHub item.")
+			if ref := sess.WorkItem; ref != nil && (ref.ID == "" || (ref.Provider == "github" && ref.Number <= 0)) {
+				return errors.New("Invalid saved session work item.")
 			}
 			if !repos[sess.RepositoryID] {
 				return errors.New("Saved session repository is unavailable.")

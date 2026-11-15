@@ -115,15 +115,15 @@ func TestLinearSourcesAndSessionState(t *testing.T) {
 		t.Fatal(err)
 	}
 	ref := &WorkItemReference{Provider: "linear", ID: "stable-uuid", Identifier: "ENG-1", URL: "https://linear.app/acme/issue/ENG-1"}
-	if _, err = s.CreateSession(p.ID, "", "codex", "Linear", "", true, &GitHubItem{Reference: ref}, "", "", "", "", ""); err == nil {
+	if _, err = s.CreateSession(p.ID, "", "codex", "Linear", "", true, ref, "", "", "", "", ""); err == nil {
 		t.Fatal("implicit execution repository accepted")
 	}
-	state, err = s.CreateSession(p.ID, p.Repositories[0].ID, "codex", "Linear", "", false, &GitHubItem{Reference: ref}, "", "", "", "", "")
+	state, err = s.CreateSession(p.ID, p.Repositories[0].ID, "codex", "Linear", "", false, ref, "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	sess := state.Workspaces[0].Sessions[len(state.Workspaces[0].Sessions)-1]
-	if sess.WorkItem == nil || *sess.WorkItem != *ref || sess.GitHubItem != nil {
+	if sess.WorkItem == nil || *sess.WorkItem != *ref {
 		t.Fatalf("bad link: %+v", sess)
 	}
 	encoded, _ := json.Marshal(state)
@@ -133,10 +133,6 @@ func TestLinearSourcesAndSessionState(t *testing.T) {
 	}
 	if restored.Workspaces[0].LinearSources[0].Name != "Updated" {
 		t.Fatal("lost source")
-	}
-	var old Session
-	if err = json.Unmarshal([]byte(`{"repositoryID":"repo","gitHubItem":{"number":1}}`), &old); err != nil || old.GitHubItem.Number != 1 || old.WorkItem != nil {
-		t.Fatal("legacy link broken")
 	}
 	if _, err = s.RemoveLinearSource(p.ID, source.ID); err != nil {
 		t.Fatal(err)
