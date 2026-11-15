@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -33,6 +34,9 @@ type LinearClient struct {
 	HTTP     *http.Client
 	Endpoint string
 }
+
+// errLinearForbidden is a refusal of the key's access, which edits explain as a missing write scope.
+var errLinearForbidden = errors.New("Linear authentication failed. Reconnect in Edit Workspace → Work Items.")
 
 // Never return response bodies, GraphQL messages or transport errors: they may echo credentials.
 func (c LinearClient) query(ctx context.Context, query string, variables any, result any) error {
@@ -67,8 +71,11 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 		return errors.New("Could not reach Linear. Try again.")
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == 401 || resp.StatusCode == 403 {
+	if resp.StatusCode == 401 {
 		return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Work Items.")
+	}
+	if resp.StatusCode == 403 {
+		return errLinearForbidden
 	}
 	if resp.StatusCode == 429 {
 		return errors.New("Linear rate limit reached. Wait before refreshing.")
@@ -91,8 +98,10 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 		switch e.Extensions.Code {
 		case "RATELIMITED":
 			return errors.New("Linear rate limit reached. Wait before refreshing.")
-		case "UNAUTHENTICATED", "AUTHENTICATION_ERROR", "FORBIDDEN":
+		case "UNAUTHENTICATED", "AUTHENTICATION_ERROR":
 			return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Work Items.")
+		case "FORBIDDEN":
+			return errLinearForbidden
 		}
 	}
 	if len(envelope.Errors) > 0 {
@@ -125,6 +134,48 @@ func nextLinearPage(info linearPageInfo, previous string) (string, error) {
 		return "", errors.New("Invalid Linear pagination cursor.")
 	}
 	return info.EndCursor, nil
+}
+
+type linearConnection[T any] struct {
+	Nodes    []T            `json:"nodes"`
+	PageInfo linearPageInfo `json:"pageInfo"`
+}
+
+// linearAll reads every page of the connection at path in the result of query, which takes $after.
+func linearAll[T any](ctx context.Context, c LinearClient, query string, vars map[string]any, path ...string) ([]T, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+	items := []T{}
+	cursor := ""
+	for {
+		vars["after"] = nil
+		if cursor != "" {
+			vars["after"] = cursor
+		}
+		var result json.RawMessage
+		if err := c.query(ctx, query, vars, &result); err != nil {
+			return nil, err
+		}
+		for _, key := range path {
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(result, &fields) != nil || len(fields[key]) == 0 || string(fields[key]) == "null" {
+				return nil, errors.New("Invalid Linear response.")
+			}
+			result = fields[key]
+		}
+		var page linearConnection[T]
+		if json.Unmarshal(result, &page) != nil {
+			return nil, errors.New("Invalid Linear response.")
+		}
+		items = append(items, page.Nodes...)
+		if !page.PageInfo.HasNextPage {
+			return items, nil
+		}
+		var err error
+		if cursor, err = nextLinearPage(page.PageInfo, cursor); err != nil {
+			return nil, err
+		}
+	}
 }
 
 func (c LinearClient) Choices(ctx context.Context, team string) ([]LinearChoice, error) {
@@ -180,6 +231,22 @@ type LinearPerson struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
 	AvatarURL string `json:"avatarUrl"`
+	Active    *bool  `json:"active,omitempty"`
+}
+
+// LinearState is a workflow status of a team. Type is "triage", "backlog", "unstarted",
+// "started", "completed" or "canceled".
+type LinearState struct {
+	ID       string  `json:"id"`
+	Name     string  `json:"name"`
+	Type     string  `json:"type"`
+	Position float64 `json:"position"`
+}
+
+type LinearLabel struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
 }
 type LinearIssue struct {
 	ID          string `json:"id"`
@@ -196,11 +263,7 @@ type LinearIssue struct {
 	Assignee *LinearPerson `json:"assignee"`
 	Creator  *LinearPerson `json:"creator"`
 	Labels   struct {
-		Nodes []struct {
-			ID    string `json:"id"`
-			Name  string `json:"name"`
-			Color string `json:"color"`
-		} `json:"nodes"`
+		Nodes []LinearLabel `json:"nodes"`
 	} `json:"labels"`
 	Team    LinearChoice  `json:"team"`
 	Project *LinearChoice `json:"project"`
@@ -264,6 +327,54 @@ func (c LinearClient) Detail(ctx context.Context, source LinearSource, id string
 	}
 	return *result.Issue, nil
 }
+
+var linearStateOrder = []string{"triage", "backlog", "unstarted", "started", "completed", "canceled"}
+
+// States lists a team's workflow statuses in Linear's order.
+func (c LinearClient) States(ctx context.Context, team string) ([]LinearState, error) {
+	states, err := linearAll[LinearState](ctx, c, `query($id:String!, $after:String) { team(id:$id) { states(first:100, after:$after) { nodes { id name type position } pageInfo { hasNextPage endCursor } } } }`, map[string]any{"id": team}, "team", "states")
+	slices.SortStableFunc(states, func(a, b LinearState) int {
+		if order := slices.Index(linearStateOrder, a.Type) - slices.Index(linearStateOrder, b.Type); order != 0 {
+			return order
+		}
+		return cmp.Compare(a.Position, b.Position)
+	})
+	return states, err
+}
+
+// Members lists a team's active members.
+func (c LinearClient) Members(ctx context.Context, team string) ([]LinearPerson, error) {
+	members, err := linearAll[LinearPerson](ctx, c, `query($id:String!, $after:String) { team(id:$id) { members(first:100, after:$after) { nodes { id name avatarUrl active } pageInfo { hasNextPage endCursor } } } }`, map[string]any{"id": team}, "team", "members")
+	return slices.DeleteFunc(members, func(p LinearPerson) bool { return p.Active != nil && !*p.Active }), err
+}
+
+// Labels lists the labels a team's issues may use: the team's and the workspace's, without
+// groups, which only hold other labels.
+func (c LinearClient) Labels(ctx context.Context, team string) ([]LinearLabel, error) {
+	filter := map[string]any{
+		"isGroup": map[string]bool{"eq": false},
+		"or":      []any{map[string]any{"team": map[string]any{"id": map[string]string{"eq": team}}}, map[string]any{"team": map[string]bool{"null": true}}},
+	}
+	return linearAll[LinearLabel](ctx, c, `query($filter:IssueLabelFilter!, $after:String) { issueLabels(first:100, after:$after, filter:$filter) { nodes { id name color } pageInfo { hasNextPage endCursor } } }`, map[string]any{"filter": filter}, "issueLabels")
+}
+
+// UpdateIssue applies input, an IssueUpdateInput, to an issue.
+func (c LinearClient) UpdateIssue(ctx context.Context, id string, input map[string]any) error {
+	var result struct {
+		IssueUpdate struct {
+			Success bool `json:"success"`
+		} `json:"issueUpdate"`
+	}
+	err := c.query(ctx, `mutation($id:String!, $input:IssueUpdateInput!) { issueUpdate(id:$id, input:$input) { success } }`, map[string]any{"id": id, "input": input}, &result)
+	if errors.Is(err, errLinearForbidden) {
+		return errors.New("This Linear API key cannot edit issues. Reconnect Linear in Edit Workspace → Work Items with a key that has write access.")
+	}
+	if err == nil && !result.IssueUpdate.Success {
+		err = errors.New("Linear could not update the issue.")
+	}
+	return err
+}
+
 func (s *Store) LinearSource(workspaceID, sourceID string) (LinearSource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -346,22 +457,26 @@ func linearWorkItem(issue LinearIssue, source Source) WorkItem {
 		ID: issue.ID, Identifier: issue.Identifier, Title: issue.Title, URL: issue.URL,
 		State: state, Status: issue.State.Name, Assignees: []Person{}, Labels: []Label{},
 		CreatedAt: issue.CreatedAt, UpdatedAt: issue.UpdatedAt,
-		Can: ItemCapabilities{ChooseRepository: true},
+		Can: ItemCapabilities{EditState: true, EditAssignees: true, EditLabels: true, ChooseRepository: true},
 	}
 	person := func(p *LinearPerson) *Person {
 		if p == nil {
 			return nil
 		}
-		return &Person{Login: p.Name, AvatarURL: p.AvatarURL}
+		return &Person{ID: p.ID, Login: p.Name, AvatarURL: p.AvatarURL}
 	}
 	item.Author = person(issue.Creator)
 	if issue.Assignee != nil {
 		item.Assignees = append(item.Assignees, *person(issue.Assignee))
 	}
 	for _, label := range issue.Labels.Nodes {
-		item.Labels = append(item.Labels, Label{Name: label.Name, Color: strings.TrimPrefix(label.Color, "#")})
+		item.Labels = append(item.Labels, linearLabel(label))
 	}
 	return item
+}
+
+func linearLabel(label LinearLabel) Label {
+	return Label{ID: label.ID, Name: label.Name, Color: strings.TrimPrefix(label.Color, "#")}
 }
 
 func (s *Store) linearSource(workspaceID string, source Source) (LinearClient, LinearSource, error) {
@@ -407,4 +522,76 @@ func (linearProvider) detail(s *Store, workspaceID string, source Source, id str
 		Comments: []Comment{},
 		Prompt:   fmt.Sprintf("Work on this Linear issue: %s\n%s: %s\n\nIssue description (Markdown):\n%s", issue.URL, issue.Identifier, issue.Title, issue.Description),
 	}, nil
+}
+
+// Linear picks statuses, assignees and labels by id: options lists the team's, and update
+// takes their ids.
+func (linearProvider) options(s *Store, workspaceID string, source Source, field string) (any, error) {
+	client, config, err := s.linearSource(workspaceID, source)
+	if err != nil {
+		return nil, err
+	}
+	ctx := context.Background()
+	switch field {
+	case "state":
+		return client.States(ctx, config.TeamID)
+	case "assignees":
+		members, err := client.Members(ctx, config.TeamID)
+		people := []Person{}
+		for _, member := range members {
+			people = append(people, Person{ID: member.ID, Login: member.Name, AvatarURL: member.AvatarURL})
+		}
+		return people, err
+	case "labels":
+		labels, err := client.Labels(ctx, config.TeamID)
+		result := []Label{}
+		for _, label := range labels {
+			result = append(result, linearLabel(label))
+		}
+		return result, err
+	}
+	return nil, errors.New("Invalid metadata field.")
+}
+
+func (linearProvider) update(s *Store, workspaceID string, source Source, id, field string, values []string) error {
+	client, config, err := s.linearSource(workspaceID, source)
+	if err != nil {
+		return err
+	}
+	seen := map[string]bool{}
+	for _, value := range values {
+		if uuid.Validate(value) != nil || seen[value] {
+			return errors.New("Invalid metadata selection.")
+		}
+		seen[value] = true
+	}
+	input := map[string]any{}
+	switch field {
+	case "state":
+		if len(values) != 1 {
+			return errors.New("Choose one status.")
+		}
+		input["stateId"] = values[0]
+	case "assignees":
+		if len(values) > 1 {
+			return errors.New("A Linear issue has one assignee.")
+		}
+		input["assigneeId"] = nil
+		if len(values) == 1 {
+			input["assigneeId"] = values[0]
+		}
+	case "labels":
+		if len(values) > 100 {
+			return errors.New("Too many selections.")
+		}
+		input["labelIds"] = append([]string{}, values...)
+	default:
+		return errors.New("Invalid metadata field.")
+	}
+	ctx := context.Background()
+	// Detail confirms the issue belongs to this source.
+	if _, err = client.Detail(ctx, config, id); err != nil {
+		return err
+	}
+	return client.UpdateIssue(ctx, id, input)
 }

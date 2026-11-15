@@ -133,11 +133,8 @@ func TestLinearItemsAreNormalized(t *testing.T) {
 		t.Fatalf("items: %+v, %v", items, err)
 	}
 	item := items[0]
-	if item.ID != "uuid" || item.Status != "In Review" || item.State != "open" || item.RepositoryID != p.Repositories[0].ID || item.Labels[0].Color != "00ff00" || item.Assignees[0].Login != "Ana" || !item.Can.ChooseRepository || item.Can.EditLabels {
+	if item.ID != "uuid" || item.Status != "In Review" || item.State != "open" || item.RepositoryID != p.Repositories[0].ID || item.Labels[0].Color != "00ff00" || item.Assignees[0].Login != "Ana" || !item.Can.ChooseRepository || !item.Can.EditLabels || item.Can.EditDescription {
 		t.Fatalf("item: %+v", item)
-	}
-	if err = s.UpdateWorkItem(p.ID, source, "uuid", "labels", nil); err == nil {
-		t.Fatal("edited a Linear item")
 	}
 }
 

@@ -332,13 +332,28 @@ const linearIssue = {
   url: 'https://linear.app/example/issue/ENG-123',
   updatedAt: new Date().toISOString(),
   createdAt: new Date().toISOString(),
-  state: { name: 'In Progress', type: 'started' },
+  state: { id: 'progress', name: 'In Progress', type: 'started' },
   assignee: { id: 'alex', name: 'Alex' },
   creator: { id: 'sam', name: 'Sam' },
   labels: { nodes: [{ id: 'feature', name: 'Feature', color: '#888888' }] },
   team: { id: 'engineering', name: 'Engineering' },
   project: { id: 'desktop', name: 'Desktop' },
 }
+const linearStates = [
+  { id: 'backlog', name: 'Backlog', type: 'backlog' },
+  { id: 'todo', name: 'Todo', type: 'unstarted' },
+  { id: 'progress', name: 'In Progress', type: 'started' },
+  { id: 'done', name: 'Done', type: 'completed' },
+  { id: 'canceled', name: 'Canceled', type: 'canceled' },
+]
+const linearMembers = [
+  { id: 'alex', name: 'Alex' },
+  { id: 'sam', name: 'Sam' },
+]
+const linearLabels = [
+  { id: 'feature', name: 'Feature', color: '#888888' },
+  { id: 'bug', name: 'Bug', color: '#e45656' },
+]
 // Mirror the providers' normalization in internal/core.
 const gitHubWorkItem = (i, source) => {
   const merged = Boolean(i.merged || i.pull_request?.merged_at),
@@ -381,13 +396,14 @@ const linearWorkItem = (issue, source) => ({
   url: issue.url,
   state: ['completed', 'canceled'].includes(issue.state.type) ? 'closed' : 'open',
   status: issue.state.name,
-  author: issue.creator && { login: issue.creator.name },
-  assignees: issue.assignee ? [{ login: issue.assignee.name }] : [],
-  labels: issue.labels.nodes.map((label) => ({ name: label.name, color: label.color.replace(/^#/, '') })),
+  author: issue.creator && { id: issue.creator.id, login: issue.creator.name },
+  assignees: issue.assignee ? [{ id: issue.assignee.id, login: issue.assignee.name }] : [],
+  labels: issue.labels.nodes.map(linearLabel),
   createdAt: issue.createdAt,
   updatedAt: issue.updatedAt,
-  can: { chooseRepository: true },
+  can: { editState: true, editAssignees: true, editLabels: true, chooseRepository: true },
 })
+const linearLabel = (label) => ({ id: label.id, name: label.name, color: label.color.replace(/^#/, '') })
 const gitHubNumber = (id) => Number(id.split('#')[1])
 // Mirrors gitHubReference in internal/core/github_items.go.
 const gitHubReference = (repositoryID, number, url) => ({
@@ -1173,8 +1189,23 @@ export const backend = {
       prompt: `${review ? 'Review this GitHub pull request' : 'Work on this GitHub issue'}: ${found.pull_request?.html_url || found.html_url}.`,
     }
   },
-  WorkItemOptions: (_pid, _sid, field) => structuredClone(field === 'labels' ? labels : assignees),
+  WorkItemOptions: (pid, sid, field) => {
+    if (sourceFor(pid, sid).provider === 'linear')
+      return field === 'state'
+        ? structuredClone(linearStates)
+        : field === 'labels'
+          ? linearLabels.map(linearLabel)
+          : linearMembers.map((m) => ({ id: m.id, login: m.name }))
+    return structuredClone(field === 'labels' ? labels : assignees)
+  },
   UpdateWorkItem: (pid, sid, itemID, field, values) => {
+    if (sourceFor(pid, sid).provider === 'linear') {
+      if (field === 'state') linearIssue.state = linearStates.find((s) => s.id === values[0])
+      if (field === 'assignees') linearIssue.assignee = linearMembers.find((m) => m.id === values[0]) || null
+      if (field === 'labels') linearIssue.labels.nodes = linearLabels.filter((l) => values.includes(l.id))
+      linearIssue.updatedAt = new Date().toISOString()
+      return
+    }
     const number = gitHubNumber(itemID)
     const target = repositoryItems(sourceFor(pid, sid).repositoryID).find((i) => i.number === number)
     if (field === 'body') {

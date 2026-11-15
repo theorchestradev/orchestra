@@ -46,13 +46,16 @@ func workspaceSources(p *Workspace) []Source {
 	return sources
 }
 
+// ID identifies people and labels for providers that pick them by id, such as Linear.
 type Person struct {
+	ID        string `json:"id,omitempty"`
 	Login     string `json:"login"`
 	AvatarURL string `json:"avatar_url,omitempty"`
 }
 
 // Label colors are six hex digits without "#".
 type Label struct {
+	ID    string `json:"id,omitempty"`
 	Name  string `json:"name"`
 	Color string `json:"color"`
 }

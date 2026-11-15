@@ -146,3 +146,86 @@ func TestLinearSourcesAndSessionState(t *testing.T) {
 		}
 	}
 }
+func TestLinearMetadataOptionsAndUpdates(t *testing.T) {
+	const issue = "00000000-0000-4000-8000-000000000001"
+	const state = "00000000-0000-4000-8000-000000000002"
+	var inputs []string
+	forbidden := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Query     string                     `json:"query"`
+			Variables map[string]json.RawMessage `json:"variables"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+		}
+		switch {
+		case strings.Contains(req.Query, "states("):
+			fmt.Fprint(w, `{"data":{"team":{"states":{"nodes":[{"id":"done","name":"Done","type":"completed","position":0},{"id":"later","name":"Later","type":"started","position":2.5},{"id":"now","name":"Now","type":"started","position":2}],"pageInfo":{"hasNextPage":false}}}}}`)
+		case strings.Contains(req.Query, "members("):
+			fmt.Fprint(w, `{"data":{"team":{"members":{"nodes":[{"id":"a","name":"Ana","active":true},{"id":"b","name":"Bia","active":false}],"pageInfo":{"hasNextPage":false}}}}}`)
+		case strings.Contains(req.Query, "issueLabels("):
+			if !strings.Contains(string(req.Variables["filter"]), `"isGroup":{"eq":false}`) {
+				t.Error(string(req.Variables["filter"]))
+			}
+			fmt.Fprint(w, `{"data":{"issueLabels":{"nodes":[{"id":"l","name":"Bug","color":"#ff0000"}],"pageInfo":{"hasNextPage":false}}}}`)
+		case strings.Contains(req.Query, "issue(id"):
+			fmt.Fprint(w, `{"data":{"issue":{"id":"`+issue+`","team":{"id":"team"}}}}`)
+		case strings.Contains(req.Query, "issueUpdate"):
+			if forbidden {
+				fmt.Fprint(w, `{"errors":[{"message":"test-secret","extensions":{"code":"FORBIDDEN"}}]}`)
+				return
+			}
+			inputs = append(inputs, string(req.Variables["input"]))
+			fmt.Fprint(w, `{"data":{"issueUpdate":{"success":true}}}`)
+		default:
+			t.Error(req.Query)
+		}
+	}))
+	defer server.Close()
+	s := fixtureStore(t)
+	p := workspaceFixture(t, s)
+	state0, err := s.SaveLinearSource(p.ID, LinearSource{Name: "Team", TeamID: "team"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.LinearClient = func(string) (LinearClient, error) {
+		return LinearClient{Key: "test-secret", Endpoint: server.URL, HTTP: server.Client()}, nil
+	}
+	sourceID := state0.Workspaces[0].LinearSources[0].ID
+	states, err := s.WorkItemOptions(p.ID, sourceID, "state")
+	if got := fmt.Sprint(states); err != nil || got != "[{now Now started 2} {later Later started 2.5} {done Done completed 0}]" {
+		t.Fatal(got, err)
+	}
+	people, err := s.WorkItemOptions(p.ID, sourceID, "assignees")
+	if got := fmt.Sprint(people); err != nil || got != "[{a Ana }]" {
+		t.Fatal(got, err)
+	}
+	labels, err := s.WorkItemOptions(p.ID, sourceID, "labels")
+	if got := fmt.Sprint(labels); err != nil || got != "[{l Bug ff0000}]" {
+		t.Fatal(got, err)
+	}
+	for _, update := range []struct {
+		field  string
+		values []string
+	}{{"state", []string{state}}, {"assignees", nil}, {"assignees", []string{state}}, {"labels", nil}} {
+		if err = s.UpdateWorkItem(p.ID, sourceID, issue, update.field, update.values); err != nil {
+			t.Fatal(update.field, err)
+		}
+	}
+	if got := strings.Join(inputs, " "); got != `{"stateId":"`+state+`"} {"assigneeId":null} {"assigneeId":"`+state+`"} {"labelIds":[]}` {
+		t.Fatal(got)
+	}
+	for _, bad := range []struct {
+		field  string
+		values []string
+	}{{"state", nil}, {"assignees", []string{state, issue}}, {"labels", []string{"not-an-id"}}, {"labels", []string{state, state}}, {"body", []string{"text"}}} {
+		if err = s.UpdateWorkItem(p.ID, sourceID, issue, bad.field, bad.values); err == nil {
+			t.Fatal("accepted", bad)
+		}
+	}
+	forbidden = true
+	if err = s.UpdateWorkItem(p.ID, sourceID, issue, "state", []string{state}); err == nil || !strings.Contains(err.Error(), "write access") || strings.Contains(err.Error(), "test-secret") {
+		t.Fatal(err)
+	}
+}

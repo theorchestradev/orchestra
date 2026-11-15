@@ -4,8 +4,9 @@ import { call } from '../shared/api'
 import Modal from './Modal.vue'
 import Avatar from './Avatar.vue'
 import Icon from './Icon.vue'
-// Edits a GitHub issue's or pull request's status, assignees or labels. source is the item's
-// Work Items or Reviews source.
+// Edits a GitHub or Linear item's status, assignees or labels. source is the item's Work Items
+// or Reviews source. Linear lists its team's statuses, picks choices by id and allows one
+// assignee.
 const props = defineProps({
   workspace: Object,
   source: Object,
@@ -13,7 +14,8 @@ const props = defineProps({
   field: String,
   anchor: Object,
 })
-const pull = props.item.review
+const pull = props.item.review,
+  linear = props.item.provider === 'linear'
 const emit = defineEmits(['close', 'saved', 'busy'])
 const inline = props.field !== 'labels',
   popup = ref(null),
@@ -42,17 +44,18 @@ function escape(event) {
   }
 }
 const title = { state: 'Status', assignees: 'Assignees', labels: 'Labels' }[props.field]
-const key = props.field === 'assignees' ? 'login' : 'name'
+const key = props.field === 'assignees' ? 'login' : 'name',
+  value = (o) => o.id || o[key]
 const original =
   props.field === 'state'
     ? props.item.state === 'closed' && !pull
       ? ['closed', props.item.stateReason || 'completed']
       : [props.item.state]
-    : (props.item[props.field] || []).map((o) => o[key])
+    : (props.item[props.field] || []).map(value)
 const values = ref([...original]),
   options = ref([]),
   query = ref(''),
-  loading = ref(props.field !== 'state'),
+  loading = ref(props.field !== 'state' || linear),
   saving = ref(false),
   error = ref('')
 const duplicates = ref(false),
@@ -77,6 +80,7 @@ const statuses = pull
       { id: 'not_planned', label: 'Close as not planned', icon: 'not-planned' },
       { id: 'duplicate', label: 'Close as duplicate', icon: 'duplicate' },
     ]
+const linearStateIcon = (type) => (type === 'completed' ? 'completed' : type === 'canceled' ? 'not-planned' : 'open')
 let active = true
 onBeforeUnmount(() => {
   active = false
@@ -99,8 +103,11 @@ async function load() {
   try {
     const available = await call('WorkItemOptions', props.workspace.id, props.source.id, props.field)
     if (!active) return
-    const all = new Map([...available, ...(props.item[props.field] || [])].map((o) => [o[key], o]))
-    options.value = [...all.values()].sort((a, b) => a[key].localeCompare(b[key]))
+    if (props.field === 'state') options.value = available
+    else {
+      const all = new Map([...available, ...(props.item[props.field] || [])].map((o) => [value(o), o]))
+      options.value = [...all.values()].sort((a, b) => a[key].localeCompare(b[key]))
+    }
   } catch (e) {
     if (active) error.value = String(e)
   } finally {
@@ -109,12 +116,14 @@ async function load() {
       await nextTick()
       place()
       if (inline && (document.activeElement === document.body || document.activeElement === props.anchor))
-        popup.value.querySelector('input,button')?.focus()
+        (
+          popup.value.querySelector('.metadata-state-option.selected') || popup.value.querySelector('input,button')
+        )?.focus()
     }
   }
 }
 onMounted(async () => {
-  if (props.field !== 'state') load()
+  if (props.field !== 'state' || linear) load()
   if (inline) {
     await nextTick()
     place()
@@ -128,13 +137,17 @@ onMounted(async () => {
   }
 })
 function patch() {
+  if (linear && props.field === 'state') {
+    const chosen = options.value.find((o) => o.id === values.value[0])
+    return { state: ['completed', 'canceled'].includes(chosen.type) ? 'closed' : 'open', status: chosen.name }
+  }
   return props.field === 'state'
     ? {
         state: values.value[0],
         stateReason: values.value[0] === 'open' ? 'reopened' : values.value[1] || '',
         status: values.value[0] === 'open' ? 'Open' : 'Closed',
       }
-    : { [props.field]: options.value.filter((o) => values.value.includes(o[key])) }
+    : { [props.field]: options.value.filter((o) => values.value.includes(value(o))) }
 }
 async function save() {
   if (saving.value || !changed.value) return
@@ -170,6 +183,19 @@ function menuKeys(event) {
         ? buttons.length - 1
         : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length
   buttons[next]?.focus()
+}
+async function chooseLinearState(option) {
+  if (option.name === props.item.status) {
+    close()
+    return
+  }
+  values.value = [option.id]
+  await save()
+}
+// Assignees save on each change; a Linear issue keeps only the latest choice.
+async function chooseAssignee(option) {
+  if (linear && values.value.includes(value(option))) values.value = [value(option)]
+  await save()
 }
 async function chooseState(value) {
   if (value === statusKey) {
@@ -234,7 +260,28 @@ function close() {
           <p class="muted caption">{{ source.name }} {{ item.identifier }}</p>
         </header>
         <template v-if="field === 'state'">
-          <template v-if="!duplicates"
+          <template v-if="linear"
+            ><div v-if="loading" class="metadata-loading" role="status"><span class="spinner" />Loading statuses…</div>
+            <template v-else
+              ><button
+                v-for="option in options"
+                :key="option.id"
+                type="button"
+                class="metadata-state-option"
+                :class="{ selected: option.name === item.status }"
+                role="menuitemradio"
+                :aria-checked="option.name === item.status"
+                :disabled="saving"
+                @click="chooseLinearState(option)"
+              >
+                <span class="status-choice-icon" :class="linearStateIcon(option.type)" aria-hidden="true" /><span
+                  class="truncate"
+                  >{{ option.name }}</span
+                >
+              </button></template
+            ></template
+          >
+          <template v-else-if="!duplicates"
             ><button
               v-for="option in statuses"
               :key="option.id"
@@ -308,14 +355,14 @@ function close() {
             <span class="spinner" />Loading {{ title.toLowerCase() }}…
           </div>
           <div v-else class="metadata-options" :aria-label="title">
-            <label v-for="option in choices" :key="option[key]" class="metadata-option"
+            <label v-for="option in choices" :key="value(option)" class="metadata-option"
               ><input
                 type="checkbox"
                 :aria-label="option[key]"
                 v-model="values"
-                :value="option[key]"
+                :value="value(option)"
                 :disabled="saving"
-                @change="field === 'assignees' && save()"
+                @change="field === 'assignees' && chooseAssignee(option)"
               /><Avatar v-if="field === 'assignees'" :author="option" /><i
                 v-else
                 class="label-dot"
@@ -340,7 +387,7 @@ function close() {
         >
         <p v-if="error" class="metadata-error" role="alert">{{ error }}</p>
         <button
-          v-if="error && field !== 'state' && !options.length"
+          v-if="error && (field !== 'state' || linear) && !options.length"
           type="button"
           class="standard-button"
           :disabled="saving || loading"
