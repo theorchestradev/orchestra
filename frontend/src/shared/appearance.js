@@ -139,9 +139,9 @@ export function agentIcon(id, appearance) {
 export function destination(workspace) {
   return workspace?.showsScratchpad
     ? 'scratchpad'
-    : workspace?.showsGitHub
+    : workspace?.showsGitHub && listsWorkItems(workspace)
       ? 'github'
-      : workspace?.showsReviews
+      : workspace?.showsReviews && listsReviews(workspace)
         ? 'reviews'
         : workspace?.selectedSessionID || 'empty'
 }
@@ -159,10 +159,11 @@ export function arcScrollDelta(event, width) {
     (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? width : 1)
   )
 }
-// Work Items and Reviews list a workspace's GitHub repositories. It matches hasWorkItems in
-// workspace.js, kept here because the website's build reads this file alone.
-const listsReviews = (p) => (p?.repositories || []).some((r) => r.gitHub)
-const listsWorkItems = (p) => listsReviews(p) || !!p?.linearSources?.length
+// Work Items and Reviews list a workspace's shown sources. It matches hasWorkItems and hasReviews
+// in workspace.js, kept here because the website's build reads this file alone.
+const listsKind = (p, kind) => (p?.sources || []).some((s) => s.kind === kind && !s.hidden)
+const listsReviews = (p) => listsKind(p, 'reviews')
+const listsWorkItems = (p) => listsKind(p, 'workItems')
 // Reorderable rows under Work Items and Reviews: sessions with the Scratchpad at its saved position.
 export function workspaceRows(p) {
   const rows = [...(p.sessions || [])]

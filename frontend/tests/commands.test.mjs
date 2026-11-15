@@ -7,6 +7,10 @@ const workspaces = [
     id: 'p1',
     name: 'Orchestra',
     repositories: [{ id: 'r1', name: 'orchestra', gitHub: 'theorchestradev/orchestra' }],
+    sources: [
+      { id: 'github:issues:r1', provider: 'github', kind: 'workItems' },
+      { id: 'github:pulls:r1', provider: 'github', kind: 'reviews' },
+    ],
     hasScratchpad: true,
     scratchpadName: 'Notes',
     sessions: [{ id: 's1', name: 'Claude Code', agent: 'claude', worktreeBranch: 'feature' }],

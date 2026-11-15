@@ -1,13 +1,12 @@
 <script setup>
-import LinearIntegration from './components/LinearIntegration.vue'
+import WorkspaceSources from './components/WorkspaceSources.vue'
 import { computed, ref, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { call, on, copy, preview } from './shared/api'
 import { mac, shortcutLabel } from './shared/platform'
 import { appCommand } from './shared/shortcuts'
 import { menuKeys } from './shared/menu'
 import { sessionPath, worktreeName, appSymbol, appGroups, fileManager } from './shared/openIn'
-import { linearItem, executionRepository } from './shared/linear'
-import { conflictTask, gitHubItem } from './shared/github'
+import { conflictTask, executionRepository, itemReference } from './shared/workItems'
 import {
   workspaceTitle,
   needsGitRepository,
@@ -15,7 +14,7 @@ import {
   sessionRepository,
   defaultRepository,
   hasWorkItems,
-  gitHubRepositories,
+  hasReviews,
   repositoryLabel,
   workspaceAgent,
 } from './shared/workspace'
@@ -51,7 +50,7 @@ import { track } from './shared/telemetry'
 import CommandBar from './components/CommandBar.vue'
 import Scratchpad from './components/Scratchpad.vue'
 import TerminalView from './components/Terminal.vue'
-import GitHub from './components/GitHub.vue'
+import WorkItems from './components/WorkItems.vue'
 import Messages from './components/Messages.vue'
 import StatusBar from './components/StatusBar.vue'
 import SidebarList from './components/SidebarList.vue'
@@ -63,7 +62,7 @@ import OpenInButton from './components/OpenInButton.vue'
 import UpdateDialog from './components/UpdateDialog.vue'
 import { pendingUpdate } from './shared/update'
 import { sessionsNeedingYou, attentionSound } from './shared/attention'
-// Work Items lists issues and Reviews lists pull requests, both from the workspace's GitHub repositories.
+// Work Items lists issues and Reviews lists pull requests, from the workspace's shown sources.
 const gitHubCounts = ref({})
 const gitHubViews = ['github', 'reviews']
 const gitHubViewRows = [
@@ -646,7 +645,8 @@ async function createSession(
   prompt = '',
   createWorktree = false,
   name = '',
-  source = null,
+  // The item a Work on or Review session comes from.
+  workItem = null,
   model = '',
   effort = '',
   profileID = (modalWorkspace.value || workspace.value)?.profileID || '',
@@ -666,7 +666,7 @@ async function createSession(
         name,
         prompt,
         createWorktree,
-        source,
+        workItem,
         model,
         effort,
         profileID,
@@ -712,50 +712,28 @@ async function newTerminal(p) {
     formError.value = ''
   }
 }
-async function workOn(item, choice = {}) {
-  if (item.provider === 'linear') {
-    const source = workspace.value.linearSources?.find((s) => s.id === item.sourceID)
-    const repositoryID = executionRepository(workspace.value, source, choice.repositoryID)
-    if (!repositoryID) {
-      error.value = 'Choose an execution repository.'
-      return
-    }
-    try {
-      const issue = linearItem(await call('LinearDetail', workspace.value.id, item.sourceID, item.id), source)
-      return startGitHubSession(
-        { ...issue, repositoryID },
-        `Work on this Linear issue: ${issue.html_url}\n${issue.identifier}: ${issue.title}\n\nIssue description (Markdown):\n${issue.body}`,
-        `${issue.identifier} ${issue.title}`,
-        choice,
-      )
-    } catch (e) {
-      error.value = String(e)
-      return
-    }
+// item is the detail Work Items or Reviews shows; its provider writes the session's task.
+function workOn(item, choice = {}) {
+  const repositoryID = executionRepository(workspace.value, item, choice.repositoryID)
+  if (!repositoryID) {
+    error.value = 'Choose an execution repository.'
+    return
   }
-  const url = item.pull_request?.html_url || item.html_url
-  // Agents often read only the description, so ask for the discussion explicitly.
-  return startGitHubSession(
-    item,
-    item.pull_request
-      ? `Review this GitHub pull request: ${url}. First read its description, comments and reviews (gh pr view ${url} --json title,body,comments,reviews) and its inline review comments (gh api ${new URL(url).pathname.slice(1).replace(/^([^/]+\/[^/]+)\/pull\//, 'repos/$1/pulls/')}/comments).`
-      : `Work on this GitHub issue: ${url}. First read the issue and all of its comments (gh issue view ${url} --json title,body,comments).`,
-    `#${item.number} ${item.title || ''}`,
+  return startWorkItemSession(
+    itemReference(item),
+    repositoryID,
+    item.prompt,
+    `${item.identifier} ${item.title}`,
     choice,
   )
 }
-// Like Review, this only starts a new session; it never types into an existing one.
+// Like Review, this only starts a new session; it never types into an existing one. The
+// conflict carries the reference to the pull request that the Store gives it.
 function resolveConflicts(conflict, choice = {}) {
   const task = conflictTask(conflict)
-  return startGitHubSession(
-    { number: conflict.number, pull_request: {}, repositoryID: conflict.repositoryID },
-    task.prompt,
-    task.name,
-    choice,
-  )
+  return startWorkItemSession(conflict.reference, conflict.repositoryID, task.prompt, task.name, choice)
 }
-// Items carry the repository Work Items read them from, so the session starts there.
-async function startGitHubSession(item, prompt, name, choice) {
+async function startWorkItemSession(reference, repositoryID, prompt, name, choice) {
   if (busy.value) return
   sessionWorkspaceID.value = workspace.value.id
   await createSession(
@@ -763,13 +741,13 @@ async function startGitHubSession(item, prompt, name, choice) {
     prompt,
     true,
     name,
-    gitHubItem(item),
+    reference,
     choice.model,
     choice.effort,
     choice.profileID,
     '',
     '',
-    item.repositoryID,
+    repositoryID,
   )
   if (formError.value) {
     error.value = formError.value
@@ -1413,9 +1391,9 @@ onBeforeUnmount(() => {
                 </button>
               </div>
               <div v-if="preferences.arcMode || p.isExpanded" class="workspace-children">
-                <template v-if="hasWorkItems(p)"
+                <template v-if="hasWorkItems(p) || hasReviews(p)"
                   ><button
-                    v-for="view in gitHubViewRows.filter((v) => v.id !== 'reviews' || gitHubRepositories(p).length)"
+                    v-for="view in gitHubViewRows.filter((v) => (v.id === 'reviews' ? hasReviews(p) : hasWorkItems(p)))"
                     :key="view.id"
                     class="sidebar-row"
                     :class="{ selected: workspace?.id === p.id && currentDestination === view.id }"
@@ -1606,12 +1584,12 @@ onBeforeUnmount(() => {
               ><div
                 v-if="
                   (preferences.showWorkItemCounts || visitedGitHub.has(p.id + ':' + view)) &&
-                  (view === 'reviews' ? gitHubRepositories(p).length : hasWorkItems(p))
+                  (view === 'reviews' ? hasReviews(p) : hasWorkItems(p))
                 "
                 v-show="workspace?.id === p.id && currentDestination === view"
                 class="github-pane"
               >
-                <GitHub
+                <WorkItems
                   :workspace="p"
                   :counts-enabled="preferences.showWorkItemCounts"
                   @count="gitHubCounts[p.id + ':' + view] = $event"
@@ -2131,7 +2109,7 @@ onBeforeUnmount(() => {
             </div>
           </section>
           <div>
-            <LinearIntegration
+            <WorkspaceSources
               v-if="editedWorkspace"
               :key="editedWorkspace.id"
               :workspace="editedWorkspace"

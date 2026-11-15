@@ -128,7 +128,14 @@ test('PR shows grouped checks and activity, and copies failure context', async (
     assert.match(document.querySelector('.pr-copy-all').textContent, /Copied/)
     assert.equal(document.querySelector('.conflict-stub'), null)
 
-    reply = { ...reply, conflicts: true, baseBranch: 'main', forkWithoutEdits: true }
+    const reference = {
+      provider: 'github',
+      id: 'repo#9',
+      url: 'https://github.com/o/r/pull/9',
+      number: 9,
+      review: true,
+    }
+    reply = { ...reply, conflicts: true, baseBranch: 'main', forkWithoutEdits: true, reference }
     session.value = { id: 'conflicted' }
     app._instance.update()
     await flush()
@@ -142,6 +149,7 @@ test('PR shows grouped checks and activity, and copies failure context', async (
           base: 'main',
           head: 'feature',
           forkWithoutEdits: true,
+          reference,
         },
         { agent: 'codex' },
       ],

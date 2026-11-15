@@ -289,7 +289,7 @@ func (s *Store) startSessionLocked(id string, newConversation bool, cols, rows i
 		return TerminalOutput{}, err
 	}
 	s.changedLocked()
-	s.trackLocked("session_started", map[string]any{"agent": sess.Agent, "worktree": sess.WorktreeDirectory != "", "from_github_item": sess.GitHubItem != nil})
+	s.trackLocked("session_started", map[string]any{"agent": sess.Agent, "worktree": sess.WorktreeDirectory != "", "from_github_item": sess.WorkItem != nil && sess.WorkItem.Provider == "github"})
 	go s.readTerminal(id, t)
 	go s.monitorTerminal(id, t)
 	return t.output(id), nil

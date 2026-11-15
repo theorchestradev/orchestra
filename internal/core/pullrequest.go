@@ -46,8 +46,10 @@ type PullRequestStatus struct {
 	Conflicts  bool   `json:"conflicts,omitempty"`
 	BaseBranch string `json:"baseBranch,omitempty"`
 	// ForkWithoutEdits means the head is on a fork that doesn't allow edits by maintainers.
-	ForkWithoutEdits bool               `json:"forkWithoutEdits,omitempty"`
-	Checks           []PullRequestCheck `json:"checks"`
+	ForkWithoutEdits bool `json:"forkWithoutEdits,omitempty"`
+	// Reference links a session started from the pull request, such as one resolving its conflicts.
+	Reference *WorkItemReference `json:"reference,omitempty"`
+	Checks    []PullRequestCheck `json:"checks"`
 	// Reviews and Comments are GitHub REST objects with rendered bodies, read only on request.
 	Reviews  []json.RawMessage `json:"reviews,omitempty"`
 	Comments []json.RawMessage `json:"comments,omitempty"`
@@ -105,8 +107,8 @@ func (s *Store) sessionPullRequest(id string, activity bool, selected int) (Pull
 		return PullRequestStatus{}, err
 	}
 	repo, repositoryDirectory, worktreeDirectory, number := repository.GitHub, repository.Directory, sess.WorktreeDirectory, 0
-	if sess.GitHubItem != nil && sess.GitHubItem.PullRequest {
-		number = sess.GitHubItem.Number
+	if ref := sess.WorkItem; ref != nil && ref.Provider == "github" && ref.Review {
+		number = ref.Number
 	}
 	s.mu.Unlock()
 	result := PullRequestStatus{Checks: []PullRequestCheck{}, Repository: repo}
@@ -146,7 +148,7 @@ func (s *Store) sessionPullRequest(id string, activity bool, selected int) (Pull
 				continue
 			}
 			item := PullRequestStatus{Repository: repo, Branch: candidate.HeadRefName}
-			fillPullRequestStatus(&item, candidate)
+			fillPullRequestStatus(&item, candidate, repository.ID)
 			result.PullRequests = append(result.PullRequests, item)
 			if candidate.Number == selected {
 				pr = candidate
@@ -157,7 +159,7 @@ func (s *Store) sessionPullRequest(id string, activity bool, selected int) (Pull
 			return result, nil
 		}
 	}
-	fillPullRequestStatus(&result, pr)
+	fillPullRequestStatus(&result, pr, repository.ID)
 	if activity {
 		// Activity is secondary: when it fails the checks still show, with none of it.
 		reviews, reviewsErr := ghPages(directory, fmt.Sprintf("repos/%s/pulls/%d/reviews?per_page=100", repo, pr.Number))
@@ -185,7 +187,7 @@ func (s *Store) GitHubPullRequest(workspaceID, repositoryID string, number int) 
 		return PullRequestStatus{}, err
 	}
 	result := PullRequestStatus{Checks: []PullRequestCheck{}, Repository: repo, Branch: pr.HeadRefName}
-	fillPullRequestStatus(&result, pr)
+	fillPullRequestStatus(&result, pr, repositoryID)
 	return result, nil
 }
 
@@ -201,13 +203,15 @@ func viewPullRequest(directory, repo string, number int) (*ghPullRequest, error)
 	return pr, nil
 }
 
-func fillPullRequestStatus(result *PullRequestStatus, pr *ghPullRequest) {
+func fillPullRequestStatus(result *PullRequestStatus, pr *ghPullRequest, repositoryID string) {
 	result.Number, result.URL, result.Title, result.ReviewDecision = pr.Number, pr.URL, pr.Title, pr.ReviewDecision
 	result.State = pullRequestState(pr)
 	result.BaseBranch = pr.BaseRefName
 	result.Conflicts = pr.State == "OPEN" && pr.Mergeable == "CONFLICTING"
 	result.ForkWithoutEdits = pr.IsCrossRepository && !pr.MaintainerCanModify
 	result.Checks = pullRequestChecks(pr, time.Now())
+	ref := gitHubReference(repositoryID, pr.Number, pr.URL, true)
+	result.Reference = &ref
 }
 
 // sessionBranch is the branch name on the remote for the folder's checkout, and its head

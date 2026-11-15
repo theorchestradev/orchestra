@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
-	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ type LinearClient struct {
 // Never return response bodies, GraphQL messages or transport errors: they may echo credentials.
 func (c LinearClient) query(ctx context.Context, query string, variables any, result any) error {
 	if c.Key == "" {
-		return errors.New("Connect Linear in Edit Workspace → Linear.")
+		return errors.New("Connect Linear in Edit Workspace → Work Items.")
 	}
 	data, err := json.Marshal(map[string]any{"query": query, "variables": variables})
 	if err != nil {
@@ -67,7 +68,7 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 401 || resp.StatusCode == 403 {
-		return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Linear.")
+		return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Work Items.")
 	}
 	if resp.StatusCode == 429 {
 		return errors.New("Linear rate limit reached. Wait before refreshing.")
@@ -91,7 +92,7 @@ func (c LinearClient) query(ctx context.Context, query string, variables any, re
 		case "RATELIMITED":
 			return errors.New("Linear rate limit reached. Wait before refreshing.")
 		case "UNAUTHENTICATED", "AUTHENTICATION_ERROR", "FORBIDDEN":
-			return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Linear.")
+			return errors.New("Linear authentication failed. Reconnect in Edit Workspace → Work Items.")
 		}
 	}
 	if len(envelope.Errors) > 0 {
@@ -263,13 +264,6 @@ func (c LinearClient) Detail(ctx context.Context, source LinearSource, id string
 	}
 	return *result.Issue, nil
 }
-func validateWorkItemReference(ref WorkItemReference) error {
-	u, err := url.Parse(ref.URL)
-	if err != nil || u.Scheme != "https" || u.User != nil || ref.ID == "" || (ref.Provider != "github" && ref.Provider != "linear") || (ref.Provider == "linear" && u.Host != "linear.app") || (ref.Provider == "github" && u.Host != "github.com") {
-		return errors.New("Invalid work item reference.")
-	}
-	return nil
-}
 func (s *Store) LinearSource(workspaceID, sourceID string) (LinearSource, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -331,9 +325,86 @@ func (s *Store) RemoveLinearSource(workspaceID, sourceID string) (State, error) 
 	for i, source := range p.LinearSources {
 		if source.ID == sourceID {
 			p.LinearSources = append(p.LinearSources[:i], p.LinearSources[i+1:]...)
+			p.HiddenSources = slices.DeleteFunc(p.HiddenSources, func(id string) bool { return id == sourceID })
 			s.changedLocked()
 			return s.snapshotLocked(), nil
 		}
 	}
 	return State{}, errors.New("Linear source not found.")
+}
+
+// linearProvider reads the issues of a Linear team, or of one of its projects.
+type linearProvider struct{}
+
+func linearWorkItem(issue LinearIssue, source Source) WorkItem {
+	state := "open"
+	if issue.State.Type == "completed" || issue.State.Type == "canceled" {
+		state = "closed"
+	}
+	item := WorkItem{
+		Provider: "linear", SourceID: source.ID, RepositoryID: source.RepositoryID,
+		ID: issue.ID, Identifier: issue.Identifier, Title: issue.Title, URL: issue.URL,
+		State: state, Status: issue.State.Name, Assignees: []Person{}, Labels: []Label{},
+		CreatedAt: issue.CreatedAt, UpdatedAt: issue.UpdatedAt,
+		Can: ItemCapabilities{ChooseRepository: true},
+	}
+	person := func(p *LinearPerson) *Person {
+		if p == nil {
+			return nil
+		}
+		return &Person{Login: p.Name, AvatarURL: p.AvatarURL}
+	}
+	item.Author = person(issue.Creator)
+	if issue.Assignee != nil {
+		item.Assignees = append(item.Assignees, *person(issue.Assignee))
+	}
+	for _, label := range issue.Labels.Nodes {
+		item.Labels = append(item.Labels, Label{Name: label.Name, Color: strings.TrimPrefix(label.Color, "#")})
+	}
+	return item
+}
+
+func (s *Store) linearSource(workspaceID string, source Source) (LinearClient, LinearSource, error) {
+	if s.LinearClient == nil {
+		return LinearClient{}, LinearSource{}, errors.New("Linear is unavailable.")
+	}
+	client, err := s.LinearClient(workspaceID)
+	if err != nil {
+		return LinearClient{}, LinearSource{}, err
+	}
+	config, err := s.LinearSource(workspaceID, source.ID)
+	return client, config, err
+}
+
+func (linearProvider) items(s *Store, workspaceID string, source Source, state string) ([]WorkItem, error) {
+	client, config, err := s.linearSource(workspaceID, source)
+	if err != nil {
+		return nil, err
+	}
+	issues, err := client.Items(context.Background(), config, state)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]WorkItem, 0, len(issues))
+	for _, issue := range issues {
+		items = append(items, linearWorkItem(issue, source))
+	}
+	return items, nil
+}
+
+func (linearProvider) detail(s *Store, workspaceID string, source Source, id string) (WorkItemDetail, error) {
+	client, config, err := s.linearSource(workspaceID, source)
+	if err != nil {
+		return WorkItemDetail{}, err
+	}
+	issue, err := client.Detail(context.Background(), config, id)
+	if err != nil {
+		return WorkItemDetail{}, err
+	}
+	return WorkItemDetail{
+		WorkItem: linearWorkItem(issue, source),
+		Body:     issue.Description,
+		Comments: []Comment{},
+		Prompt:   fmt.Sprintf("Work on this Linear issue: %s\n%s: %s\n\nIssue description (Markdown):\n%s", issue.URL, issue.Identifier, issue.Title, issue.Description),
+	}, nil
 }

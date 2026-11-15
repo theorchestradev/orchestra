@@ -22,7 +22,7 @@ test('launch choices preserve manual IDs and scope catalogs to the chosen profil
       )
       .replace(/import \{ agents \} from ['"]\.\.\/shared\/appearance['"]/, 'const agents = globalThis.launchAgents')
       .replace(
-        /import \{ modelEfforts, effortLabel \} from ['"]\.\.\/shared\/github['"]/,
+        /import \{ modelEfforts, effortLabel \} from ['"]\.\.\/shared\/workItems['"]/,
         'const modelEfforts = (models, id) => models.find(m => m.id === id)?.efforts || []; const effortLabel = e => e',
       )
       .replace(

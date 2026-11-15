@@ -227,7 +227,7 @@ func TestCreateSessionWorktreeBranchNames(t *testing.T) {
 		t.Fatalf("unexpected default branch: %+v", got)
 	}
 	// An existing branch keeps its commits; the new session gets the next free name.
-	if _, err = s.CreateSession(p.ID, "", "claude", "#32 Fix login", "", true, &GitHubItem{Number: 32}, "", "", "", "", ""); err != nil {
+	if _, err = s.CreateSession(p.ID, "", "claude", "#32 Fix login", "", true, gitHubRef(32, false), "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	if got := sessions()[1].WorktreeBranch; got != "orchestra/32-fix-login-2" || gitWorktreeFixture(t, root, "rev-parse", "orchestra/32-fix-login") != first {

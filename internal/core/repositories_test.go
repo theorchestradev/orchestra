@@ -32,7 +32,7 @@ func TestMigrateVersion1Workspaces(t *testing.T) {
 		t.Fatalf("unexpected migration: %+v", state)
 	}
 	repo := p.Repositories[0]
-	if repo.Name != "app" || repo.Directory != folder || p.Sessions[0].ID != sid || p.Sessions[0].RepositoryID != repo.ID || p.Sessions[0].GitHubItem.Number != 7 {
+	if repo.Name != "app" || repo.Directory != folder || p.Sessions[0].ID != sid || p.Sessions[0].RepositoryID != repo.ID || p.Sessions[0].WorkItem.Number != 7 || p.Sessions[0].WorkItem.ID != repo.ID+"#7" {
 		t.Fatalf("unexpected repository or session: %+v %+v", repo, p.Sessions[0])
 	}
 	if backup, err := os.ReadFile(filepath.Join(dir, "state.bkp.json")); err != nil || string(backup) != original {

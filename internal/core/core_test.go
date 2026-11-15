@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -736,21 +737,26 @@ func TestCreateSessionNames(t *testing.T) {
 		t.Fatal("rename failed")
 	}
 }
-func TestSessionGitHubItemPersists(t *testing.T) {
+
+// gitHubRef links a session to the issue or pull request number of a fixture repository.
+func gitHubRef(number int, review bool) *WorkItemReference {
+	return &WorkItemReference{Provider: "github", ID: "repo#" + strconv.Itoa(number), URL: "https://github.com/o/r/issues/" + strconv.Itoa(number), Identifier: "#" + strconv.Itoa(number), Number: number, Review: review}
+}
+func TestSessionWorkItemPersists(t *testing.T) {
 	s := fixtureStore(t)
 	p := workspaceFixture(t, s)
-	if _, err := s.CreateSession(p.ID, "", "claude", "#22 Show sessions", "", false, &GitHubItem{Number: 22}, "", "", "", "", ""); err != nil {
+	if _, err := s.CreateSession(p.ID, "", "claude", "#22 Show sessions", "", false, gitHubRef(22, false), "", "", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
-	state, err := s.CreateSession(p.ID, "", "pi", "#23 Review", "", false, &GitHubItem{Number: 23, PullRequest: true}, "", "", "", "", "")
+	state, err := s.CreateSession(p.ID, "", "pi", "#23 Review", "", false, gitHubRef(23, true), "", "", "", "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = s.CreateSession(p.ID, "", "claude", "", "", false, &GitHubItem{}, "", "", "", "", ""); err == nil {
+	if _, err = s.CreateSession(p.ID, "", "claude", "", "", false, &WorkItemReference{Provider: "github", ID: "repo#0", URL: "https://github.com/o/r/issues/0"}, "", "", "", "", ""); err == nil {
 		t.Fatal("accepted an invalid GitHub item")
 	}
-	if state, err = s.CreateSession(p.ID, "", terminalAgent, "", "", false, &GitHubItem{Number: 24}, "", "", "", "", ""); err != nil || state.Workspaces[0].Sessions[2].GitHubItem != nil {
-		t.Fatalf("terminal kept a GitHub item: %+v, %v", state.Workspaces[0].Sessions[2].GitHubItem, err)
+	if state, err = s.CreateSession(p.ID, "", terminalAgent, "", "", false, gitHubRef(24, false), "", "", "", "", ""); err != nil || state.Workspaces[0].Sessions[2].WorkItem != nil {
+		t.Fatalf("terminal kept a work item: %+v, %v", state.Workspaces[0].Sessions[2].WorkItem, err)
 	}
 	issue, review := state.Workspaces[0].Sessions[0], state.Workspaces[0].Sessions[1]
 	if _, err = s.Rename(issue.ID, "Renamed"); err != nil {
@@ -768,7 +774,7 @@ func TestSessionGitHubItemPersists(t *testing.T) {
 	}
 	t.Cleanup(restored.Shutdown)
 	sessions := restored.Snapshot().Workspaces[0].Sessions
-	if len(sessions) != 2 || sessions[0].Name != "Renamed" || sessions[0].GitHubItem == nil || *sessions[0].GitHubItem != (GitHubItem{Number: 22}) || sessions[1].GitHubItem != nil {
+	if len(sessions) != 2 || sessions[0].Name != "Renamed" || sessions[0].WorkItem == nil || *sessions[0].WorkItem != *gitHubRef(22, false) || sessions[1].WorkItem != nil {
 		t.Fatalf("restored sessions lost their GitHub items: %+v", sessions)
 	}
 }

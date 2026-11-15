@@ -1,52 +1,39 @@
-// Links between Work on / Review sessions and the GitHub items they came from. An item's number is
-// only unique within its repository, which Work Items records on each item as repositoryID.
-export const itemIdentifier = (item) => item.identifier || `#${item.number}`
+// Work Items and Reviews show items that their providers normalize (WorkItem in
+// internal/core/workitems.go). Only names and icons differ by provider here.
+const providers = {
+  github: { name: 'GitHub', icon: 'github' },
+  linear: { name: 'Linear', icon: 'linear' },
+}
+export const providerName = (provider) => providers[provider]?.name || provider
+export const providerIcon = (provider) => providers[provider]?.icon || 'circle.dotted'
+// The link a session keeps to the item it came from.
 export const itemReference = (item) => ({
-  provider: item.provider || 'github',
-  id: item.provider === 'linear' ? item.id : String(item.id || `${item.repositoryID}#${item.number}`),
-  url: item.html_url || item.pull_request?.html_url,
-  identifier: itemIdentifier(item),
-})
-export const gitHubItem = (item) => ({
-  number: item.number || 0,
-  pullRequest: Boolean(item.pull_request),
-  ...(item.html_url ? { reference: itemReference(item) } : {}),
+  provider: item.provider,
+  id: item.id,
+  url: item.url,
+  identifier: item.identifier,
+  ...(item.number ? { number: item.number, review: Boolean(item.review) } : {}),
 })
 export const itemSessions = (workspace, item) =>
-  workspace?.sessions?.filter((s) =>
-    s.workItem
-      ? s.workItem.provider === (item.provider || 'github') && s.workItem.id === itemReference(item).id
-      : item.provider !== 'linear' &&
-        s.repositoryID === item.repositoryID &&
-        s.gitHubItem?.number === item.number &&
-        Boolean(s.gitHubItem.pullRequest) === Boolean(item.pull_request),
-  ) || []
-export const itemKey = (item) =>
-  item.provider === 'linear' ? `linear:${item.sourceID}:${item.id}` : `${item.repositoryID}#${item.number}`
-// Work Items shows the items of every GitHub repository in the workspace, newest activity first.
-export const workItems = (sources) =>
-  sources
-    .flatMap(({ repository, items }) =>
-      items.map((item) => ({
-        ...item,
-        repositoryID: repository.id,
-        repositoryName: repository.name,
-        repositoryGitHub: repository.gitHub,
-      })),
-    )
-    .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
+  workspace?.sessions?.filter((s) => s.workItem?.provider === item.provider && s.workItem.id === item.id) || []
+export const itemKey = (item) => `${item.sourceID}:${item.id}`
+// Work on starts in the item's repository, or in the one chosen for an item outside any
+// repository, else the workspace's only one.
+export const executionRepository = (workspace, item, chosen = '') =>
+  workspace?.repositories?.find((r) => r.id === (chosen || item?.repositoryID))?.id ||
+  (workspace?.repositories?.length === 1 ? workspace.repositories[0].id : '')
 // Filters for Work Items: '' matches every source or assignee, and '-' items without assignees.
 export const matchesWorkItem = (item, { source = '', assignee = '', search = '' }) =>
-  (!source || (item.sourceID || item.repositoryID) === source) &&
+  (!source || item.sourceID === source) &&
   (!assignee || (assignee === '-' ? !item.assignees?.length : item.assignees?.some((a) => a.login === assignee))) &&
   (!search ||
     item.title.toLowerCase().includes(search.toLowerCase()) ||
-    itemIdentifier(item).toLowerCase().includes(search.toLowerCase()))
+    item.identifier.toLowerCase().includes(search.toLowerCase()))
 export const workItemAssignees = (items) =>
   [...new Set(items.flatMap((item) => item.assignees?.map((a) => a.login) || []))].sort((a, b) => a.localeCompare(b))
 export const sessionsLabel = (sessions) =>
   sessions.length === 1 ? `1 session: ${sessions[0].name}` : `${sessions.length} sessions`
-// Work on / Review only makes sense while the item is open; merged PRs are closed.
+// Work on / Review only makes sense while the item is open; merged pull requests are closed.
 export const canWorkOn = (item) => item?.state === 'open'
 // Efforts for a model; for the agent's default model, those every effort-capable model accepts.
 export const modelEfforts = (models, id) => {
@@ -61,20 +48,6 @@ export const descriptionSource = (item) => (item?.body || '').replace(/\r\n?/g, 
 // GitHub answers 403 (and 404 for private items) when the user cannot edit an item.
 export const isPermissionError = (message) =>
   /\b(403|404)\b|Resource not accessible|Must have (admin|push) access/i.test(String(message))
-// A pull request's merge conflict, from the REST detail. GitHub sets `mergeable` to null while
-// it computes it, so only a confirmed conflict counts and the next refresh picks it up.
-export function pullConflict(pr) {
-  if (!canWorkOn(pr) || !pr.head || pr.mergeable == null) return null
-  if (pr.mergeable !== false && pr.mergeable_state !== 'dirty') return null
-  return {
-    number: pr.number,
-    title: pr.title,
-    url: pr.html_url,
-    base: pr.base.ref,
-    head: pr.head.ref,
-    forkWithoutEdits: pr.head.repo?.full_name !== pr.base.repo?.full_name && !pr.maintainer_can_modify,
-  }
-}
 // The REST API doesn't list the conflicting files, so the agent finds them locally. Merging
 // rather than rebasing keeps the push from being a force-push.
 export const conflictTask = ({ number, title, url, base, head }) => ({

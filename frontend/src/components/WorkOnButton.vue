@@ -6,7 +6,7 @@ const catalogs = new Map()
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { call } from '../shared/api'
 import { agents } from '../shared/appearance'
-import { modelEfforts, effortLabel } from '../shared/github'
+import { modelEfforts, effortLabel } from '../shared/workItems'
 import { findProfile } from '../shared/profiles'
 import Icon from './Icon.vue'
 const props = defineProps({

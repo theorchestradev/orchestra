@@ -9,11 +9,9 @@ test('workspace Linear forms route credentials and sources through their own wor
   const dom = new JSDOM('<div id="root"></div>')
   const globals = ['window', 'document', 'Document', 'Element', 'HTMLElement', 'SVGElement']
   for (const key of globals) globalThis[key] = dom.window[key]
-  const { descriptor } = parse(
-    readFileSync(new URL('../src/components/LinearIntegration.vue', import.meta.url), 'utf8'),
-  )
-  const script = compileScript(descriptor, { id: 'linear-integration-test', inlineTemplate: true })
-  const dir = mkdtempSync(new URL('../node_modules/.linear-integration-', import.meta.url))
+  const { descriptor } = parse(readFileSync(new URL('../src/components/WorkspaceSources.vue', import.meta.url), 'utf8'))
+  const script = compileScript(descriptor, { id: 'workspace-sources-test', inlineTemplate: true })
+  const dir = mkdtempSync(new URL('../node_modules/.workspace-sources-', import.meta.url))
   writeFileSync(
     dir + '/component.mjs',
     script.content
@@ -21,11 +19,15 @@ test('workspace Linear forms route credentials and sources through their own wor
         /import \{ call, openURL \} from ['"]\.\.\/shared\/api['"]/,
         'const call = (...args) => globalThis.linearCall(...args); const openURL = () => {}',
       )
-      .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }'),
+      .replace(/import Icon from ['"]\.\/Icon.vue['"]/, 'const Icon = { render: () => null }')
+      .replace(
+        /['"]\.\.\/shared\/workItems['"]/,
+        JSON.stringify(new URL('../src/shared/workItems.js', import.meta.url).href),
+      ),
   )
   const calls = []
-  globalThis.linearCall = async (method, workspace, value) => {
-    calls.push([method, workspace, value])
+  globalThis.linearCall = async (method, workspace, value, shown) => {
+    calls.push([method, workspace, value, shown])
     if (method === 'LinearAccount') return {}
     if (method === 'ConnectLinear') return { id: 'account', name: 'Account' }
     if (method === 'LinearChoices') return value ? [] : [{ id: 'team', name: 'Team' }]
@@ -35,7 +37,16 @@ test('workspace Linear forms route credentials and sources through their own wor
   try {
     const { createApp, h, nextTick } = await import('vue')
     const { default: View } = await import(pathToFileURL(dir + '/component.mjs').href)
-    const workspace = { id: 'workspace-a', name: 'Client', repositories: [], linearSources: [] }
+    const workspace = {
+      id: 'workspace-a',
+      name: 'Client',
+      repositories: [],
+      linearSources: [],
+      sources: [
+        { id: 'github:issues:r', provider: 'github', kind: 'workItems', name: 'o/r' },
+        { id: 'github:pulls:r', provider: 'github', kind: 'reviews', name: 'o/r', hidden: true },
+      ],
+    }
     app = createApp({ render: () => h(View, { workspace }) })
     app.mount('#root')
     const settle = async () => {
@@ -44,6 +55,10 @@ test('workspace Linear forms route credentials and sources through their own wor
       await nextTick()
     }
     await settle()
+    assert.deepEqual(
+      Array.from(document.querySelectorAll('h3'), (h) => h.textContent),
+      ['Work Items', 'Reviews'],
+    )
     const input = document.querySelector('input[type="password"]')
     input.value = 'test-key'
     input.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
@@ -69,6 +84,17 @@ test('workspace Linear forms route credentials and sources through their own wor
     await settle()
     assert.ok(calls.some(([method, id]) => method === 'DisconnectLinear' && id === workspace.id))
     assert.ok(document.querySelector('input[type="password"]'))
+    // Each source has its own switch, which shows or hides it by ID.
+    const switches = document.querySelectorAll('[role="switch"]')
+    assert.deepEqual(
+      Array.from(switches, (s) => s.getAttribute('aria-checked')),
+      ['true', 'false'],
+    )
+    switches[0].click()
+    switches[1].click()
+    await settle()
+    assert.ok(calls.some((c) => c[0] === 'ShowWorkspaceSource' && c[2] === 'github:issues:r' && c[3] === false))
+    assert.ok(calls.some((c) => c[0] === 'ShowWorkspaceSource' && c[2] === 'github:pulls:r' && c[3] === true))
     assert.ok(calls.every(([, id]) => id === workspace.id))
   } finally {
     app?.unmount()

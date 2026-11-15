@@ -7,15 +7,13 @@ import {
   descriptionSource,
   isPermissionError,
   itemKey,
-  itemIdentifier,
   itemSessions,
   matchesWorkItem,
-  pullConflict,
+  providerIcon,
+  providerName,
   workItemAssignees,
-  workItems,
-} from '../shared/github'
-import { gitHubRepositories } from '../shared/workspace'
-import { linearItem } from '../shared/linear'
+} from '../shared/workItems'
+import { workspaceSources } from '../shared/workspace'
 import { sanitize, renderMarkdown } from '../shared/markdown'
 import { shortcutLabel } from '../shared/platform'
 import { refreshDelay } from '../shared/pullRequest'
@@ -66,15 +64,12 @@ let request = 0,
   detailRequest = 0,
   checksRequest = 0,
   checksTimer
-// Both views list each GitHub repository of the workspace; GitLab and Linear can join as sources.
+// Each view lists the workspace's shown sources of its kind; items say what their provider supports.
 const pull = computed(() => props.kind === 'reviews')
 const title = computed(() => (pull.value ? 'Reviews' : 'Work Items'))
-const sources = computed(() => [
-  ...gitHubRepositories(props.workspace),
-  ...(pull.value ? [] : (props.workspace.linearSources || []).map((s) => ({ ...s, provider: 'linear' }))),
-])
+const sources = computed(() => workspaceSources(props.workspace, props.kind))
 const sourceKey = computed(() => sources.value.map((r) => JSON.stringify(r)).join(','))
-const repositoryOf = (item) => sources.value.find((r) => r.id === (item?.sourceID || item?.repositoryID))
+const sourceOf = (item) => sources.value.find((r) => r.id === item?.sourceID)
 const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
 const visibleItems = computed(() => items.value.filter((item) => matchesWorkItem(item, filters.value)))
 const countAvailable = ref(false)
@@ -86,21 +81,12 @@ watch(
 const assignees = computed(() => workItemAssignees(items.value))
 // Rows name their source when several repositories are listed.
 const showsSource = computed(() => sources.value.length > 1)
-const status = (item) =>
-  item.nativeStatus ||
-  (item.merged || item.pull_request?.merged_at
-    ? 'Merged'
-    : item.state === 'closed'
-      ? 'Closed'
-      : item.draft
-        ? 'Draft'
-        : 'Open')
 const statusIcon = (item) =>
   item.state === 'open'
     ? 'open'
-    : item.state_reason === 'not_planned'
+    : item.stateReason === 'not_planned'
       ? 'not-planned'
-      : item.state_reason === 'duplicate'
+      : item.stateReason === 'duplicate'
         ? 'duplicate'
         : 'completed'
 const sanitizeBody = (html) => sanitize(html || '<p class="muted">No description.</p>')
@@ -119,32 +105,21 @@ async function load(background = false) {
     items.value = []
   }
   error.value = ''
-  const repositories = sources.value
+  const listed = sources.value
   const results = await Promise.allSettled(
-    repositories.map(async (repo) =>
-      repo.provider === 'linear'
-        ? (await call('LinearItems', props.workspace.id, repo.id, state.value)).map((issue) => linearItem(issue, repo))
-        : call('GitHubItems', props.workspace.id, repo.id, state.value),
-    ),
+    listed.map((source) => call('WorkItems', props.workspace.id, source.id, state.value)),
   )
   if (token !== request) return
-  const loaded = results.flatMap((r, i) =>
-    r.status === 'fulfilled' ? [{ repository: repositories[i], items: r.value }] : [],
-  )
+  const loaded = results.flatMap((r) => (r.status === 'fulfilled' ? [r.value] : []))
   const failed = results.flatMap((r, i) =>
-    r.status === 'rejected' ? [{ name: repositories[i].name, message: String(r.reason) }] : [],
+    r.status === 'rejected' ? [{ name: listed[i].name, message: String(r.reason) }] : [],
   )
-  // GitHub lists pull requests among issues; each view keeps its own kind.
+  // Newest activity first, across sources.
   if (loaded.length || !failed.length)
-    items.value = [
-      ...workItems(loaded.filter((s) => s.repository.provider !== 'linear')),
-      ...loaded.filter((s) => s.repository.provider === 'linear').flatMap((s) => s.items),
-    ]
-      .sort((a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at))
-      .filter((item) => Boolean(item.pull_request) === pull.value)
+    items.value = loaded.flat().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
   sourceErrors.value = loaded.length ? failed : []
   if (!loaded.length && failed.length)
-    error.value = failed.map((f) => (repositories.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
+    error.value = failed.map((f) => (listed.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
   countAvailable.value = !failed.length
   loading.value = false
 }
@@ -158,16 +133,7 @@ async function detail(item, background = false) {
   detailsError.value = ''
   if (!background) loadChecks(item)
   try {
-    const result =
-      item.provider === 'linear'
-        ? {
-            detail: linearItem(
-              await call('LinearDetail', props.workspace.id, item.sourceID, item.id),
-              repositoryOf(item),
-            ),
-            comments: [],
-          }
-        : await call('GitHubDetail', props.workspace.id, item.repositoryID, item.number, Boolean(item.pull_request))
+    const result = await call('WorkItemDetail', props.workspace.id, item.sourceID, item.id)
     if (token === detailRequest) content.value = result
   } catch (e) {
     if (token === detailRequest) detailsError.value = String(e)
@@ -184,9 +150,9 @@ async function loadChecks(item, background = false) {
     pullStatus.value = null
     checksError.value = ''
   }
-  if (!item.pull_request) return
+  if (!item.can?.checks) return
   try {
-    const result = await call('GitHubPullRequest', props.workspace.id, item.repositoryID, item.number)
+    const result = await call('ReviewStatus', props.workspace.id, item.sourceID, item.id)
     if (token === checksRequest) {
       pullStatus.value = result
       checksError.value = ''
@@ -199,13 +165,13 @@ async function loadChecks(item, background = false) {
 }
 function scheduleChecks() {
   clearTimeout(checksTimer)
-  if (props.visible && selected.value?.pull_request)
+  if (props.visible && selected.value?.can?.checks)
     checksTimer = setTimeout(
       () => (document.hidden ? scheduleChecks() : loadChecks(selected.value, true)),
       refreshDelay(pullStatus.value),
     )
 }
-const loadFailure = (jobID) => call('GitHubCheckFailure', props.workspace.id, selected.value.repositoryID, jobID)
+const loadFailure = (jobID) => call('ReviewCheckFailure', props.workspace.id, selected.value.sourceID, jobID)
 function back() {
   if (editing.value || draft.value?.saving) return
   discardDraft(() => {
@@ -214,20 +180,17 @@ function back() {
     loadChecks({})
   })
 }
-// The draft keeps the source it started from so saving can detect edits made on GitHub.
+// The draft keeps the source it started from so saving can detect edits made on the provider.
 const draftChanged = computed(() => draft.value && draft.value.text !== draft.value.source)
-const conflict = computed(() => selected.value?.pull_request && pullConflict(content.value?.detail))
-const canEditDescription = computed(
-  () =>
-    selected.value?.provider !== 'linear' &&
-    content.value &&
-    !readOnly.value.has(`${Boolean(selected.value.pull_request)}:${itemKey(selected.value)}`),
-)
+const conflict = computed(() => content.value?.conflict)
+// readOnly holds the itemKey of items the provider refused to edit.
+const canEdit = (capability) => content.value?.can[capability] && !readOnly.value.has(itemKey(selected.value))
+const canEditDescription = computed(() => canEdit('editDescription'))
 async function editDescription() {
   draft.value = {
-    original: content.value.detail.body ?? '',
-    source: descriptionSource(content.value.detail),
-    text: descriptionSource(content.value.detail),
+    original: content.value.body ?? '',
+    source: descriptionSource(content.value),
+    text: descriptionSource(content.value),
     saving: false,
     error: '',
   }
@@ -262,18 +225,10 @@ async function saveDescription() {
   current.saving = true
   current.error = ''
   try {
-    await call(
-      'UpdateGitHubMetadata',
-      props.workspace.id,
-      item.repositoryID,
-      item.number,
-      Boolean(item.pull_request),
-      'body',
-      [current.text, current.original],
-    )
+    await call('UpdateWorkItem', props.workspace.id, item.sourceID, item.id, 'body', [current.text, current.original])
   } catch (e) {
     current.error = String(e)
-    if (isPermissionError(e)) readOnly.value.add(`${Boolean(item.pull_request)}:${itemKey(item)}`)
+    if (isPermissionError(e)) readOnly.value.add(itemKey(item))
     return
   } finally {
     current.saving = false
@@ -281,14 +236,15 @@ async function saveDescription() {
   if (draft.value === current) await closeDescription()
   await Promise.all([selected.value === item && detail(item, true), load(true)])
 }
+const editCapability = { state: 'editState', assignees: 'editAssignees', labels: 'editLabels' }
 function editMetadata(field, event) {
-  if (selected.value?.provider === 'linear' || editing.value?.saving) return
+  if (!canEdit(editCapability[field]) || editing.value?.saving) return
   editing.value = editing.value?.field === field ? null : { field, anchor: event.currentTarget }
 }
 async function metadataSaved(patch) {
   const anchor = editing.value?.anchor
   editing.value = null
-  Object.assign(content.value.detail, patch)
+  Object.assign(content.value, patch)
   const row = items.value.find((i) => itemKey(i) === itemKey(selected.value))
   if (row) Object.assign(row, patch)
   await nextTick()
@@ -327,7 +283,7 @@ watch(
       itemMenu.value = null
       editing.value = null
       clearTimeout(checksTimer)
-    } else if (selected.value?.pull_request) loadChecks(selected.value, true)
+    } else if (selected.value?.can?.checks) loadChecks(selected.value, true)
   },
 )
 function keys(event) {
@@ -351,7 +307,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', keys)
   document.removeEventListener('pointerdown', dismissItemMenu)
 })
-const detailURL = computed(() => content.value?.detail.html_url || selected.value?.html_url)
+const detailURL = computed(() => content.value?.url || selected.value?.url)
 const date = (value) => {
   const d = new Date(value)
   return (
@@ -388,7 +344,7 @@ watch(state, () => load())
 // Adding, removing or detecting a repository changes what the view lists.
 watch(sourceKey, () => {
   if (source.value && !sources.value.some((r) => r.id === source.value)) source.value = ''
-  if (selected.value && !repositoryOf(selected.value)) back()
+  if (selected.value && !sourceOf(selected.value)) back()
   load()
 })
 watch(assignees, (logins) => {
@@ -404,16 +360,14 @@ onMounted(() => load())
           <h2>{{ title }}</h2>
           <span class="work-item-sources"
             ><button
-              v-for="repo in sources"
-              :key="repo.id"
+              v-for="source in sources"
+              :key="source.id"
               class="text-link muted caption"
-              :title="repo.name + (repo.directory ? ' · ' + repo.directory : '')"
-              :aria-label="'Open ' + (repo.gitHub || repo.name)"
-              @click="openURL(repo.provider === 'linear' ? 'https://linear.app' : 'https://github.com/' + repo.gitHub)"
+              :title="providerName(source.provider) + ' · ' + source.name"
+              :aria-label="'Open ' + source.name"
+              @click="openURL(source.url)"
             >
-              <Icon :name="repo.provider === 'linear' ? 'linear' : 'github'" :size="12" />{{
-                repo.gitHub || repo.name
-              }}
+              <Icon :name="providerIcon(source.provider)" :size="12" />{{ source.name }}
             </button></span
           >
         </div>
@@ -445,7 +399,7 @@ onMounted(() => load())
           ><label v-if="sources.length > 1" class="status-filter"
             ><Icon name="folder" :size="14" /><select v-model="source" aria-label="Source">
               <option value="">All sources</option>
-              <option v-for="repo in sources" :key="repo.id" :value="repo.id">{{ repo.name }}</option></select
+              <option v-for="s in sources" :key="s.id" :value="s.id">{{ s.name }}</option></select
             ><Icon name="chevron.down" :size="9" /></label
           ><label class="status-filter"
             ><Icon name="person.crop.circle" :size="14" /><select v-model="assignee" aria-label="Assignee">
@@ -479,7 +433,7 @@ onMounted(() => load())
     <div
       v-if="!loading && !error && visibleItems.length"
       class="github-table"
-      :class="{ 'has-linear-sources': sources.some((s) => s.provider === 'linear') }"
+      :class="{ 'has-named-items': items.some((i) => !i.number) }"
     >
       <div class="github-table-head">
         <span>ID</span><span>TITLE</span><span class="wide-column"><span class="visually-hidden">Sessions</span></span
@@ -490,14 +444,14 @@ onMounted(() => load())
           v-for="item in visibleItems"
           :key="itemKey(item)"
           class="github-row"
-          :class="{ 'linear-row': item.provider === 'linear' }"
+          :class="{ 'named-row': !item.number }"
           @click="detail(item)"
           @contextmenu="showItemMenu($event, item)"
         >
-          <span class="item-id" :title="itemIdentifier(item)"
-            ><Icon :name="item.pull_request ? 'arrow.triangle.branch' : 'circle.dotted'" :size="13" /><span
+          <span class="item-id" :title="item.identifier"
+            ><Icon :name="item.review ? 'arrow.triangle.branch' : 'circle.dotted'" :size="13" /><span
               class="truncate"
-              >{{ itemIdentifier(item) }}</span
+              >{{ item.identifier }}</span
             ></span
           ><span class="item-context"
             ><button class="item-title-line item-open">
@@ -506,12 +460,10 @@ onMounted(() => load())
                 ><span
                   v-if="showsSource"
                   class="item-source"
-                  :title="item.provider === 'linear' ? 'Linear' : 'GitHub · ' + item.repositoryGitHub"
-                  ><Icon :name="item.provider === 'linear' ? 'linear' : 'github'" :size="10" />{{
-                    item.repositoryName
-                  }}</span
-                >{{ showsSource ? ' · ' : '' }}by {{ item.user?.login || 'Deleted user'
-                }}<span class="compact-date"> · {{ relativeDate(item.updated_at) }}</span></span
+                  :title="providerName(item.provider) + ' · ' + sourceOf(item)?.name"
+                  ><Icon :name="providerIcon(item.provider)" :size="10" />{{ sourceOf(item)?.name }}</span
+                >{{ showsSource ? ' · ' : '' }}by {{ item.author?.login || 'Deleted user'
+                }}<span class="compact-date"> · {{ relativeDate(item.updatedAt) }}</span></span
               ></button
             ><span v-if="item.labels?.length" class="labels"
               ><span v-for="label in item.labels.slice(0, 3)" :key="label.name" class="label-chip"
@@ -534,7 +486,7 @@ onMounted(() => load())
               v-if="item.assignees?.length > 3"
               >+{{ item.assignees.length - 3 }}</span
             ><span v-if="!item.assignees?.length" class="muted">—</span></span
-          ><span class="status-badge" :class="status(item).toLowerCase()" :title="status(item)"
+          ><span class="status-badge" :class="item.status.toLowerCase()" :title="item.status"
             ><Icon
               :name="
                 {
@@ -542,37 +494,30 @@ onMounted(() => load())
                   Closed: 'checkmark.circle',
                   Merged: 'arrow.triangle.merge',
                   Draft: 'circle.dashed',
-                }[status(item)] || 'circle.dotted'
+                }[item.status] || 'circle.dotted'
               "
               :size="12"
-            /><span class="truncate">{{ status(item) }}</span></span
-          ><span class="wide-column muted caption">{{ relativeDate(item.updated_at) }}</span
+            /><span class="truncate">{{ item.status }}</span></span
+          ><span class="wide-column muted caption">{{ relativeDate(item.updatedAt) }}</span
           ><Icon class="compact-chevron" name="chevron.right" :size="8" />
         </div>
       </div>
     </div>
   </section>
-  <section
-    v-else
-    ref="detailElement"
-    class="github-detail content-page"
-    :class="{ 'linear-detail': selected.provider === 'linear' }"
-  >
+  <section v-else ref="detailElement" class="github-detail content-page" :class="{ 'named-detail': !selected.number }">
     <header class="detail-toolbar">
       <button class="text-link muted" @click="back"><Icon name="chevron.left" :size="12" />{{ title }}</button
       ><span class="muted">/</span
-      ><span class="truncate repository" :title="selected.repositoryName">{{
-        selected.repositoryGitHub || selected.repositoryName
-      }}</span
+      ><span class="truncate repository" :title="sourceOf(selected)?.name">{{ sourceOf(selected)?.name }}</span
       ><button
         class="text-link item-number"
-        :aria-label="`Open ${itemIdentifier(selected)} on ${selected.provider === 'linear' ? 'Linear' : 'GitHub'}`"
+        :aria-label="`Open ${selected.identifier} on ${providerName(selected.provider)}`"
         @click="openURL(detailURL)"
-        @contextmenu="showItemMenu($event, { ...selected, html_url: detailURL })"
-        @keydown.shift.f10="showItemMenu($event, { ...selected, html_url: detailURL })"
-        @keydown.context-menu="showItemMenu($event, { ...selected, html_url: detailURL })"
+        @contextmenu="showItemMenu($event, { ...selected, url: detailURL })"
+        @keydown.shift.f10="showItemMenu($event, { ...selected, url: detailURL })"
+        @keydown.context-menu="showItemMenu($event, { ...selected, url: detailURL })"
       >
-        {{ itemIdentifier(selected) }}
+        {{ selected.identifier }}
       </button>
     </header>
     <div v-if="detailsLoading" class="empty-state">
@@ -588,31 +533,31 @@ onMounted(() => load())
       <div class="github-article-content">
         <section
           class="issue-heading"
-          :class="{ 'without-work-on': !canWorkOn(content.detail) && !itemSessions(workspace, selected).length }"
+          :class="{ 'without-work-on': !canWorkOn(content) && !itemSessions(workspace, selected).length }"
         >
-          <div v-if="canWorkOn(content.detail) || itemSessions(workspace, selected).length" class="work-on">
+          <div v-if="canWorkOn(content) || itemSessions(workspace, selected).length" class="work-on">
             <GitHubSessions
               :sessions="itemSessions(workspace, selected)"
               @open="emit('session', $event)"
             /><WorkOnButton
-              v-if="canWorkOn(content.detail)"
-              :label="selected.pull_request ? 'Review' : 'Work on'"
+              v-if="canWorkOn(content)"
+              :label="selected.review ? 'Review' : 'Work on'"
               :default-agent="defaultAgent"
               :profiles="profiles"
               :profile-id="workspace.profileID || ''"
               :visible="visible"
-              :repositories="selected.provider === 'linear' ? workspace.repositories : []"
+              :repositories="content.can.chooseRepository ? workspace.repositories : []"
               :repository-id="selected.repositoryID"
-              @work="emit('work', selected, $event)"
+              @work="emit('work', content, $event)"
             />
           </div>
           <div class="issue-title-line">
             <h1>
-              {{ content.detail.title }} <span class="muted">{{ itemIdentifier(content.detail) }}</span>
+              {{ content.title }} <span class="muted">{{ content.identifier }}</span>
             </h1>
             <span class="muted caption detail-byline"
-              >by {{ content.detail.user?.login || 'Deleted user' }} · updated
-              {{ relativeDate(content.detail.updated_at || content.detail.created_at) }}</span
+              >by {{ content.author?.login || 'Deleted user' }} · updated
+              {{ relativeDate(content.updatedAt || content.createdAt) }}</span
             >
           </div>
         </section>
@@ -621,82 +566,77 @@ onMounted(() => load())
             <h3>STATUS</h3>
             <button
               class="metadata-trigger status-badge"
-              :class="status(content.detail).toLowerCase()"
-              :aria-label="selected.provider === 'linear' ? 'Status' : 'Edit status'"
-              :disabled="selected.provider === 'linear' || status(content.detail) === 'Merged'"
+              :class="content.status.toLowerCase()"
+              :aria-label="canEdit('editState') ? 'Edit status' : 'Status'"
+              :disabled="!canEdit('editState')"
               :title="
-                selected.provider === 'linear'
-                  ? status(content.detail)
-                  : status(content.detail) === 'Merged'
+                canEdit('editState')
+                  ? 'Edit status'
+                  : content.status === 'Merged'
                     ? 'A merged pull request cannot change status.'
-                    : 'Edit status'
+                    : content.status
               "
               :aria-expanded="editing?.field === 'state'"
               aria-haspopup="menu"
               @click="editMetadata('state', $event)"
             >
-              <Icon v-if="status(content.detail) === 'Merged'" name="arrow.triangle.merge" :size="14" /><Icon
-                v-else-if="statusIcon(content.detail) === 'duplicate'"
+              <Icon v-if="content.status === 'Merged'" name="arrow.triangle.merge" :size="14" /><Icon
+                v-else-if="statusIcon(content) === 'duplicate'"
                 name="doc.on.doc"
                 :size="14"
-              /><span v-else class="status-choice-icon" :class="statusIcon(content.detail)" aria-hidden="true" />{{
-                status(content.detail)
-              }}<Icon
-                v-if="selected.provider !== 'linear' && status(content.detail) !== 'Merged'"
-                name="chevron.down"
-                :size="9"
-              />
+              /><span v-else class="status-choice-icon" :class="statusIcon(content)" aria-hidden="true" />{{
+                content.status
+              }}<Icon v-if="canEdit('editState')" name="chevron.down" :size="9" />
             </button>
           </div>
           <div>
             <h3>ASSIGNEES</h3>
             <button
               class="metadata-trigger metadata-people"
-              :disabled="selected.provider === 'linear'"
-              :aria-label="selected.provider === 'linear' ? 'Assignees' : 'Edit assignees'"
+              :disabled="!canEdit('editAssignees')"
+              :aria-label="canEdit('editAssignees') ? 'Edit assignees' : 'Assignees'"
               :title="
-                (selected.provider === 'linear' ? 'Assignees' : 'Edit assignees') +
-                (content.detail.assignees?.length ? ': ' + content.detail.assignees.map((a) => a.login).join(', ') : '')
+                (canEdit('editAssignees') ? 'Edit assignees' : 'Assignees') +
+                (content.assignees?.length ? ': ' + content.assignees.map((a) => a.login).join(', ') : '')
               "
               :aria-expanded="editing?.field === 'assignees'"
               @click="editMetadata('assignees', $event)"
             >
-              <span v-if="!content.detail.assignees?.length" class="muted">Unassigned</span
+              <span v-if="!content.assignees?.length" class="muted">Unassigned</span
               ><Avatar
-                v-for="assignee in content.detail.assignees?.slice(0, 3)"
+                v-for="assignee in content.assignees?.slice(0, 3)"
                 :key="assignee.login"
                 :author="assignee"
-              /><span v-if="content.detail.assignees?.length > 3" class="caption"
-                >+{{ content.detail.assignees.length - 3 }}</span
-              ><Icon v-if="selected.provider !== 'linear'" name="chevron.down" :size="9" />
+              /><span v-if="content.assignees?.length > 3" class="caption">+{{ content.assignees.length - 3 }}</span
+              ><Icon v-if="canEdit('editAssignees')" name="chevron.down" :size="9" />
             </button>
           </div>
           <div>
             <h3>LABELS</h3>
             <button
               class="metadata-trigger labels"
-              :disabled="selected.provider === 'linear'"
-              :aria-label="selected.provider === 'linear' ? 'Labels' : 'Edit labels'"
-              :title="selected.provider === 'linear' ? 'Labels' : 'Edit labels'"
+              :disabled="!canEdit('editLabels')"
+              :aria-label="canEdit('editLabels') ? 'Edit labels' : 'Labels'"
+              :title="canEdit('editLabels') ? 'Edit labels' : 'Labels'"
               :aria-expanded="editing?.field === 'labels'"
               aria-haspopup="dialog"
               @click="editMetadata('labels', $event)"
             >
-              <span v-if="!content.detail.labels?.length" class="muted">No labels</span
-              ><span v-for="label in content.detail.labels" :key="label.name" class="label-chip"
+              <span v-if="!content.labels?.length" class="muted">No labels</span
+              ><span v-for="label in content.labels" :key="label.name" class="label-chip"
                 ><i
                   :style="{ background: /^[0-9a-f]{6}$/i.test(label.color) ? '#' + label.color : 'var(--muted)' }"
                 /><span>{{ label.name }}</span></span
-              ><Icon v-if="selected.provider !== 'linear'" name="chevron.down" :size="9" />
+              ><Icon v-if="canEdit('editLabels')" name="chevron.down" :size="9" />
             </button>
           </div>
         </section>
-        <div v-if="content.detail.head" class="branches">
-          <code>{{ content.detail.head.label }}</code
-          ><span class="muted">→</span><code>{{ content.detail.base.label }}</code
-          ><span class="muted">{{ content.detail.changed_files }} files changed</span
-          ><span class="status-open">+{{ content.detail.additions }}</span
-          ><span class="status-error">−{{ content.detail.deletions }}</span>
+        <div v-if="content.branches" class="branches">
+          <code>{{ content.branches.head }}</code
+          ><span class="muted">→</span><code>{{ content.branches.base }}</code
+          ><span class="muted">{{ content.branches.changedFiles }} files changed</span
+          ><span class="status-open">+{{ content.branches.additions }}</span
+          ><span class="status-error">−{{ content.branches.deletions }}</span>
         </div>
         <ConflictNotice
           v-if="conflict"
@@ -705,10 +645,10 @@ onMounted(() => load())
           :profiles="profiles"
           :profile-id="workspace.profileID || ''"
           :visible="visible"
-          :read-only="readOnly.has(`true:${itemKey(selected)}`)"
+          :read-only="readOnly.has(itemKey(selected))"
           @resolve="emit('resolve', { ...conflict, repositoryID: selected.repositoryID }, $event)"
         />
-        <template v-if="selected.pull_request">
+        <template v-if="selected.can.checks">
           <PullRequestChecks
             v-if="pullStatus"
             :key="itemKey(selected)"
@@ -755,13 +695,9 @@ onMounted(() => load())
             </form>
             <template v-else
               ><div
-                v-if="content.detail.body_html || content.detail.body"
+                v-if="content.bodyHTML || content.body"
                 class="description-body markdown"
-                v-html="
-                  selected.provider === 'linear'
-                    ? renderMarkdown(content.detail.body)
-                    : sanitizeBody(content.detail.body_html)
-                "
+                v-html="content.bodyHTML ? sanitizeBody(content.bodyHTML) : renderMarkdown(content.body)"
               />
               <p v-else class="description-body muted">No description provided.</p>
               <button
@@ -775,17 +711,17 @@ onMounted(() => load())
               </button></template
             >
           </div>
-          <template v-if="selected.provider !== 'linear'">
+          <template v-if="content.can.comments">
             <h4>
               Comments <span class="muted">({{ content.comments.length }})</span>
             </h4>
             <p v-if="!content.comments.length" class="muted">No comments.</p>
             <article v-for="comment in content.comments" :key="comment.id">
               <header>
-                <Avatar :author="comment.user" /><strong>{{ comment.user?.login || 'Deleted user' }}</strong
-                ><time class="muted">{{ date(comment.created_at) }}</time>
+                <Avatar :author="comment.author" /><strong>{{ comment.author?.login || 'Deleted user' }}</strong
+                ><time class="muted">{{ date(comment.createdAt) }}</time>
               </header>
-              <div class="markdown" v-html="sanitizeBody(comment.body_html)" />
+              <div class="markdown" v-html="sanitizeBody(comment.bodyHTML)" />
             </article>
           </template>
         </section>
@@ -804,12 +740,12 @@ onMounted(() => load())
     >
       <!-- prettier-ignore-attribute @click --><button
         role="menuitem"
-        @click="openURL(itemMenu.item.html_url);dismissItemMenu()"
+        @click="openURL(itemMenu.item.url);dismissItemMenu()"
       >
-        Open on {{ itemMenu.item.provider === 'linear' ? 'Linear' : 'GitHub' }}</button
+        Open on {{ providerName(itemMenu.item.provider) }}</button
       ><!-- prettier-ignore-attribute @click --><button
         role="menuitem"
-        @click="copy(itemMenu.item.html_url).catch(e=>emit('error',String(e)));dismissItemMenu()"
+        @click="copy(itemMenu.item.url).catch(e=>emit('error',String(e)));dismissItemMenu()"
       >
         Copy Link
       </button>
@@ -819,7 +755,7 @@ onMounted(() => load())
     ><Modal v-if="discarding" label="Discard Description Changes" @close="discarding = null"
       ><div class="close-dialog">
         <h2>Discard your changes?</h2>
-        <p>Your edits to the description of #{{ selected?.number }} have not been saved.</p>
+        <p>Your edits to the description of {{ selected?.identifier }} have not been saved.</p>
         <footer>
           <button class="standard-button" autofocus @click="discarding = null">Keep Editing</button
           ><button class="standard-button destructive" data-default-action @click="confirmDiscard">
@@ -830,11 +766,10 @@ onMounted(() => load())
     ></Teleport
   >
   <GitHubMetadataEditor
-    v-if="editing && content && repositoryOf(selected)"
+    v-if="editing && content && sourceOf(selected)"
     :workspace="workspace"
-    :repository="repositoryOf(selected)"
-    :item="content.detail"
-    :pull="Boolean(selected.pull_request)"
+    :source="sourceOf(selected)"
+    :item="content"
     :field="editing.field"
     :anchor="editing.anchor"
     :key="editing.field"

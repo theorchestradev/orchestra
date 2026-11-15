@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
 import { call, openURL } from '../shared/api'
+import { providerName } from '../shared/workItems'
 import Icon from './Icon.vue'
 const props = defineProps({ workspace: Object })
 const emit = defineEmits(['state'])
@@ -15,7 +16,13 @@ const team = ref(''),
   repository = ref(''),
   editing = ref('')
 const projectsLoading = ref(false)
+// Linear sources are configured here with their team and project; the others come from the
+// repositories' remotes.
 const sources = computed(() => props.workspace?.linearSources || [])
+const listed = computed(() => props.workspace?.sources || [])
+const repositorySources = computed(() => listed.value.filter((s) => s.kind === 'workItems' && s.provider !== 'linear'))
+const reviewSources = computed(() => listed.value.filter((s) => s.kind === 'reviews'))
+const linearShown = (id) => !listed.value.find((s) => s.id === id)?.hidden
 let projectRequest = 0
 async function run(action) {
   if (busy.value) return
@@ -27,6 +34,15 @@ async function run(action) {
     error.value = String(e)
   } finally {
     busy.value = false
+  }
+}
+// Shows or hides one source in Work Items or Reviews.
+async function show(id, shown) {
+  error.value = ''
+  try {
+    emit('state', await call('ShowWorkspaceSource', props.workspace.id, id, shown))
+  } catch (e) {
+    error.value = String(e)
   }
 }
 async function loadTeams() {
@@ -108,23 +124,85 @@ async function edit(source) {
 </script>
 <template>
   <div class="settings-groups general-settings">
-    <section class="settings-group" aria-label="Linear integration">
-      <h3 class="settings-group-title">Linear for {{ workspace.name }}</h3>
+    <section class="settings-group" aria-labelledby="work-items-heading">
+      <h3 id="work-items-heading" class="settings-group-title">Work Items</h3>
       <div class="settings-card">
+        <div v-for="source in repositorySources" :key="source.id" class="setting-row">
+          <div>
+            <label :for="'source-' + source.id">{{ source.name }}</label>
+            <p class="muted caption">{{ providerName(source.provider) }} issues</p>
+          </div>
+          <button
+            :id="'source-' + source.id"
+            class="switch"
+            :class="{ on: !source.hidden }"
+            role="switch"
+            :aria-checked="!source.hidden"
+            :aria-label="'Show issues from ' + source.name"
+            @click="show(source.id, !!source.hidden)"
+          >
+            <span />
+          </button>
+        </div>
+        <p v-if="!repositorySources.length" class="muted caption">
+          Add a repository with a GitHub remote to list its issues.
+        </p>
         <div class="setting-row">
           <div>
-            <label>Linear account</label>
-            <p class="muted caption">
-              Connect with a personal API key with read access to the teams you need. Stored in macOS Keychain or the
-              Linux desktop keyring. This connection is only used by this workspace.
+            <label>Linear</label>
+            <p v-if="account?.id" class="muted caption">
+              Connected as {{ account.name }}. This connection is only used by this workspace.
             </p>
-            <button type="button" class="text-link" @click="openURL('https://linear.app/settings/account/security')">
-              Create a personal API key
-            </button>
+            <template v-else>
+              <p class="muted caption">
+                Connect with a personal API key with read access to the teams you need. Stored in macOS Keychain or the
+                Linux desktop keyring. This connection is only used by this workspace.
+              </p>
+              <button type="button" class="text-link" @click="openURL('https://linear.app/settings/account/security')">
+                Create a personal API key
+              </button>
+            </template>
           </div>
-          <button v-if="account?.id" class="standard-button" :disabled="busy" @click="disconnect">
-            Disconnect {{ account.name }}
-          </button>
+          <button v-if="account?.id" class="standard-button" :disabled="busy" @click="disconnect">Disconnect</button>
+        </div>
+        <div v-for="source in sources" :key="source.id" class="setting-row linear-source">
+          <div>
+            <label>{{ source.name }}</label>
+            <p class="muted caption">
+              Default repository:
+              {{ workspace.repositories.find((r) => r.id === source.repositoryID)?.name || 'Ask when starting work' }}
+            </p>
+          </div>
+          <span class="source-actions">
+            <button
+              type="button"
+              class="standard-button"
+              :disabled="busy || !account?.id"
+              :aria-label="'Edit Linear source ' + source.name"
+              @click="edit(source)"
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              class="standard-button"
+              :disabled="busy"
+              :aria-label="'Remove Linear source ' + source.name"
+              @click="run(async () => emit('state', await call('RemoveLinearSource', workspace.id, source.id)))"
+            >
+              Remove
+            </button>
+            <button
+              class="switch"
+              :class="{ on: linearShown(source.id) }"
+              role="switch"
+              :aria-checked="linearShown(source.id)"
+              :aria-label="'Show issues from Linear source ' + source.name"
+              @click="show(source.id, !linearShown(source.id))"
+            >
+              <span />
+            </button>
+          </span>
         </div>
         <form v-if="!account?.id" class="linear-form" @submit.prevent="connect">
           <label
@@ -138,32 +216,7 @@ async function edit(source) {
           /></label>
           <button class="standard-button" type="submit" :disabled="busy || !key.trim()">Connect Linear</button>
         </form>
-      </div>
-    </section>
-    <section v-if="workspace" class="settings-group" aria-label="Workspace Linear sources">
-      <h3 class="settings-group-title">Sources for {{ workspace.name }}</h3>
-      <div class="settings-card">
-        <div v-for="source in sources" :key="source.id" class="setting-row">
-          <div>
-            <label>{{ source.name }}</label>
-            <p class="muted caption">
-              Default repository:
-              {{ workspace.repositories.find((r) => r.id === source.repositoryID)?.name || 'Ask when starting work' }}
-            </p>
-          </div>
-          <button type="button" class="standard-button" :disabled="busy || !account?.id" @click="edit(source)">
-            Edit
-          </button>
-          <button
-            type="button"
-            class="standard-button"
-            :disabled="busy"
-            @click="run(async () => emit('state', await call('RemoveLinearSource', workspace.id, source.id)))"
-          >
-            Remove
-          </button>
-        </div>
-        <form v-if="account?.id" class="linear-form" @submit.prevent="save">
+        <form v-else class="linear-form" @submit.prevent="save">
           <label
             >Team<select v-model="team" required :disabled="busy">
               <option value="" disabled>Choose a team</option>
@@ -183,10 +236,34 @@ async function edit(source) {
             </select></label
           >
           <button class="standard-button" type="submit" :disabled="busy || projectsLoading || !team">
-            {{ editing ? 'Save Source' : 'Add Source' }}
+            {{ editing ? 'Save Linear Source' : 'Add Linear Source' }}
           </button>
         </form>
-        <p v-else class="muted caption linear-hint">Connect Linear to configure workspace sources.</p>
+      </div>
+    </section>
+    <section class="settings-group" aria-labelledby="reviews-heading">
+      <h3 id="reviews-heading" class="settings-group-title">Reviews</h3>
+      <div class="settings-card">
+        <div v-for="source in reviewSources" :key="source.id" class="setting-row">
+          <div>
+            <label :for="'source-' + source.id">{{ source.name }}</label>
+            <p class="muted caption">{{ providerName(source.provider) }} pull requests</p>
+          </div>
+          <button
+            :id="'source-' + source.id"
+            class="switch"
+            :class="{ on: !source.hidden }"
+            role="switch"
+            :aria-checked="!source.hidden"
+            :aria-label="'Show pull requests from ' + source.name"
+            @click="show(source.id, !!source.hidden)"
+          >
+            <span />
+          </button>
+        </div>
+        <p v-if="!reviewSources.length" class="muted caption">
+          Add a repository with a GitHub remote to list its pull requests.
+        </p>
       </div>
     </section>
     <p v-if="busy" class="muted caption" role="status"><span class="spinner" />Loading Linear…</p>
@@ -197,7 +274,6 @@ async function edit(source) {
 .linear-form {
   display: grid;
   gap: 12px;
-  padding: 16px;
 }
 .linear-form label {
   display: grid;
@@ -224,11 +300,15 @@ async function edit(source) {
 .linear-form button {
   justify-self: start;
 }
-.linear-hint {
-  padding: 16px;
-}
 .setting-row {
   flex-wrap: wrap;
+}
+.source-actions {
+  display: flex;
+  gap: 8px;
+}
+.linear-source {
+  padding-left: 16px;
 }
 .setting-row > div {
   min-width: 0;
