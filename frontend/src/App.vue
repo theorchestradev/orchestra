@@ -1463,11 +1463,22 @@ onBeforeUnmount(() => {
                         @contextmenu="sessionMenu($event, p, sess)"
                         @keydown.shift.f10.prevent="sessionMenu($event, p, sess)"
                       >
-                        <Icon v-if="isTerminal(sess)" name="terminal" :size="12" /><img
-                          v-else
-                          :src="agentIcon(sess.agent, shownPreferences.appearance)"
-                          alt=""
-                        /><span class="session-name"
+                        <span class="session-icon"
+                          ><span class="session-glyph" :class="{ cut: sessionProfile(appState.profiles, p, sess) }"
+                            ><Icon v-if="isTerminal(sess)" name="terminal" :size="12" /><img
+                              v-else
+                              :src="agentIcon(sess.agent, shownPreferences.appearance)"
+                              alt="" /></span
+                          ><span
+                            v-if="sessionProfile(appState.profiles, p, sess)"
+                            class="profile-badge"
+                            :class="{ missing: sessionProfile(appState.profiles, p, sess).missing }"
+                            role="img"
+                            :aria-label="'Profile: ' + sessionProfile(appState.profiles, p, sess).name"
+                            :title="sessionProfile(appState.profiles, p, sess).name"
+                            >{{ sessionProfile(appState.profiles, p, sess).symbol }}</span
+                          ></span
+                        ><span class="session-name"
                           ><span>{{ sess.name }}</span
                           ><span v-if="!sess.restored && sess.exitMessage" class="visually-hidden">, ended</span
                           ><small v-if="sess.restored">{{
@@ -1480,13 +1491,6 @@ onBeforeUnmount(() => {
                           ><small v-if="repositoryLabel(p, sess) || sess.worktreeBranch" class="truncate">{{
                             [repositoryLabel(p, sess), sess.worktreeBranch].filter(Boolean).join(' · ')
                           }}</small></span
-                        ><span
-                          v-if="sessionProfile(appState.profiles, p, sess)"
-                          class="profile-badge"
-                          :class="{ missing: sessionProfile(appState.profiles, p, sess).missing }"
-                          role="img"
-                          :aria-label="'Profile: ' + sessionProfile(appState.profiles, p, sess).name"
-                          >{{ sessionProfile(appState.profiles, p, sess).symbol }}</span
                         ><span
                           v-if="appState.runs.filter((r) => r.toSessionID === sess.id && r.status === 'queued').length"
                           class="count unread"

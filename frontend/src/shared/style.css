@@ -4568,23 +4568,48 @@ h2 {
 }
 
 /* Profiles: the session badge, menus, dialogs and Settings → Profiles. */
+.session-icon {
+  --profile-badge-size: 10px;
+  --profile-badge-ring: 1.5px;
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+}
+.session-glyph {
+  display: flex;
+}
+/* The ring is a cut through the icon, so it shows the row's own background in every state. */
+.session-glyph.cut {
+  --profile-cut: radial-gradient(
+    circle at calc(8px + var(--profile-badge-size) / 2) calc(8px + var(--profile-badge-size) / 2),
+    transparent calc(var(--profile-badge-size) / 2 + var(--profile-badge-ring)),
+    #000 calc(var(--profile-badge-size) / 2 + var(--profile-badge-ring) + 0.5px)
+  );
+  -webkit-mask: var(--profile-cut);
+  mask: var(--profile-cut);
+}
 .profile-badge {
-  display: inline-flex;
+  position: absolute;
+  left: 8px;
+  top: 8px;
+  display: flex;
   align-items: center;
   justify-content: center;
-  flex-shrink: 0;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 3px;
-  border-radius: 4px;
-  background: var(--selection);
-  color: var(--text);
-  font-size: 10px;
-  font-weight: 600;
+  width: var(--profile-badge-size);
+  height: var(--profile-badge-size);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 7px;
+  font-weight: 700;
   line-height: 1;
+  overflow: hidden;
 }
 .profile-badge.missing {
-  color: var(--status-deleted);
+  background: var(--status-deleted);
+  color: #fff;
 }
 .menu-heading {
   display: block;
