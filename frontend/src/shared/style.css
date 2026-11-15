@@ -5425,12 +5425,6 @@ h2 {
 .app-shell:not(.full-width-pages) .content-page.scratchpad > :is(textarea, .scratchpad-read) {
   padding: var(--page-top-space) var(--page-side-space) var(--page-bottom-space);
 }
-.app-shell:not(.full-width-pages) .content-page.agent-board > .board-header {
-  padding: var(--page-top-space) var(--page-side-space) 18px;
-}
-.app-shell:not(.full-width-pages) .content-page.agent-board > .board-columns {
-  padding: 0 var(--page-side-space) var(--page-bottom-space);
-}
 .app-shell:not(.full-width-pages) .content-page.scratchpad > .scratchpad-tools {
   right: var(--page-side-space);
   top: 24px;
