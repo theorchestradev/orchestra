@@ -4,6 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.28.0 — 2026-11-14
+
+### New
+
+- **Workspace settings in Settings.** Open workspaces now appear below the global
+  settings sections, using the same emoji or icon as the sidebar. Select one to
+  manage its name, description, emoji, repositories, default agent, profile and
+  Linear integration in structured settings groups.
+
+### Changed
+
+- **Edit Workspace…** opens Settings directly at the chosen workspace. Save its
+  details without leaving Settings, using Save or Command-Return (Ctrl-Enter on Linux).
+
 ## 0.27.1 — 2026-11-14
 
 ### Changed

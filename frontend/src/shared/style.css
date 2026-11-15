@@ -346,6 +346,7 @@ hr {
   text-overflow: clip;
 }
 .workspace-title .workspace-icon,
+.settings-rail .workspace-icon,
 .arc-space .workspace-icon {
   flex-shrink: 0;
   width: 16px;
@@ -4601,7 +4602,8 @@ h2 {
 .modal .session-profile {
   gap: 12px;
 }
-.modal .session-profile > span {
+.modal .session-profile > span,
+.workspace-settings .session-profile > span {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -5449,4 +5451,34 @@ h2 {
 .github-table.has-linear-sources {
   --work-item-id-width: 96px;
   --work-item-status-width: 120px;
+}
+
+.settings-workspaces-title {
+  margin: 20px 12px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+.workspace-settings .repository-settings ul {
+  border: 0;
+  max-height: none;
+}
+.workspace-settings .repository-settings .settings-group-title {
+  margin-bottom: 0;
+}
+.workspace-settings footer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.workspace-settings .setting-row {
+  flex-wrap: wrap;
+}
+.workspace-settings .setting-row > :is(input, textarea) {
+  width: 320px;
+  max-width: 100%;
+  padding: 9px;
+}
+.workspace-settings p {
+  line-height: 1.45;
 }

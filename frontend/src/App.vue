@@ -784,8 +784,16 @@ function edit(id, name, kind, description = '', emoji = '', profileID = '', agen
   renameKind.value = kind
   workspaceDescription.value = description
   workspaceEmoji.value = emoji
+  if (kind === 'Workspace') {
+    openSettings('workspace:' + id)
+    return
+  }
   openModal('rename')
   nextTick(() => document.querySelector('.rename-dialog input[autofocus]')?.select())
+}
+function editWorkspaceSettings(p) {
+  if (busy.value) return
+  edit(p.id, p.name, 'Workspace', p.description || '', p.emoji || '', p.profileID || '', p.defaultAgent || '')
 }
 async function rename() {
   if (busy.value || !renameValue.value.trim()) return
@@ -800,7 +808,7 @@ async function rename() {
     if (renameKind.value === 'Workspace' && edited && (edited.defaultAgent || '') !== workspaceAgentID.value)
       state = await call('SetWorkspaceAgent', renameID.value, workspaceAgentID.value)
     apply(state)
-    closeModal()
+    if (modal.value !== 'settings') closeModal()
   } catch (e) {
     formError.value = String(e)
   } finally {
@@ -1940,7 +1948,169 @@ onBeforeUnmount(() => {
       @duplicated="selectDuplicatedTheme"
       @check-updates="checkForUpdates"
       @close="closeModal"
-    />
+      :workspaces="appState.workspaces"
+      :workspace-busy="busy"
+      :workspace-icons="workspaceIcons"
+      @workspace-settings="editWorkspaceSettings"
+      ><template #workspace
+        ><div
+          v-if="editedWorkspace"
+          class="settings-groups workspace-settings"
+          @keydown.meta.enter.capture.prevent.stop="rename"
+          @keydown.ctrl.enter.capture.prevent.stop="rename"
+        >
+          <section class="settings-group">
+            <h3 class="settings-group-title">Workspace</h3>
+            <div class="settings-card">
+              <div class="setting-row">
+                <label for="workspace-emoji">Emoji</label
+                ><span class="emoji-input"
+                  ><EmojiPicker id="workspace-emoji" :value="workspaceEmoji" @pick="workspaceEmoji = $event" /><button
+                    v-if="workspaceEmoji"
+                    class="icon-button"
+                    aria-label="Clear Emoji"
+                    title="Clear Emoji"
+                    @click="workspaceEmoji = ''"
+                  >
+                    <Icon name="xmark" :size="10" /></button
+                ></span>
+              </div>
+              <div class="setting-row">
+                <label for="workspace-name">Workspace Name</label
+                ><input
+                  id="workspace-name"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  v-model="renameValue"
+                  @keydown.enter.prevent="rename"
+                />
+              </div>
+              <div class="setting-row">
+                <label for="workspace-description">Description (optional)</label
+                ><textarea
+                  id="workspace-description"
+                  autocorrect="off"
+                  autocapitalize="off"
+                  v-model="workspaceDescription"
+                  class="description-field"
+                  rows="3"
+                  maxlength="500"
+                  placeholder="What this workspace is, or why it is here"
+                />
+              </div>
+            </div>
+          </section>
+          <section
+            v-if="editedWorkspace"
+            class="repository-settings settings-group"
+            aria-labelledby="repositories-heading"
+          >
+            <header>
+              <h3 id="repositories-heading" class="settings-group-title">Repositories</h3>
+              <button type="button" class="standard-button" :disabled="busy" @click="addRepository(editedWorkspace)">
+                <Icon name="plus" :size="12" />Add Repository…
+              </button>
+            </header>
+            <ul class="settings-card">
+              <li v-for="repo in repositories(editedWorkspace)" :key="repo.id">
+                <span class="repository-fields"
+                  ><strong class="truncate">{{ repo.name }}</strong
+                  ><small class="muted caption truncate" :title="repo.directory"
+                    >{{ repo.directory }}{{ repo.gitHub ? ' · ' + repo.gitHub : '' }}</small
+                  ><small
+                    v-if="repositories(editedWorkspace).length > 1 && repositorySessionCount(editedWorkspace, repo)"
+                    :id="'repository-sessions-' + repo.id"
+                    class="muted caption"
+                    >Close its {{ repositorySessionCount(editedWorkspace, repo) }}
+                    {{ repositorySessionCount(editedWorkspace, repo) === 1 ? 'session' : 'sessions' }} to remove
+                    it.</small
+                  ></span
+                ><button
+                  type="button"
+                  class="standard-button"
+                  :disabled="
+                    busy ||
+                    repositories(editedWorkspace).length < 2 ||
+                    repositorySessionCount(editedWorkspace, repo) > 0
+                  "
+                  :aria-label="'Remove ' + repo.name + ' from the workspace'"
+                  :aria-describedby="
+                    repositorySessionCount(editedWorkspace, repo) ? 'repository-sessions-' + repo.id : undefined
+                  "
+                  :title="
+                    repositories(editedWorkspace).length < 2
+                      ? 'A workspace needs at least one repository.'
+                      : 'Removes it from the workspace. The folder stays on disk.'
+                  "
+                  @click="removeRepository(editedWorkspace, repo)"
+                >
+                  Remove
+                </button>
+              </li>
+            </ul>
+          </section>
+          <section class="settings-group">
+            <h3 class="settings-group-title">New Sessions</h3>
+            <div class="settings-card">
+              <div class="setting-row session-profile">
+                <span>
+                  <label for="workspace-agent">Default Agent</label>
+                  <small id="workspace-agent-description" class="muted caption"
+                    >New sessions preselect this agent.</small
+                  >
+                </span>
+                <div class="theme-select general-select">
+                  <select
+                    id="workspace-agent"
+                    v-model="workspaceAgentID"
+                    aria-describedby="workspace-agent-description"
+                  >
+                    <option value="">
+                      Use Default ({{ agents.find((a) => a.id === preferences.defaultAgent)?.name }})
+                    </option>
+                    <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+              <div v-if="appState.profiles.length" class="setting-row session-profile">
+                <span>
+                  <label for="workspace-profile">Profile</label>
+                  <small id="workspace-profile-description" class="muted caption"
+                    >New sessions use these accounts.</small
+                  >
+                </span>
+                <div class="theme-select general-select">
+                  <select
+                    id="workspace-profile"
+                    v-model="workspaceProfileID"
+                    aria-describedby="workspace-profile-description"
+                  >
+                    <option value="">Default</option>
+                    <option v-for="profile in appState.profiles" :key="profile.id" :value="profile.id">
+                      {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
+                    </option></select
+                  ><Icon name="chevron.up.chevron.down" :size="10" />
+                </div>
+              </div>
+            </div>
+          </section>
+          <div>
+            <LinearIntegration
+              v-if="editedWorkspace"
+              :key="editedWorkspace.id"
+              :workspace="editedWorkspace"
+              @state="apply"
+            />
+          </div>
+          <p v-if="formError" class="error" role="alert">{{ formError }}</p>
+          <footer>
+            <button class="standard-button primary" :disabled="busy || !renameValue.trim()" @click="rename">
+              Save
+            </button>
+          </footer>
+        </div></template
+      ></Settings
+    >
     <Modal v-if="modal === 'command'" kind="command" label="Command Bar" @close="closeModal"
       ><CommandBar
         :initial-command="commandInitial"
@@ -2145,131 +2315,14 @@ onBeforeUnmount(() => {
       @close="closeModal"
       ><div class="rename-dialog">
         <h2>Edit {{ renameKind === 'Workspace' ? 'Workspace' : renameKind }}</h2>
-        <div v-if="renameKind === 'Workspace'" class="workspace-name-fields">
-          <div class="emoji-field">
-            <label for="workspace-emoji">Emoji</label
-            ><span class="emoji-input"
-              ><EmojiPicker id="workspace-emoji" :value="workspaceEmoji" @pick="workspaceEmoji = $event" /><button
-                v-if="workspaceEmoji"
-                type="button"
-                class="icon-button"
-                aria-label="Clear Emoji"
-                title="Clear Emoji"
-                @click="workspaceEmoji = ''"
-              >
-                <Icon name="xmark" :size="10" /></button
-            ></span>
-          </div>
-          <label class="name-field"
-            >Workspace Name<input
-              autocorrect="off"
-              autocapitalize="off"
-              v-model="renameValue"
-              @keydown.enter.prevent="rename"
-              autofocus
-              aria-label="Workspace Name"
-          /></label>
-        </div>
-        <label v-else
+        <label
           >{{ renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'
           }}<input
-            autocorrect="off"
-            autocapitalize="off"
             v-model="renameValue"
             @keydown.enter.prevent="rename"
             autofocus
-            :aria-label="renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'" /></label
-        ><label v-if="renameKind === 'Workspace'"
-          >Description (optional)<textarea
-            autocorrect="off"
-            autocapitalize="off"
-            v-model="workspaceDescription"
-            class="description-field"
-            rows="3"
-            maxlength="500"
-            placeholder="What this workspace is, or why it is here"
-            aria-label="Description (optional)"
-          />
-        </label>
-        <section v-if="editedWorkspace" class="repository-settings" aria-labelledby="repositories-heading">
-          <header>
-            <h3 id="repositories-heading">Repositories</h3>
-            <button type="button" class="standard-button" :disabled="busy" @click="addRepository(editedWorkspace)">
-              <Icon name="plus" :size="12" />Add Repository…
-            </button>
-          </header>
-          <ul>
-            <li v-for="repo in repositories(editedWorkspace)" :key="repo.id">
-              <span class="repository-fields"
-                ><strong class="truncate">{{ repo.name }}</strong
-                ><small class="muted caption truncate" :title="repo.directory"
-                  >{{ repo.directory }}{{ repo.gitHub ? ' · ' + repo.gitHub : '' }}</small
-                ><small
-                  v-if="repositories(editedWorkspace).length > 1 && repositorySessionCount(editedWorkspace, repo)"
-                  :id="'repository-sessions-' + repo.id"
-                  class="muted caption"
-                  >Close its {{ repositorySessionCount(editedWorkspace, repo) }}
-                  {{ repositorySessionCount(editedWorkspace, repo) === 1 ? 'session' : 'sessions' }} to remove
-                  it.</small
-                ></span
-              ><button
-                type="button"
-                class="standard-button"
-                :disabled="
-                  busy || repositories(editedWorkspace).length < 2 || repositorySessionCount(editedWorkspace, repo) > 0
-                "
-                :aria-label="'Remove ' + repo.name + ' from the workspace'"
-                :aria-describedby="
-                  repositorySessionCount(editedWorkspace, repo) ? 'repository-sessions-' + repo.id : undefined
-                "
-                :title="
-                  repositories(editedWorkspace).length < 2
-                    ? 'A workspace needs at least one repository.'
-                    : 'Removes it from the workspace. The folder stays on disk.'
-                "
-                @click="removeRepository(editedWorkspace, repo)"
-              >
-                Remove
-              </button>
-            </li>
-          </ul>
-        </section>
-        <div v-if="renameKind === 'Workspace'" class="setting-row session-profile">
-          <span>
-            <label for="workspace-agent">Default Agent</label>
-            <small id="workspace-agent-description" class="muted caption">New sessions preselect this agent.</small>
-          </span>
-          <div class="theme-select general-select">
-            <select id="workspace-agent" v-model="workspaceAgentID" aria-describedby="workspace-agent-description">
-              <option value="">Use Default ({{ agents.find((a) => a.id === preferences.defaultAgent)?.name }})</option>
-              <option v-for="agent in agents" :key="agent.id" :value="agent.id">{{ agent.name }}</option></select
-            ><Icon name="chevron.up.chevron.down" :size="10" />
-          </div>
-        </div>
-        <div v-if="renameKind === 'Workspace' && appState.profiles.length" class="setting-row session-profile">
-          <span>
-            <label for="workspace-profile">Profile</label>
-            <small id="workspace-profile-description" class="muted caption">New sessions use these accounts.</small>
-          </span>
-          <div class="theme-select general-select">
-            <select
-              id="workspace-profile"
-              v-model="workspaceProfileID"
-              aria-describedby="workspace-profile-description"
-            >
-              <option value="">Default</option>
-              <option v-for="profile in appState.profiles" :key="profile.id" :value="profile.id">
-                {{ profile.emoji ? profile.emoji + ' ' : '' }}{{ profile.name }}
-              </option></select
-            ><Icon name="chevron.up.chevron.down" :size="10" />
-          </div>
-        </div>
-        <LinearIntegration
-          v-if="editedWorkspace"
-          :key="editedWorkspace.id"
-          :workspace="editedWorkspace"
-          @state="apply"
-        />
+            :aria-label="renameKind === 'Scratchpad' ? 'Scratchpad Name' : 'Display Name'"
+        /></label>
         <p v-if="formError" class="error" role="alert">{{ formError }}</p>
         <footer>
           <button type="button" class="standard-button" @click="closeModal">Cancel</button

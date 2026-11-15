@@ -28,6 +28,9 @@ const props = defineProps({
   telemetryBusy: Boolean,
   profiles: Array,
   workspace: Object,
+  workspaces: Array,
+  workspaceBusy: Boolean,
+  workspaceIcons: Object,
   // The profile Usage shows first: the selected session's, or else the workspace's.
   usageProfileId: String,
   // The section to open with, and the id of a setting in it to focus.
@@ -53,7 +56,17 @@ const statusBarExamples = {
 }
 const builtInThemes = computed(() => themeOptions().filter((t) => !t.custom))
 const customThemes = computed(() => themeOptions().filter((t) => t.custom))
-const emit = defineEmits(['change', 'close', 'duplicated', 'consent', 'check-updates', 'state', 'login', 'resize'])
+const emit = defineEmits([
+  'change',
+  'close',
+  'duplicated',
+  'consent',
+  'check-updates',
+  'state',
+  'login',
+  'resize',
+  'workspace-settings',
+])
 const section = ref(props.initialSection || 'General')
 watch(
   () => props.initialSection,
@@ -72,6 +85,10 @@ const sections = {
   Usage: 'circle.dotted',
   Privacy: 'shield',
 }
+function openWorkspace(item) {
+  section.value = 'workspace:' + item.id
+  emit('workspace-settings', item)
+}
 const search = ref('')
 function escapeSearch(event) {
   if (!search.value) return
@@ -79,6 +96,10 @@ function escapeSearch(event) {
   search.value = ''
 }
 const sectionHeading = ref(null)
+watch(section, async () => {
+  await nextTick()
+  sectionHeading.value?.closest('.settings-main')?.scrollTo({ top: 0 })
+})
 const searchResults = computed(() => searchSettings(search.value))
 async function openSearchResult(item) {
   section.value = item.section
@@ -207,12 +228,34 @@ if (!mac)
         >
           <Icon :name="icon" :size="14" />{{ name }}
         </button>
+        <h3 class="settings-workspaces-title">Workspaces</h3>
+        <button
+          v-for="item in workspaces"
+          :key="item.id"
+          :class="{ selected: section === 'workspace:' + item.id }"
+          :aria-pressed="section === 'workspace:' + item.id"
+          :disabled="workspaceBusy"
+          @click="openWorkspace(item)"
+        >
+          <span v-if="item.emoji" aria-hidden="true">{{ item.emoji }}</span
+          ><img
+            v-else-if="workspaceIcons?.[item.id]"
+            class="workspace-icon"
+            :src="workspaceIcons[item.id]"
+            alt=""
+          /><Icon v-else name="folder" :size="14" /><span class="truncate">{{ item.name }}</span>
+        </button>
       </template>
     </nav>
     <div class="sidebar-resizer settings-resizer" @pointerdown.prevent="emit('resize', $event)" />
     <main class="settings-main">
       <div class="settings-content">
-        <h2 ref="sectionHeading" tabindex="-1">{{ section }}</h2>
+        <h2 ref="sectionHeading" tabindex="-1">
+          {{
+            section.startsWith('workspace:') ? workspaces?.find((w) => 'workspace:' + w.id === section)?.name : section
+          }}
+        </h2>
+        <slot v-if="section.startsWith('workspace:')" name="workspace" />
         <div v-if="section === 'General'" class="settings-groups general-settings">
           <section class="settings-group" aria-label="Startup">
             <h3 class="settings-group-title">Startup</h3>
@@ -1114,7 +1157,7 @@ if (!mac)
           @state="emit('state', $event)"
           @login="emit('login', $event)"
         />
-        <template v-else
+        <template v-else-if="section === 'Usage'"
           ><div class="settings-card general-settings usage-status-setting">
             <div class="setting-row">
               <div>

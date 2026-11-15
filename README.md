@@ -53,7 +53,8 @@ For the GitHub views, install the [GitHub CLI](https://cli.github.com/) and run
 ## Use
 
 1. Add a workspace from an existing folder. Add more repositories from the workspace's
-   **Add Repository…** menu item or in Edit Workspace.
+   **Add Repository…** menu item or in **Settings → Workspaces**. The workspace menu’s
+   **Edit Workspace…** opens its settings directly.
 2. Add a session, choose its repository and an agent. **Create a new worktree** is on by default and puts
    the session on a new branch under `~/.orchestra/worktrees/`.
 3. When you close the session, **Remove the worktree** deletes a clean checkout and

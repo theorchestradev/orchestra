@@ -1,6 +1,7 @@
 # Linear Work Items
 
-Open the workspace menu and choose **Edit Workspace → Linear** and connect Linear with a personal API key from
+Open **Settings**, select your workspace under **Workspaces**, and find its Linear settings.
+The workspace menu’s **Edit Workspace…** opens the same page directly. Connect Linear with a personal API key from
 Linear's **Settings → Security & access**. Grant read access to the teams you want
 to browse. This initial integration uses personal keys; OAuth is not implemented.
 Orchestra stores the key in macOS Keychain or the Linux desktop Secret Service
