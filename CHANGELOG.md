@@ -4,6 +4,22 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.30.1 — 2026-11-15
+
+### Changed
+
+- The Board adds a **Needs you** column for sessions waiting for your input, between
+  In progress and In review. A session waiting for input or with a working agent
+  stays out of In review even when its pull request is open; a merged or closed pull
+  request still moves it to Done.
+
+### Fixed
+
+- The Board follows the same content width as other pages unless Full Width Pages
+  is on.
+- With Translucent Window on, the Board and Settings now show the window's
+  translucency instead of an opaque background. Cards and dialogs stay opaque.
+
 ## 0.30.0 — 2026-11-15
 
 ### New
