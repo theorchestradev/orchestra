@@ -4,6 +4,22 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.27.1 — 2026-11-14
+
+### Changed
+
+- Configure Linear directly in Edit Workspace instead of the global Settings.
+  Each workspace now has its own connection, API key and sources. Existing sources
+  are preserved; reconnect Linear separately in each workspace after upgrading.
+
+### Fixed
+
+- Closing Settings with Escape no longer sends the key to the session behind it,
+  preventing an active agent from being interrupted. Escape still clears a Settings
+  search before closing the page.
+- Command-Return in Edit Workspace saves the workspace instead of submitting an
+  embedded Linear form.
+
 ## 0.27.0 — 2026-11-14
 
 ### New
