@@ -5,7 +5,7 @@ import { JSDOM } from 'jsdom'
 import { parse } from '@vue/compiler-sfc'
 import { compile } from '@vue/compiler-dom'
 
-test('Board places sessions by launch and pull request state, opens cards and keeps shells out', async () => {
+test('Board places sessions by activity and pull request state, opens cards and keeps shells out', async () => {
   const dom = new JSDOM('<div id="root"></div>')
   const globals = ['window', 'document', 'Element', 'HTMLElement', 'SVGElement']
   for (const key of globals) globalThis[key] = dom.window[key]
@@ -104,17 +104,26 @@ test('Board places sessions by launch and pull request state, opens cards and ke
     const column = (id) => dom.window.document.querySelector('#board-' + id).closest('section')
     const cardCount = (id) => column(id).querySelectorAll('.board-card').length
     assert.deepEqual(loaded, ['a', 'b', 'c'])
-    assert.deepEqual(['todo', 'progress', 'review', 'done'].map(cardCount), [1, 1, 1, 1])
+    assert.deepEqual(['todo', 'progress', 'needs', 'review', 'done'].map(cardCount), [1, 1, 1, 0, 1])
     assert.match(dom.window.document.body.textContent, /4 sessions/)
     assert.match(column('progress').textContent, /feat\/long/)
     assert.match(column('progress').textContent, /Codex · Agent working/)
-    assert.match(column('review').textContent, /feat\/waiting/)
+    assert.match(column('needs').textContent, /feat\/waiting/)
     assert.match(column('done').textContent, /Pi · Ready to restart/)
     pullRequests.set('a', { state: 'draft' })
     props.appearance = 'light'
     await Vue.nextTick()
-    assert.deepEqual(['progress', 'review'].map(cardCount), [0, 2])
-    const card = column('review').querySelector('.board-card')
+    assert.equal(cardCount('progress'), 1)
+    sessions[0].activity = 'waiting'
+    sessions[1].activity = 'working'
+    props.workspaces = [{ ...workspace }]
+    await Vue.nextTick()
+    assert.deepEqual(['progress', 'needs', 'review'].map(cardCount), [1, 1, 0])
+    sessions[1].running = false
+    props.workspaces = [{ ...workspace }]
+    await Vue.nextTick()
+    assert.deepEqual(['progress', 'needs', 'review'].map(cardCount), [0, 1, 1])
+    const card = column('needs').querySelector('.board-card')
     assert.match(card.querySelector('img').src, /CodexIcon.svg/)
     card.click()
     assert.equal(events[0][0], 'select')
@@ -124,7 +133,7 @@ test('Board places sessions by launch and pull request state, opens cards and ke
     workspace.sessions = []
     props.workspaces = [{ ...workspace }]
     await Vue.nextTick()
-    assert.equal(dom.window.document.querySelectorAll('.board-empty').length, 4)
+    assert.equal(dom.window.document.querySelectorAll('.board-empty').length, 5)
   } finally {
     app.unmount()
     dom.window.close()

@@ -232,15 +232,22 @@ hr {
 .app-shell.translucent .content {
   background: var(--canvas-translucent);
 }
-.app-shell.translucent :is(.sidebar, .diff-pane, .status-bar) {
+.app-shell.translucent :is(.sidebar, .diff-pane, .status-bar, .settings-rail) {
   background: var(--sidebar-translucent);
+}
+.app-shell.translucent .settings-main {
+  background: var(--canvas-translucent);
 }
 .app-shell.translucent .content-body {
   background: transparent;
 }
 /* Page canvases reveal the shared tint instead of covering native vibrancy. */
-.app-shell.translucent :is(.github-page, .github-detail, .automations-page, .scratchpad-read, .scratchpad textarea) {
+.app-shell.translucent
+  :is(.github-page, .github-detail, .automations-page, .agent-board, .scratchpad-read, .scratchpad textarea) {
   background: transparent;
+}
+.app-shell.translucent .board-column {
+  background: var(--sidebar-translucent);
 }
 .app-shell.translucent.rounded-viewport .content {
   background: transparent;
@@ -5417,6 +5424,12 @@ h2 {
 }
 .app-shell:not(.full-width-pages) .content-page.scratchpad > :is(textarea, .scratchpad-read) {
   padding: var(--page-top-space) var(--page-side-space) var(--page-bottom-space);
+}
+.app-shell:not(.full-width-pages) .content-page.agent-board > .board-header {
+  padding: var(--page-top-space) var(--page-side-space) 18px;
+}
+.app-shell:not(.full-width-pages) .content-page.agent-board > .board-columns {
+  padding: 0 var(--page-side-space) var(--page-bottom-space);
 }
 .app-shell:not(.full-width-pages) .content-page.scratchpad > .scratchpad-tools {
   right: var(--page-side-space);

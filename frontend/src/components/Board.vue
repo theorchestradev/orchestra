@@ -21,10 +21,14 @@ const cards = computed(() =>
       (workspace.sessions || []).filter((session) => !isTerminal(session)).map((session) => ({ workspace, session })),
     ),
 )
-// A session's pull request moves it to review and, once merged or closed, to done.
+// A merged or closed pull request finishes a session. Otherwise a session waiting for input comes first,
+// then a working agent, then an open pull request. Launched sessions without one stay in progress.
 function stage(session) {
   const state = pullRequests.get(session.id)?.state
   if (state === 'merged' || state === 'closed') return 'done'
+  const active = session.running && !session.restored
+  if (active && session.activity === 'waiting') return 'needs'
+  if (active && session.activity === 'working') return 'progress'
   if (state === 'open' || state === 'draft') return 'review'
   return !session.hasLaunched && !session.running ? 'todo' : 'progress'
 }
@@ -32,6 +36,7 @@ const columns = computed(() => {
   const groups = [
     { id: 'todo', name: 'To do', sessions: [] },
     { id: 'progress', name: 'In progress', sessions: [] },
+    { id: 'needs', name: 'Needs you', sessions: [] },
     { id: 'review', name: 'In review', sessions: [] },
     { id: 'done', name: 'Done', sessions: [] },
   ]
@@ -62,7 +67,7 @@ function status(session) {
 </script>
 
 <template>
-  <section class="agent-board" aria-labelledby="board-title">
+  <section class="agent-board content-page" aria-labelledby="board-title">
     <header class="board-header">
       <div>
         <h1 id="board-title">Board</h1>
@@ -169,7 +174,7 @@ function status(session) {
 }
 .board-columns {
   display: grid;
-  grid-template-columns: repeat(4, minmax(220px, 1fr));
+  grid-template-columns: repeat(5, minmax(170px, 1fr));
   align-items: stretch;
   gap: 12px;
   padding: 0 24px 24px;
@@ -208,6 +213,9 @@ function status(session) {
 }
 .board-column-dot.progress {
   background: var(--accent);
+}
+.board-column-dot.needs {
+  background: #32d74b;
 }
 .board-column-dot.review {
   background: var(--status-merged);
