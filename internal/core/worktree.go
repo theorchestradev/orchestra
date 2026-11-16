@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -9,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 )
 
 // repositoryName keeps worktree paths readable. Non-repositories fall back to the repository ID
@@ -25,9 +23,7 @@ func repositoryName(repo *Repository) string {
 // gitTopLevel returns the repository root. Git runs in the C locale so isNotGitRepository
 // can recognize its message whatever language the user's Git speaks.
 func gitTopLevel(directory string) (string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-	root, err := runCommandEnv(ctx, directory, "git", nil, map[string]string{"LC_ALL": "C"}, "rev-parse", "--show-toplevel")
+	root, err := runCommand(directory, "/usr/bin/env", "LC_ALL=C", "git", "rev-parse", "--show-toplevel")
 	return strings.TrimSpace(string(root)), err
 }
 

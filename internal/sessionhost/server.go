@@ -1,5 +1,3 @@
-//go:build !windows
-
 package sessionhost
 
 import (
@@ -21,9 +19,14 @@ import (
 	"github.com/creack/pty"
 )
 
-// Supported reports whether this platform can run the session host. Windows waits for a
-// ConPTY implementation, so sessions there always stop with the app.
-const Supported = true
+// Options tune when an unused host exits. Zero values use the defaults.
+type Options struct {
+	// Idle is how long the host waits without clients or running sessions before it exits.
+	Idle time.Duration
+	// Retain keeps a session that exited without a client for this long, so Orchestra can
+	// still show how it ended when it opens again.
+	Retain time.Duration
+}
 
 type server struct {
 	mu       sync.Mutex

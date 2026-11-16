@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -55,7 +56,7 @@ func readAgentUsage(parent context.Context, agent string, folders map[string]str
 		env[agentConfigEnv[agent]] = folder
 	}
 	home, _ := os.UserHomeDir()
-	searchPath := env["PATH"] + string(os.PathListSeparator) + filepath.Join(home, ".local", "bin") + extraToolPath
+	searchPath := env["PATH"] + ":" + filepath.Join(home, ".local", "bin") + ":/opt/homebrew/bin:/usr/local/bin"
 	var executable string
 	for _, directory := range filepath.SplitList(searchPath) {
 		if !filepath.IsAbs(directory) {
@@ -113,8 +114,8 @@ func readAgentUsage(parent context.Context, agent string, folders map[string]str
 }
 
 func queryUsage(cmd *exec.Cmd, agent string) (json.RawMessage, error) {
-	setProcessGroup(cmd)
-	cmd.Cancel = func() error { return killProcessGroup(cmd) }
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	input, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err
@@ -129,7 +130,7 @@ func queryUsage(cmd *exec.Cmd, agent string) (json.RawMessage, error) {
 		input.Close()
 		return nil, err
 	}
-	defer func() { input.Close(); _ = killProcessGroup(cmd); _ = cmd.Wait() }()
+	defer func() { input.Close(); _ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); _ = cmd.Wait() }()
 	send := func(value any) error { return json.NewEncoder(input).Encode(value) }
 	request := func(id int, method string, params any) error {
 		if agent == "codex" {

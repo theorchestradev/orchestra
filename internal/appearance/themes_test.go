@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 )
@@ -161,9 +160,8 @@ func TestDuplicateThemeWritesANewUserOnlyFolder(t *testing.T) {
 	if !strings.Contains(string(original), `"name": "Tokyo Night Copy"`) {
 		t.Fatalf("the first theme changed: %s", original)
 	}
-	// Windows has no POSIX permission bits; the profile folder's ACL keeps themes private there.
 	for _, path := range []string{dir, filepath.Join(dir, "tokyo-night-copy"), filepath.Join(dir, "tokyo-night-copy", ThemeFile)} {
-		if info, err := os.Stat(path); err != nil || runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
+		if info, err := os.Stat(path); err != nil || info.Mode().Perm()&0o077 != 0 {
 			t.Errorf("%s is not user-only: %v %v", path, info.Mode(), err)
 		}
 	}

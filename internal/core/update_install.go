@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 )
 
 // UpdateDownloader saves the named assets of a release into dir.
@@ -60,8 +61,8 @@ func installTarget(executable string) (string, string) {
 	if err != nil {
 		return "", err.Error()
 	}
-	// Replacing the app needs write access to its folder.
-	if !writableDirectory(filepath.Dir(target)) {
+	// 2 is W_OK: replacing the app needs write access to its folder.
+	if syscall.Access(filepath.Dir(target), 2) != nil {
 		return "", fmt.Sprintf("Orchestra cannot replace itself in %s. Download the new version and install it yourself.", filepath.Dir(target))
 	}
 	return target, ""

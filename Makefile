@@ -7,7 +7,6 @@ BUILD_BRANCH := $(shell git rev-parse --abbrev-ref HEAD 2>/dev/null)
 BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null)$(shell test -n "$$(git status --porcelain 2>/dev/null)" && echo -dirty)
 # Release builds pass the tag without its v prefix, e.g. make build VERSION=0.2.0.
 VERSION ?= dev
-OUTPUT := orchestra
 LDFLAGS := -X main.version=$(VERSION) -X main.buildWorktree=$(or $(BUILD_WORKTREE),dev) -X main.buildBranch=$(BUILD_BRANCH) -X main.buildCommit=$(or $(BUILD_COMMIT),unknown)
 # Only the official release workflow enables this; local builds ignore PostHog env vars.
 ifeq ($(RELEASE_TELEMETRY),1)
@@ -28,12 +27,6 @@ export DEVELOPER_DIR
 # Start from `go env` so the default -O2 -g flags are kept.
 export CGO_CFLAGS := $(strip $(shell go env CGO_CFLAGS) -mmacosx-version-min=$(MACOS_MIN_VERSION))
 export CGO_LDFLAGS := $(strip $(shell go env CGO_LDFLAGS) -mmacosx-version-min=$(MACOS_MIN_VERSION))
-else ifeq ($(OS),Windows_NT)
-# Windows builds need no tags: Wails uses the WebView2 runtime through go-webview2.
-# GNU make sets OS on Windows, whatever shell runs the recipe. Wails keeps an explicit
-# -o name as given, so the extension is added here.
-TAGS :=
-OUTPUT := orchestra.exe
 else
 # Linux builds against WebKitGTK 4.1 (libwebkit2gtk-4.1-dev), the version current
 # Ubuntu LTS releases ship.
@@ -43,7 +36,7 @@ endif
 .PHONY: build demo check-wails
 
 build: check-wails
-	$(WAILS) build -skipbindings $(TAGS) $(if $(PLATFORM),-platform $(PLATFORM)) -o $(OUTPUT) -ldflags "$(LDFLAGS)"
+	$(WAILS) build -skipbindings $(TAGS) $(if $(PLATFORM),-platform $(PLATFORM)) -o orchestra -ldflags "$(LDFLAGS)"
 ifeq ($(shell uname -s),Darwin)
 ifneq ($(VERSION),dev)
 # Wails writes productVersion from wails.json; the bundle takes the release version instead.
