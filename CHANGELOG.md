@@ -4,6 +4,24 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.31.0 — 2026-11-15
+
+### New
+
+- Edit a Linear issue's status, assignee and labels directly in Work Items. Statuses
+  follow the team's workflow, assignees come from active team members, and labels
+  include the team's and workspace's labels. Editing requires a Linear API key with
+  write access.
+
+### Changed
+
+- The Board always uses the full available width.
+- Settings keeps its comfortable reading width even when Full Width Pages is on.
+
+### Fixed
+
+- With Translucent Window on, the Changes pane uses the same tint as the sidebar.
+
 ## 0.30.1 — 2026-11-15
 
 ### Changed
