@@ -97,11 +97,13 @@ type WorkItem struct {
 	Can         ItemCapabilities `json:"can"`
 }
 
+// Body is a comment's Markdown source; BodyHTML is the provider's rendering of it, when it has one.
 type Comment struct {
 	ID        string  `json:"id"`
 	Author    *Person `json:"author,omitempty"`
 	CreatedAt string  `json:"createdAt"`
-	BodyHTML  string  `json:"bodyHTML"`
+	Body      string  `json:"body,omitempty"`
+	BodyHTML  string  `json:"bodyHTML,omitempty"`
 }
 
 type ReviewBranches struct {

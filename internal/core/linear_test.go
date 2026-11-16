@@ -169,8 +169,14 @@ func TestLinearMetadataOptionsAndUpdates(t *testing.T) {
 				t.Error(string(req.Variables["filter"]))
 			}
 			fmt.Fprint(w, `{"data":{"issueLabels":{"nodes":[{"id":"l","name":"Bug","color":"#ff0000"}],"pageInfo":{"hasNextPage":false}}}}`)
+		case strings.Contains(req.Query, "comments("):
+			if string(req.Variables["after"]) == "null" {
+				fmt.Fprint(w, `{"data":{"issue":{"comments":{"nodes":[{"id":"c2","body":"**Later**","createdAt":"2026-02-01T00:00:00Z"}],"pageInfo":{"hasNextPage":true,"endCursor":"next"}}}}}`)
+				return
+			}
+			fmt.Fprint(w, `{"data":{"issue":{"comments":{"nodes":[{"id":"c1","body":"First","createdAt":"2026-01-01T00:00:00Z","user":{"id":"a","name":"Ana"}}],"pageInfo":{"hasNextPage":false}}}}}`)
 		case strings.Contains(req.Query, "issue(id"):
-			fmt.Fprint(w, `{"data":{"issue":{"id":"`+issue+`","team":{"id":"team"}}}}`)
+			fmt.Fprint(w, `{"data":{"issue":{"id":"`+issue+`","identifier":"ENG-1","title":"Fix","description":"Body","team":{"id":"team"}}}}`)
 		case strings.Contains(req.Query, "issueUpdate"):
 			if forbidden {
 				fmt.Fprint(w, `{"errors":[{"message":"test-secret","extensions":{"code":"FORBIDDEN"}}]}`)
@@ -193,6 +199,13 @@ func TestLinearMetadataOptionsAndUpdates(t *testing.T) {
 		return LinearClient{Key: "test-secret", Endpoint: server.URL, HTTP: server.Client()}, nil
 	}
 	sourceID := state0.Workspaces[0].LinearSources[0].ID
+	detail, err := s.WorkItemDetail(p.ID, sourceID, issue)
+	if err != nil || !detail.Can.Comments || len(detail.Comments) != 2 || detail.Comments[0].ID != "c1" || detail.Comments[0].Author.Login != "Ana" || detail.Comments[1].Author != nil || detail.Comments[1].Body != "**Later**" {
+		t.Fatalf("%+v %v", detail, err)
+	}
+	if !strings.HasSuffix(detail.Prompt, "Body\n\nIssue comments (Markdown), oldest first:\n\nAna (2026-01-01T00:00:00Z):\nFirst\n\nDeleted user (2026-02-01T00:00:00Z):\n**Later**") {
+		t.Fatal(detail.Prompt)
+	}
 	states, err := s.WorkItemOptions(p.ID, sourceID, "state")
 	if got := fmt.Sprint(states); err != nil || got != "[{now Now started 2} {later Later started 2.5} {done Done completed 0}]" {
 		t.Fatal(got, err)

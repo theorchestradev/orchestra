@@ -265,8 +265,16 @@ type LinearIssue struct {
 	Labels   struct {
 		Nodes []LinearLabel `json:"nodes"`
 	} `json:"labels"`
-	Team    LinearChoice  `json:"team"`
-	Project *LinearChoice `json:"project"`
+	Team     LinearChoice    `json:"team"`
+	Project  *LinearChoice   `json:"project"`
+	Comments []LinearComment `json:"-"`
+}
+
+type LinearComment struct {
+	ID        string        `json:"id"`
+	Body      string        `json:"body"`
+	CreatedAt string        `json:"createdAt"`
+	User      *LinearPerson `json:"user"`
 }
 
 const linearIssueFields = `id identifier title url updatedAt createdAt state { name type } assignee { id name avatarUrl } creator { id name avatarUrl } labels { nodes { id name color } } team { id name } project { id name }`
@@ -325,6 +333,12 @@ func (c LinearClient) Detail(ctx context.Context, source LinearSource, id string
 	if result.Issue == nil || result.Issue.Team.ID != source.TeamID || (source.ProjectID != "" && (result.Issue.Project == nil || result.Issue.Project.ID != source.ProjectID)) {
 		return LinearIssue{}, errors.New("Linear issue is unavailable in this source.")
 	}
+	comments, err := linearAll[LinearComment](ctx, c, `query($id:String!, $after:String) { issue(id:$id) { comments(first:100, after:$after) { nodes { id body createdAt user { id name avatarUrl } } pageInfo { hasNextPage endCursor } } } }`, map[string]any{"id": id}, "issue", "comments")
+	if err != nil {
+		return LinearIssue{}, err
+	}
+	slices.SortStableFunc(comments, func(a, b LinearComment) int { return cmp.Compare(a.CreatedAt, b.CreatedAt) })
+	result.Issue.Comments = comments
 	return *result.Issue, nil
 }
 
@@ -457,22 +471,23 @@ func linearWorkItem(issue LinearIssue, source Source) WorkItem {
 		ID: issue.ID, Identifier: issue.Identifier, Title: issue.Title, URL: issue.URL,
 		State: state, Status: issue.State.Name, Assignees: []Person{}, Labels: []Label{},
 		CreatedAt: issue.CreatedAt, UpdatedAt: issue.UpdatedAt,
-		Can: ItemCapabilities{EditState: true, EditAssignees: true, EditLabels: true, ChooseRepository: true},
+		Can: ItemCapabilities{EditState: true, EditAssignees: true, EditLabels: true, Comments: true, ChooseRepository: true},
 	}
-	person := func(p *LinearPerson) *Person {
-		if p == nil {
-			return nil
-		}
-		return &Person{ID: p.ID, Login: p.Name, AvatarURL: p.AvatarURL}
-	}
-	item.Author = person(issue.Creator)
+	item.Author = linearPerson(issue.Creator)
 	if issue.Assignee != nil {
-		item.Assignees = append(item.Assignees, *person(issue.Assignee))
+		item.Assignees = append(item.Assignees, *linearPerson(issue.Assignee))
 	}
 	for _, label := range issue.Labels.Nodes {
 		item.Labels = append(item.Labels, linearLabel(label))
 	}
 	return item
+}
+
+func linearPerson(p *LinearPerson) *Person {
+	if p == nil {
+		return nil
+	}
+	return &Person{ID: p.ID, Login: p.Name, AvatarURL: p.AvatarURL}
 }
 
 func linearLabel(label LinearLabel) Label {
@@ -516,12 +531,26 @@ func (linearProvider) detail(s *Store, workspaceID string, source Source, id str
 	if err != nil {
 		return WorkItemDetail{}, err
 	}
-	return WorkItemDetail{
+	detail := WorkItemDetail{
 		WorkItem: linearWorkItem(issue, source),
 		Body:     issue.Description,
 		Comments: []Comment{},
 		Prompt:   fmt.Sprintf("Work on this Linear issue: %s\n%s: %s\n\nIssue description (Markdown):\n%s", issue.URL, issue.Identifier, issue.Title, issue.Description),
-	}, nil
+	}
+	// Agents cannot read Linear themselves, so the prompt carries the discussion too.
+	if len(issue.Comments) > 0 {
+		detail.Prompt += "\n\nIssue comments (Markdown), oldest first:"
+	}
+	for _, comment := range issue.Comments {
+		author := linearPerson(comment.User)
+		name := "Deleted user"
+		if author != nil {
+			name = author.Login
+		}
+		detail.Comments = append(detail.Comments, Comment{ID: comment.ID, Author: author, CreatedAt: comment.CreatedAt, Body: comment.Body})
+		detail.Prompt += fmt.Sprintf("\n\n%s (%s):\n%s", name, comment.CreatedAt, comment.Body)
+	}
+	return detail, nil
 }
 
 // Linear picks statuses, assignees and labels by id: options lists the team's, and update

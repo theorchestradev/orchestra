@@ -760,7 +760,10 @@ onMounted(() => load())
                 <Avatar :author="comment.author" /><strong>{{ comment.author?.login || 'Deleted user' }}</strong
                 ><time class="muted">{{ date(comment.createdAt) }}</time>
               </header>
-              <div class="markdown" v-html="sanitizeBody(comment.bodyHTML)" />
+              <div
+                class="markdown"
+                v-html="comment.bodyHTML ? sanitizeBody(comment.bodyHTML) : renderMarkdown(comment.body)"
+              />
             </article>
           </template>
         </section>
