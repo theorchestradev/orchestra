@@ -4,6 +4,20 @@ What's new in each Orchestra release. Download the latest from
 [GitHub Releases](https://github.com/theorchestradev/orchestra/releases/latest), or
 let Orchestra update itself when you ask it to.
 
+## 0.32.0 — 2026-11-16
+
+### New
+
+- Sort Work Items and Reviews by ID, title, assignees, status or last update. Choose a
+  column header to sort by it, and choose it again to reverse the order.
+- Linear issue details show every comment, and **Work on** includes them in the prompt
+  so the agent has the whole discussion.
+
+### Fixed
+
+- GitHub issues and pull requests with labels load again in Work Items instead of
+  showing "Invalid GitHub response."
+
 ## 0.31.0 — 2026-11-15
 
 ### New
