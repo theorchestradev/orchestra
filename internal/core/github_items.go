@@ -15,6 +15,12 @@ type ghUser struct {
 	Login     string `json:"login"`
 	AvatarURL string `json:"avatar_url"`
 }
+
+// ghLabel leaves out GitHub's numeric id; labels are edited by name.
+type ghLabel struct {
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
 type ghBranch struct {
 	Label string `json:"label"`
 	Ref   string `json:"ref"`
@@ -39,9 +45,9 @@ type ghItem struct {
 	PullRequest *struct {
 		MergedAt *string `json:"merged_at"`
 	} `json:"pull_request"`
-	User      *ghUser  `json:"user"`
-	Assignees []ghUser `json:"assignees"`
-	Labels    []Label  `json:"labels"`
+	User      *ghUser   `json:"user"`
+	Assignees []ghUser  `json:"assignees"`
+	Labels    []ghLabel `json:"labels"`
 	// Pull request details only.
 	Head                *ghBranch `json:"head"`
 	Base                *ghBranch `json:"base"`
@@ -105,8 +111,8 @@ func gitHubWorkItem(item ghItem, source Source) WorkItem {
 	for _, user := range item.Assignees {
 		result.Assignees = append(result.Assignees, *gitHubPerson(&user))
 	}
-	if item.Labels != nil {
-		result.Labels = item.Labels
+	for _, label := range item.Labels {
+		result.Labels = append(result.Labels, Label{Name: label.Name, Color: label.Color})
 	}
 	return result
 }
@@ -202,11 +208,11 @@ func (gitHubProvider) options(s *Store, workspaceID string, source Source, field
 	if field == "labels" {
 		labels := []Label{}
 		for _, data := range raw {
-			var label Label
+			var label ghLabel
 			if err = json.Unmarshal(data, &label); err != nil {
 				return nil, errors.New("Invalid GitHub response.")
 			}
-			labels = append(labels, label)
+			labels = append(labels, Label{Name: label.Name, Color: label.Color})
 		}
 		return labels, nil
 	}
