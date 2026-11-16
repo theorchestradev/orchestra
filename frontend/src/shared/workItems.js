@@ -31,6 +31,27 @@ export const matchesWorkItem = (item, { source = '', assignee = '', search = '' 
     item.identifier.toLowerCase().includes(search.toLowerCase()))
 export const workItemAssignees = (items) =>
   [...new Set(items.flatMap((item) => item.assignees?.map((a) => a.login) || []))].sort((a, b) => a.localeCompare(b))
+// Sorting for Work Items: each column compares as shown, and items without assignees sort last.
+const collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' })
+const sortKeys = {
+  id: (item) => item.identifier,
+  title: (item) => item.title,
+  assignees: (item) => item.assignees?.[0]?.login,
+  status: (item) => item.status,
+  updated: (item) => Date.parse(item.updatedAt) || 0,
+}
+// Updated starts newest first; the other columns start ascending.
+export const defaultSortDirection = (column) => (column === 'updated' ? 'desc' : 'asc')
+export const sortWorkItems = (items, { column = 'updated', direction = defaultSortDirection(column) } = {}) => {
+  const key = sortKeys[column] || sortKeys.updated
+  const order = direction === 'desc' ? -1 : 1
+  return [...items].sort((a, b) => {
+    const x = key(a),
+      y = key(b)
+    if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1
+    return order * (typeof x === 'number' ? x - y : collator.compare(x, y))
+  })
+}
 export const sessionsLabel = (sessions) =>
   sessions.length === 1 ? `1 session: ${sessions[0].name}` : `${sessions.length} sessions`
 // Work on / Review only makes sense while the item is open; merged pull requests are closed.

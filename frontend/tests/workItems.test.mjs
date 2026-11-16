@@ -17,6 +17,7 @@ import {
   providerIcon,
   providerName,
   sessionsLabel,
+  sortWorkItems,
   workItemAssignees,
 } from '../src/shared/workItems.js'
 import { renderMarkdown } from '../src/shared/markdown.js'
@@ -186,4 +187,37 @@ test('asks the agent to merge the base branch and push to the head', () => {
     "doesn't allow edits by maintainers, stop and explain",
   ])
     assert.ok(task.prompt.includes(part), part)
+})
+
+test('sortWorkItems sorts by each column and keeps unassigned items last', () => {
+  const items = [
+    { identifier: 'TECH-9', title: 'beta', status: 'Todo', updatedAt: '2026-01-02T00:00:00Z', assignees: [] },
+    {
+      identifier: 'TECH-10',
+      title: 'Alpha',
+      status: 'Backlog',
+      updatedAt: '2026-01-03T00:00:00Z',
+      assignees: [{ login: 'zoe' }],
+    },
+    {
+      identifier: 'TECH-2',
+      title: 'gamma',
+      status: 'In Progress',
+      updatedAt: '2026-01-01T00:00:00Z',
+      assignees: [{ login: 'amy' }],
+    },
+  ]
+  const ids = (sort) => sortWorkItems(items, sort).map((i) => i.identifier)
+  assert.deepEqual(ids(), ['TECH-10', 'TECH-9', 'TECH-2'])
+  assert.deepEqual(ids({ column: 'updated', direction: 'asc' }), ['TECH-2', 'TECH-9', 'TECH-10'])
+  assert.deepEqual(ids({ column: 'id' }), ['TECH-2', 'TECH-9', 'TECH-10'])
+  assert.deepEqual(ids({ column: 'id', direction: 'desc' }), ['TECH-10', 'TECH-9', 'TECH-2'])
+  assert.deepEqual(ids({ column: 'title' }), ['TECH-10', 'TECH-9', 'TECH-2'])
+  assert.deepEqual(ids({ column: 'status' }), ['TECH-10', 'TECH-2', 'TECH-9'])
+  assert.deepEqual(ids({ column: 'assignees' }), ['TECH-2', 'TECH-10', 'TECH-9'])
+  assert.deepEqual(ids({ column: 'assignees', direction: 'desc' }), ['TECH-10', 'TECH-2', 'TECH-9'])
+  assert.deepEqual(
+    items.map((i) => i.identifier),
+    ['TECH-9', 'TECH-10', 'TECH-2'],
+  )
 })

@@ -4,6 +4,7 @@ import { call, copy, openURL } from '../shared/api'
 import { relativeDate } from '../shared/appearance'
 import {
   canWorkOn,
+  defaultSortDirection,
   descriptionSource,
   isPermissionError,
   itemKey,
@@ -11,6 +12,7 @@ import {
   matchesWorkItem,
   providerIcon,
   providerName,
+  sortWorkItems,
   workItemAssignees,
 } from '../shared/workItems'
 import { workspaceSources } from '../shared/workspace'
@@ -46,6 +48,7 @@ const state = ref('open'),
   // The source and assignee filters; '' shows all, and '-' items without assignees.
   source = ref(''),
   assignee = ref(''),
+  sort = ref({ column: 'updated', direction: 'desc' }),
   items = ref([]),
   loading = ref(false),
   error = ref(''),
@@ -71,7 +74,30 @@ const sources = computed(() => workspaceSources(props.workspace, props.kind))
 const sourceKey = computed(() => sources.value.map((r) => JSON.stringify(r)).join(','))
 const sourceOf = (item) => sources.value.find((r) => r.id === item?.sourceID)
 const filters = computed(() => ({ source: source.value, assignee: assignee.value, search: search.value }))
-const visibleItems = computed(() => items.value.filter((item) => matchesWorkItem(item, filters.value)))
+const visibleItems = computed(() =>
+  sortWorkItems(
+    items.value.filter((item) => matchesWorkItem(item, filters.value)),
+    sort.value,
+  ),
+)
+const columns = [
+  { id: 'id', label: 'ID' },
+  { id: 'title', label: 'Title' },
+  { id: 'assignees', label: 'Assignees', wide: true },
+  { id: 'status', label: 'Status' },
+  { id: 'updated', label: 'Updated', wide: true },
+]
+// Choosing the sorted column again reverses it.
+function sortBy(column) {
+  sort.value =
+    sort.value.column === column
+      ? { column, direction: sort.value.direction === 'asc' ? 'desc' : 'asc' }
+      : { column, direction: defaultSortDirection(column) }
+}
+const sortLabel = (column) =>
+  sort.value.column === column.id
+    ? `${column.label}, sorted ${sort.value.direction === 'asc' ? 'ascending' : 'descending'}`
+    : `Sort by ${column.label}`
 const countAvailable = ref(false)
 watch(
   () => [countAvailable.value, loading.value, visibleItems.value.length],
@@ -114,9 +140,7 @@ async function load(background = false) {
   const failed = results.flatMap((r, i) =>
     r.status === 'rejected' ? [{ name: listed[i].name, message: String(r.reason) }] : [],
   )
-  // Newest activity first, across sources.
-  if (loaded.length || !failed.length)
-    items.value = loaded.flat().sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt))
+  if (loaded.length || !failed.length) items.value = loaded.flat()
   sourceErrors.value = loaded.length ? failed : []
   if (!loaded.length && failed.length)
     error.value = failed.map((f) => (listed.length > 1 ? f.name + ': ' : '') + f.message).join('\n')
@@ -436,8 +460,23 @@ onMounted(() => load())
       :class="{ 'has-named-items': items.some((i) => !i.number) }"
     >
       <div class="github-table-head">
-        <span>ID</span><span>TITLE</span><span class="wide-column"><span class="visually-hidden">Sessions</span></span
-        ><span class="wide-column">ASSIGNEES</span><span>STATUS</span><span class="wide-column">UPDATED</span>
+        <template v-for="column in columns" :key="column.id"
+          ><span v-if="column.id === 'assignees'" class="wide-column"
+            ><span class="visually-hidden">Sessions</span></span
+          ><button
+            class="sort-header"
+            :class="{
+              'wide-column': column.wide,
+              sorted: sort.column === column.id,
+              ascending: sort.direction === 'asc',
+            }"
+            :aria-label="sortLabel(column)"
+            :title="sortLabel(column)"
+            @click="sortBy(column.id)"
+          >
+            <span class="truncate">{{ column.label.toUpperCase() }}</span
+            ><Icon name="chevron.down" :size="8" /></button
+        ></template>
       </div>
       <div class="github-rows">
         <div

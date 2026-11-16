@@ -1882,6 +1882,34 @@ input::placeholder {
   font-weight: 600;
   border-bottom: 1px solid var(--rule);
 }
+.sort-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.sort-header:hover,
+.sort-header.sorted {
+  color: var(--text);
+}
+.sort-header .symbol {
+  flex: none;
+  visibility: hidden;
+}
+.sort-header.sorted .symbol {
+  visibility: visible;
+}
+.sort-header.sorted.ascending .symbol {
+  transform: rotate(180deg);
+}
 .github-rows {
   overflow: auto;
   flex: 1;
