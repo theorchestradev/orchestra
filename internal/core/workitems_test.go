@@ -83,7 +83,7 @@ func TestGitHubItemsAreNormalized(t *testing.T) {
 	p := workspaceFixture(t, s)
 	respond := gitHubFixture(t, s, p)
 	repo := p.Repositories[0].ID
-	respond(`[[{"number":1,"title":"Bug","html_url":"https://github.com/fixture/repository/issues/1","state":"closed","state_reason":"not_planned","user":{"login":"a","avatar_url":"https://avatars/a"},"assignees":[{"login":"b"}],"labels":[{"name":"bug","color":"ff0000"}],"updated_at":"2026-01-01T00:00:00Z"},{"number":2,"title":"Change","html_url":"https://github.com/fixture/repository/pull/2","state":"closed","pull_request":{"merged_at":"2026-01-01T00:00:00Z"}}]]`)
+	respond(`[[{"number":1,"title":"Bug","html_url":"https://github.com/fixture/repository/issues/1","state":"closed","state_reason":"not_planned","user":{"login":"a","avatar_url":"https://avatars/a"},"assignees":[{"login":"b"}],"labels":[{"id":208045946,"name":"bug","color":"ff0000"}],"updated_at":"2026-01-01T00:00:00Z"},{"number":2,"title":"Change","html_url":"https://github.com/fixture/repository/pull/2","state":"closed","pull_request":{"merged_at":"2026-01-01T00:00:00Z"}}]]`)
 	issues, err := s.WorkItems(p.ID, "github:issues:"+repo, "all")
 	if err != nil || len(issues) != 1 {
 		t.Fatalf("issues: %+v, %v", issues, err)
