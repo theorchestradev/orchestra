@@ -1,8 +1,6 @@
 # Working on Orchestra
 
-Orchestra is a macOS and Linux app built with Vue 3, Wails 2, Go and xterm.js. It also
-compiles for Windows, where sessions and other features are still unavailable; see
-`docs/windows.md` before touching platform code.
+Orchestra is a macOS and Linux app built with Vue 3, Wails 2, Go and xterm.js.
 
 ## UI and themes
 
@@ -49,11 +47,7 @@ compiles for Windows, where sessions and other features are still unavailable; s
   info to Wails. When required, set
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` for native compilation.
   On Linux it builds with `-tags webkit2_41`; keep platform code behind build tags or
-  `_darwin`/`_other`/`_unix`/`_windows` files so `.github/workflows/linux.yml` and
-  `.github/workflows/windows.yml` keep passing. `_other` files mean every platform but
-  macOS and Windows; Windows-only behavior lives in `_windows` files, and the helpers in
-  `internal/core/platform_unix.go` and `platform_windows.go` cover locks, process groups,
-  the login shell and PATH.
+  `_darwin`/`_other` files so `.github/workflows/linux.yml` keeps passing.
 - Releases come from `.github/workflows/release.yml`. Keep the release asset names, the
   `SHA256SUMS` format and the bundle identifier `dev.theorchestra.Orchestra` stable:
   the in-app updater, the website and macOS permissions depend on them.

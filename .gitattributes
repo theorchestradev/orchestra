@@ -1,3 +1,0 @@
-# Checkouts keep LF everywhere: Prettier, the frontend tests that read source files and
-# scripts/TelemetryDocs.mjs compare against LF, and Windows Git would otherwise write CRLF.
-* text=auto eol=lf

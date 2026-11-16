@@ -1,5 +1,9 @@
 package core
 
+import (
+	"syscall"
+)
+
 // keepAwakeCommand returns a process that keeps the computer from sleeping while it runs
 // and exits on its own if Orchestra does. Tests replace it.
 var keepAwakeCommand = systemKeepAwakeCommand
@@ -22,7 +26,7 @@ func (s *Store) updateKeepAwakeLocked() {
 		return
 	}
 	cmd := keepAwakeCommand()
-	setProcessGroup(cmd)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	if err := cmd.Start(); err != nil {
 		s.log.Warn("keep awake failed", "error", err)
 		s.keepAwakeUnavailable = true
@@ -36,6 +40,6 @@ func (s *Store) stopKeepAwakeLocked() {
 	if s.keepAwake == nil {
 		return
 	}
-	_ = killProcessGroup(s.keepAwake)
+	_ = syscall.Kill(-s.keepAwake.Process.Pid, syscall.SIGKILL)
 	s.keepAwake = nil
 }

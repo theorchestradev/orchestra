@@ -17,7 +17,7 @@ import AgentSkill from './AgentSkill.vue'
 import Profiles from './Profiles.vue'
 import { call, openURL } from '../shared/api'
 import { privacyURL } from '../shared/telemetry'
-import { mac, shortcutLabel, windows } from '../shared/platform'
+import { mac, shortcutLabel } from '../shared/platform'
 import { shortcuts, shortcutKeys } from '../shared/shortcuts'
 const props = defineProps({
   preferences: Object,
@@ -333,7 +333,7 @@ if (!mac)
                   <p class="muted caption">
                     Sessions started while this is on keep running in the background when you quit Orchestra and
                     reconnect when you open it again. While Orchestra is closed, Inbox requests are not delivered and
-                    the orchestra CLI is unavailable.<template v-if="windows"> Not available on Windows yet.</template>
+                    the orchestra CLI is unavailable.
                   </p>
                 </div>
                 <button
@@ -342,7 +342,6 @@ if (!mac)
                   :class="{ on: preferences.keepSessionsRunning }"
                   role="switch"
                   :aria-checked="!!preferences.keepSessionsRunning"
-                  :disabled="windows"
                   aria-label="Keep Sessions Running After Quitting"
                   @click="choose('keepSessionsRunning', !preferences.keepSessionsRunning)"
                 >

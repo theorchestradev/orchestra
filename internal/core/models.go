@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -109,14 +110,10 @@ func agentModelsForProfile(ctx context.Context, agent string, profile *Profile) 
 	for _, variable := range slices.Sorted(maps.Keys(folders)) {
 		script += "export " + variable + "=" + shellQuote(folders[variable]) + "; "
 	}
-	argv, err := loginShellArgs(script + "exec " + strings.Join(quotedModelCommand(spec.Model.Command), " ") + " </dev/null")
-	if err != nil {
-		return nil, err
-	}
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd := exec.CommandContext(ctx, loginShell(), "-l", "-i", "-c", script+"exec "+strings.Join(quotedModelCommand(spec.Model.Command), " ")+" </dev/null")
 	cmd.Dir = directory
-	setProcessGroup(cmd)
-	cmd.Cancel = func() error { return killProcessGroup(cmd) }
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	output, err := cmd.Output()
 	if ctx.Err() != nil {
 		return nil, errors.New("Listing models timed out.")

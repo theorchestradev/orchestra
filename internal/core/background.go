@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,17 +39,14 @@ func (s *Store) openBackgroundLocked() (map[string]sessionhost.Info, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err = lockFile(lock); err != nil {
+	if err = syscall.Flock(int(lock.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
 		lock.Close()
-		if errors.Is(err, errLocked) {
+		if errors.Is(err, syscall.EWOULDBLOCK) {
 			return nil, errors.New("Another Orchestra is open with this workspace.")
 		}
 		return nil, err
 	}
-	s.appLock, s.runtimeDir = lock, run
-	if sessionhost.Supported {
-		s.hostDir = filepath.Join(dir, "host")
-	}
+	s.appLock, s.runtimeDir, s.hostDir = lock, run, filepath.Join(dir, "host")
 	live := map[string]sessionhost.Info{}
 	// listed is true when Store knows every session the host runs, or that none runs.
 	listed := false

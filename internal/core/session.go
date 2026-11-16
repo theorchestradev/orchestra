@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"maps"
 	"os"
-	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
@@ -46,18 +45,6 @@ func sessionKindName(agent string) (string, bool) {
 	return "", false
 }
 func loginShell() string {
-	if runtime.GOOS == "windows" {
-		// SHELL on Windows usually names an MSYS or WSL path that the app cannot run.
-		for _, shell := range []string{"pwsh.exe", "powershell.exe"} {
-			if path, err := exec.LookPath(shell); err == nil {
-				return path
-			}
-		}
-		if comspec := os.Getenv("COMSPEC"); comspec != "" {
-			return comspec
-		}
-		return "cmd.exe"
-	}
 	if shell := os.Getenv("SHELL"); shell != "" {
 		return shell
 	}
@@ -228,6 +215,7 @@ func (s *Store) startSessionLocked(id string, newConversation bool, cols, rows i
 	for key, value := range folders {
 		env[key] = value
 	}
+	shell := loginShell()
 	env["TERM"] = "xterm-256color"
 	env["COLORTERM"] = "truecolor"
 	if env["LANG"] == "" {
@@ -275,10 +263,6 @@ func (s *Store) startSessionLocked(id string, newConversation bool, cols, rows i
 		setup += "export " + k + "=" + shellQuote(folders[k]) + "; "
 	}
 	setup += "cd -- " + shellQuote(directory) + " && exec /usr/bin/env " + command
-	argv, err := loginShellArgs(setup)
-	if err != nil {
-		return TerminalOutput{}, err
-	}
 	if cols < 2 || cols > 1000 {
 		cols = 100
 	}
@@ -286,7 +270,7 @@ func (s *Store) startSessionLocked(id string, newConversation bool, cols, rows i
 		rows = 32
 	}
 	t.resumed = sess.Agent != terminalAgent && sess.HasLaunched && sess.AgentSessionID != ""
-	if err = s.startProcessLocked(sess, t, argv, directory, environmentList(env), cols, rows); err != nil {
+	if err = s.startProcessLocked(sess, t, []string{shell, "-l", "-i", "-c", setup}, directory, environmentList(env), cols, rows); err != nil {
 		t.log.Warn("session start failed", "agent", sess.Agent, "error", err)
 		return TerminalOutput{}, err
 	}
