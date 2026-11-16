@@ -23,6 +23,8 @@ var (
 	ErrClosed = errors.New("The session host connection was closed.")
 	// ErrRunning means the host already runs a session with that ID.
 	ErrRunning = errors.New("Session is already running.")
+	// ErrUnsupported means this platform cannot run the host; see Supported.
+	ErrUnsupported = errors.New("Keep Sessions Running After Quitting is not available on Windows yet.")
 )
 
 // IncompatibleError reports a host that speaks another protocol, usually one started
@@ -54,6 +56,9 @@ type Client struct {
 
 // Connect reaches the host serving dir; it returns ErrNotRunning when there is none.
 func Connect(dir string) (*Client, error) {
+	if !Supported {
+		return nil, ErrNotRunning
+	}
 	conn, err := net.DialTimeout("unix", SocketPath(dir), 2*time.Second)
 	if err != nil {
 		return nil, ErrNotRunning

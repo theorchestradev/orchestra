@@ -74,10 +74,18 @@ func runCommandInput(directory, command string, input []byte, args ...string) ([
 // runCommandContext runs a command until ctx ends, for work such as downloads that can
 // take longer than the usual timeout.
 func runCommandContext(ctx context.Context, directory, command string, input []byte, args ...string) ([]byte, error) {
+	return runCommandEnv(ctx, directory, command, input, nil, args...)
+}
+
+// runCommandEnv also sets extra environment variables for the command.
+func runCommandEnv(ctx context.Context, directory, command string, input []byte, extra map[string]string, args ...string) ([]byte, error) {
 	env := environmentMap()
 	env["GH_PROMPT_DISABLED"] = "1"
 	env["GIT_TERMINAL_PROMPT"] = "0"
-	env["PATH"] += ":/opt/homebrew/bin:/usr/local/bin"
+	env["PATH"] += extraToolPath
+	for k, v := range extra {
+		env[k] = v
+	}
 	var cmd *exec.Cmd
 	if command == "gh" {
 		var err error
@@ -90,6 +98,7 @@ func runCommandContext(ctx context.Context, directory, command string, input []b
 	}
 	cmd.Dir = directory
 	cmd.Env = environmentList(env)
+	hideConsole(cmd)
 	if input != nil {
 		cmd.Stdin = bytes.NewReader(input)
 	}

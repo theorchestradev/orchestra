@@ -47,6 +47,10 @@ Download the latest release:
   (`libgtk-3-0 libwebkit2gtk-4.1-0` on Ubuntu 22.04 or later).
   The optional attention sound also needs GStreamer's good plugins (`gstreamer1.0-plugins-good`).
 
+- **Windows:** not released yet. The code compiles and builds on Windows, but terminal
+  sessions, background sessions, secure key storage and automatic updates are still
+  unavailable there. [Windows support](docs/windows.md) lists the current status.
+
 Orchestra updates itself from GitHub Releases when you ask it to.
 
 Install the CLI of each agent you want to use and make sure it is on your shell's `PATH`.

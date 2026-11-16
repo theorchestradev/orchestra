@@ -72,7 +72,7 @@ var knownApps = []known{
 	{id: "github-desktop", name: "GitHub Desktop", kind: Git, bundleIDs: []string{"com.github.GitHubClient"}},
 	{id: "sublime-merge", name: "Sublime Merge", kind: Git, bundleIDs: []string{"com.sublimemerge"}, executables: []string{"smerge"}},
 	{id: "sourcetree", name: "Sourcetree", kind: Git, bundleIDs: []string{"com.torusknot.SourceTreeNotMAS"}},
-	{id: FileManager, name: fileManagerName, kind: Files, bundleIDs: []string{"com.apple.finder"}, executables: []string{"xdg-open"}},
+	{id: FileManager, name: fileManagerName, kind: Files, bundleIDs: []string{"com.apple.finder"}, executables: []string{"xdg-open", "explorer"}},
 }
 
 // arguments are what an executable receives to open folder.

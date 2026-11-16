@@ -1,0 +1,38 @@
+# Windows builds compile the app and CLI and run the checks that need no POSIX shell.
+# Sessions do not run on Windows yet, so most internal/core tests are !windows; see docs/windows.md.
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm --prefix frontend ci
+      - run: npm --prefix frontend test
+      - run: npm --prefix frontend run build
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Build the CLI
+        run: go build -o build/bin/orchestra-cli.exe ./cmd/orchestra
+      - name: Build the app
+        run: |
+          choco install make --no-progress
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.16.0
+          make build
+          test -f build/bin/orchestra.exe
