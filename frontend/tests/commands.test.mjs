@@ -128,6 +128,31 @@ test('command search matches every word across name and detail', () => {
   assert.deepEqual(filterCommands(items, 'missing'), [])
 })
 
+test('go to finds renamed sessions by their linked work item identifier', () => {
+  const workspace = {
+    ...workspaces[0],
+    sessions: [
+      workspaces[0].sessions[0],
+      { id: 'linear', name: 'Review login', agent: 'codex', workItem: { provider: 'linear', identifier: 'ENG-123' } },
+      { id: 'github', name: 'Review login', agent: 'codex', workItem: { provider: 'github', identifier: '#42' } },
+    ],
+  }
+  const goTo = commandItems({ workspaces: [workspace], workspace }).find((item) => item.id === 'goto')
+
+  for (const [query, destination, identifier] of [
+    ['eng-123 review', 'linear', 'ENG-123'],
+    ['#42 review', 'github', '#42'],
+  ]) {
+    const matches = filterCommands(goTo.children, query)
+    assert.deepEqual(
+      matches.map((item) => item.destination),
+      [destination],
+    )
+    assert.ok(matches[0].detail.includes(identifier))
+  }
+  assert.equal(filterCommands(goTo.children, 'claude feature')[0].detail, 'Orchestra · feature')
+})
+
 test('plain terminals are not offered as agents and show the terminal symbol', () => {
   const session = commandItems({ workspaces, workspace: workspaces[1], preferences: { defaultAgent: 'claude' } }).find(
     (c) => c.id === 'session',

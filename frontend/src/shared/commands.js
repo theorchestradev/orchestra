@@ -167,7 +167,12 @@ export function destinations(workspaces = []) {
       ...p.sessions.map((s) => ({
         id: s.id,
         name: s.name,
-        detail: [workspaceTitle(p), p.repositories?.length > 1 && sessionRepository(p, s)?.name, s.worktreeBranch]
+        detail: [
+          s.workItem?.identifier,
+          workspaceTitle(p),
+          p.repositories?.length > 1 && sessionRepository(p, s)?.name,
+          s.worktreeBranch,
+        ]
           .filter(Boolean)
           .join(' · '),
         ...(isTerminal(s) ? { icon: 'terminal' } : { agent: s.agent }),
